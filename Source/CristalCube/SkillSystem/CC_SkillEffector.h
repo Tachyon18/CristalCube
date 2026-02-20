@@ -77,4 +77,26 @@ public:
 	void ApplyDamageToActor(AActor* TargetActor);
 
 	void SetupAsProjectile();
+
+protected:
+
+	//==========================================================================
+	// PENETRATE LOGIC
+	//==========================================================================
+
+	UPROPERTY(BlueprintReadOnly, Category = "Skill Effector|Penetrate")
+	bool bCanPenetrate = false;
+
+	/** Maximum number of pierce */
+	UPROPERTY(BlueprintReadOnly, Category = "Skill Effector|Penetrate")
+	int32 MaxPenetrateCount = 0;
+
+	/** Current pierce count */
+	UPROPERTY(BlueprintReadOnly, Category = "Skill Effector|Penetrate")
+	int32 CurrentPenetrateCount = 0;
+
+	/** Actors that have been hit (to prevent duplicate hits) */
+	UPROPERTY()
+	TArray<AActor*> HitActors;
+
 };

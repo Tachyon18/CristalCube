@@ -107,6 +107,13 @@ void ACC_SkillEffector::Initialize(ESkillCoreType InCoreType, const FSkillDefini
 	SkillCoreType = InCoreType;
 	SkillDef = InSkillDef;
 	
+	if (SkillDef.Addons.Contains(ESkillAddonType::Penetrate))
+	{
+		bCanPenetrate = true;
+		MaxPenetrateCount = SkillDef.Passives.PierceCount;
+		CurrentPenetrateCount = 0;
+	}
+
 	switch (SkillCoreType)
 	{
 		case ESkillCoreType::Projectile:
@@ -133,12 +140,36 @@ void ACC_SkillEffector::OnOverlapBegin(UPrimitiveComponent* OverlappedComp, AAct
 		return;
 	}
 
+	if (HitActors.Contains(OtherActor))
+	{
+		return;
+	}
+
+	HitActors.Add(OtherActor);
+
 	UE_LOG(LogTemp, Warning, TEXT("[SkillEffector] Hit: %s"), *OtherActor->GetName());
 
 	ApplyDamageToActor(OtherActor);
 
 	FVector HitLocation = SweepResult.ImpactPoint.IsZero() ?
 		OtherActor->GetActorLocation() : FVector(SweepResult.ImpactPoint);
+
+
+	if (bCanPenetrate)
+	{
+		CurrentPenetrateCount++;
+		
+		if (CurrentPenetrateCount >= MaxPenetrateCount)
+		{
+			UE_LOG(LogTemp, Log, TEXT("[SkillEffector] Penetrate limit reached (%d/%d), destroying."), CurrentPenetrateCount, MaxPenetrateCount);
+			Destroy();
+		}
+	}
+	else
+	{
+		Destroy();
+	}
+
 	//PlayHitEffects(HitLocation);
 
 	//if (SkillSystem)
@@ -193,4 +224,3 @@ void ACC_SkillEffector::SetupAsProjectile()
 
 	CC_LOG_SKILL(Log, "[SkillEffector] Setup as Projectile");
 }
-

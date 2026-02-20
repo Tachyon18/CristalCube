@@ -182,6 +182,7 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Skill System|Debug")
 	float DebugDrawDuration = 2.0f;
 
+
 	//==========================================================================
 	// RUNTIME DATA
 	//==========================================================================

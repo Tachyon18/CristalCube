@@ -159,6 +159,75 @@ enum class ESkillAddonType : uint8
 };
 
 //------------------------------------------------------------------------------
+// Addon-specific Data Structs (Week 9 - Phase 3.5)
+// 각 Addon의 수치를 독립된 구조체로 관리. 하드코딩 제거 목적.
+//------------------------------------------------------------------------------
+
+USTRUCT(BlueprintType)
+struct FExplosionAddonData
+{
+    GENERATED_BODY()
+
+    // 폭발 반경
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|Explosion")
+    float Radius = 300.0f;
+
+    // 외곽 최소 데미지 비율 (중심 100%, 외곽 MinRatio% / 이후 추가 작업) 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|Explosion",
+        meta = (ClampMin = "0.0", ClampMax = "1.0"))
+    float MinDamageRatio = 0.5f;
+};
+
+USTRUCT(BlueprintType)
+struct FChainAddonData
+{
+    GENERATED_BODY()
+
+    // 최대 연쇄 횟수
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|Chain")
+    int32 ChainCount = 3;
+
+    // 연쇄당 데미지 감쇠율 (0.8 = 80% 유지)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|Chain",
+        meta = (ClampMin = "0.0", ClampMax = "1.0"))
+    float DamageDecay = 0.8f;
+
+    // 다음 타겟 탐색 반경
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|Chain")
+    float SearchRadius = 600.0f;
+};
+
+USTRUCT(BlueprintType)
+struct FPenetrateAddonData
+{
+    GENERATED_BODY()
+
+    // 최대 관통 횟수
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Penetrate")
+    int32 PierceCount = 3;          // 최대 관통 수
+
+    // true: 관통 시 CurrentDamage 유지, false: 매번 BaseDamage 고정 (이후 추가 작업)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|Penetrate")
+    bool bInheritDamage = true;
+};
+
+USTRUCT(BlueprintType)
+struct FMultiShotAddonData
+{
+    GENERATED_BODY()
+
+    // 추가 발사체 수 (총 발사 수 = ProjectileCount + AdditionalCount)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|MultiShot",
+        meta = (ClampMin = "1"))
+    int32 AdditionalCount = 2;
+
+    // 전체 확산 각도
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|MultiShot",
+        meta = (ClampMin = "0.0", ClampMax = "180.0"))
+    float SpreadAngle = 60.0f;
+};
+
+//------------------------------------------------------------------------------
 // Element Types - 원소 속성
 //------------------------------------------------------------------------------
 UENUM(BlueprintType)
@@ -190,15 +259,21 @@ struct FSkillPassiveProperties
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Passive|Multipliers")
     float SpeedMultiplier = 1.0f;
 
-    // 가산 (덧셈)
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Passive|Counts")
-    int32 PierceCount = 0;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Passive|Counts")
-    int32 ChainCount = 0;
-
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Passive|Counts")
     int32 ProjectileCount = 1;
+
+    // Addon별 상세 데이터 (해당 Addon 미사용 시에도 기본값 유지)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Passive|Addon Data")
+    FPenetrateAddonData PierceData;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Passive|Addon Data")
+    FChainAddonData ChainData;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Passive|Addon Data")
+    FExplosionAddonData ExplosionData;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Passive|Addon Data")
+    FMultiShotAddonData MultiShotData;
 };
 
 //------------------------------------------------------------------------------
@@ -343,6 +418,53 @@ struct FElementColorData
 
 
 /// </Skill System>
+
+//==============================================================================
+// CUBE CLEAR REWARD SYSTEM
+//==============================================================================
+
+UENUM(BlueprintType)
+enum class ECubeClearRewardType : uint8
+{
+    WeaponUpgrade   UMETA(DisplayName = "Weapon Upgrade"),   // 무기 강화
+    SkillGrant      UMETA(DisplayName = "Skill Grant"),      // 스킬 획득
+    StatBoost       UMETA(DisplayName = "Stat Boost"),       // 스탯 부스트 (영구)
+    HealFull        UMETA(DisplayName = "Full Heal"),        // 체력 완전 회복
+};
+
+USTRUCT(BlueprintType)
+struct FCubeClearReward
+{
+    GENERATED_BODY()
+
+    /** 보상 종류 */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Reward")
+    ECubeClearRewardType RewardType = ECubeClearRewardType::WeaponUpgrade;
+
+    /** UI 표시 이름 */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Reward")
+    FText DisplayName;
+
+    /** UI 표시 설명 */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Reward")
+    FText Description;
+
+    /** 아이콘 */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Reward")
+    UTexture2D* Icon = nullptr;
+
+    /** StatBoost 용 — 강화 타입 */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Reward|Stat")
+    EUpgradeType StatUpgradeType = EUpgradeType::None;
+
+    /** StatBoost 용 — 강화 수치 */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Reward|Stat")
+    float StatValue = 0.0f;
+
+    /** WeaponUpgrade / SkillGrant 용 — DataTable 행 이름 */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Reward|Data")
+    FName DataRowName = NAME_None;
+};
 
 // Bast Weapon Data
 USTRUCT(BlueprintType)

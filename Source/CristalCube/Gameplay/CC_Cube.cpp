@@ -16,31 +16,31 @@
 // Sets default values
 ACC_Cube::ACC_Cube()
 {
- 	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
+	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
 
 	RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("RootComponent"));
 
-	// Floor Mesh (시각적)
+	// Floor Mesh (visual floor)
 	FloorMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("FloorMesh"));
 	FloorMesh->SetupAttachment(RootComponent);
 	FloorMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 
 	CubeState = ECubeState::Unloaded;
+
+	ScatterComponent = CreateDefaultSubobject<UCC_CubeScatterComponent>(TEXT("ScatterComponent"));
 }
 
 // Called when the game starts or when spawned
 void ACC_Cube::BeginPlay()
 {
 	Super::BeginPlay();
-	
 }
 
 // Called every frame
 void ACC_Cube::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
-
 }
 
 void ACC_Cube::GenerateCube()
@@ -51,7 +51,7 @@ void ACC_Cube::GenerateCube()
 		return;
 	}
 
-	// 기존 타일 제거
+	// Remove existing tiles
 	for (ACC_Tile* Tile : CubeTiles)
 	{
 		if (Tile)
@@ -61,19 +61,19 @@ void ACC_Cube::GenerateCube()
 	}
 	CubeTiles.Empty();
 
-	// 3x3 타일 생성
+	// Generate 3x3 tiles
 	for (int32 Row = 0; Row < 3; ++Row)
 	{
 		for (int32 Col = 0; Col < 3; ++Col)
 		{
 			int32 Index = Row * 3 + Col;
 
-			// 타일 위치 계산
+			// Tile position calculation
 			float X = (Col - 1) * TileSize;  // -2000, 0, 2000
 			float Y = (Row - 1) * TileSize;  // -2000, 0, 2000
 			FVector TileCenter = GetActorLocation() + FVector(X, Y, 0);
 
-			// 타일 생성
+			// Spawn tile
 			FActorSpawnParameters SpawnParams;
 			SpawnParams.Owner = this;
 			ACC_Tile* NewTile = GetWorld()->SpawnActor<ACC_Tile>(
@@ -117,7 +117,7 @@ int32 ACC_Cube::GetTileIndexAtPosition(const FVector& Position) const
 
 void ACC_Cube::ActivateTilesAroundPlayer(int32 PlayerTileIndex)
 {
-	// 현재는 플레이어 타일만 활성화
+	// Activate only the tile the player is currently on
 	ActivateOnlyTile(PlayerTileIndex);
 	CurrentPlayerTileIndex = PlayerTileIndex;
 }
@@ -168,7 +168,7 @@ void ACC_Cube::DeactivateAllTiles()
 	UE_LOG(LogTemp, Log, TEXT("Cube: All tiles deactivated"));
 }
 
-// ========== 큐브 벽 충돌 이벤트 ==========
+// ========== Cube Wall Overlap Events ==========
 
 void ACC_Cube::OnCubeWallHit_Right(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
 	UPrimitiveComponent* OtherComp, int32 OtherBodyIndex,
@@ -176,12 +176,12 @@ void ACC_Cube::OnCubeWallHit_Right(UPrimitiveComponent* OverlappedComponent, AAc
 {
 	if (!OtherActor) return;
 
-	// 오른쪽 벽 → 왼쪽으로 순환
+	// Right wall hit: teleport to left side
 	FVector CurrentPos = OtherActor->GetActorLocation();
 	FVector NewPos = CurrentPos - FVector(CubeSize, 0, 0);
 	OtherActor->SetActorLocation(NewPos);
 
-	UE_LOG(LogTemp, Warning, TEXT("[CubeWall] %s: Right → Left (X: %.1f → %.1f)"),
+	UE_LOG(LogTemp, Warning, TEXT("[CubeWall] %s: Right -> Left (X: %.1f -> %.1f)"),
 		*OtherActor->GetName(), CurrentPos.X, NewPos.X);
 }
 
@@ -191,12 +191,12 @@ void ACC_Cube::OnCubeWallHit_Left(UPrimitiveComponent* OverlappedComponent, AAct
 {
 	if (!OtherActor) return;
 
-	// 왼쪽 벽 → 오른쪽으로 순환
+	// Left wall hit: teleport to right side
 	FVector CurrentPos = OtherActor->GetActorLocation();
 	FVector NewPos = CurrentPos + FVector(CubeSize, 0, 0);
 	OtherActor->SetActorLocation(NewPos);
 
-	UE_LOG(LogTemp, Warning, TEXT("[CubeWall] %s: Left → Right (X: %.1f → %.1f)"),
+	UE_LOG(LogTemp, Warning, TEXT("[CubeWall] %s: Left -> Right (X: %.1f -> %.1f)"),
 		*OtherActor->GetName(), CurrentPos.X, NewPos.X);
 }
 
@@ -206,12 +206,12 @@ void ACC_Cube::OnCubeWallHit_Top(UPrimitiveComponent* OverlappedComponent, AActo
 {
 	if (!OtherActor) return;
 
-	// 위쪽 벽 → 아래로 순환
+	// Top wall hit: teleport to bottom side
 	FVector CurrentPos = OtherActor->GetActorLocation();
 	FVector NewPos = CurrentPos - FVector(0, CubeSize, 0);
 	OtherActor->SetActorLocation(NewPos);
 
-	UE_LOG(LogTemp, Warning, TEXT("[CubeWall] %s: Top → Bottom (Y: %.1f → %.1f)"),
+	UE_LOG(LogTemp, Warning, TEXT("[CubeWall] %s: Top -> Bottom (Y: %.1f -> %.1f)"),
 		*OtherActor->GetName(), CurrentPos.Y, NewPos.Y);
 }
 
@@ -221,12 +221,12 @@ void ACC_Cube::OnCubeWallHit_Bottom(UPrimitiveComponent* OverlappedComponent, AA
 {
 	if (!OtherActor) return;
 
-	// 아래쪽 벽 → 위로 순환
+	// Bottom wall hit: teleport to top side
 	FVector CurrentPos = OtherActor->GetActorLocation();
 	FVector NewPos = CurrentPos + FVector(0, CubeSize, 0);
 	OtherActor->SetActorLocation(NewPos);
 
-	UE_LOG(LogTemp, Warning, TEXT("[CubeWall] %s: Bottom → Top (Y: %.1f → %.1f)"),
+	UE_LOG(LogTemp, Warning, TEXT("[CubeWall] %s: Bottom -> Top (Y: %.1f -> %.1f)"),
 		*OtherActor->GetName(), CurrentPos.Y, NewPos.Y);
 }
 
@@ -247,7 +247,7 @@ void ACC_Cube::InitializeCubeWalls()
 	float HalfHeight = CubeHeight / 2.0f;
 	float HalfThickness = WallThickness / 2.0f;
 
-	// 오른쪽 벽 (X+) - 빨강
+	// Right wall (X+) - Red
 	CubeWall_Right = CreateDefaultSubobject<UBoxComponent>(TEXT("CubeWall_Right"));
 	CubeWall_Right->SetupAttachment(RootComponent);
 	CubeWall_Right->SetRelativeLocation(FVector(HalfCube + HalfThickness, 0, HalfHeight));
@@ -258,7 +258,7 @@ void ACC_Cube::InitializeCubeWalls()
 	CubeWall_Right->SetGenerateOverlapEvents(true);
 	CubeWall_Right->ShapeColor = FColor::Red;
 
-	// 왼쪽 벽 (X-) - 파랑
+	// Left wall (X-) - Blue
 	CubeWall_Left = CreateDefaultSubobject<UBoxComponent>(TEXT("CubeWall_Left"));
 	CubeWall_Left->SetupAttachment(RootComponent);
 	CubeWall_Left->SetRelativeLocation(FVector(-HalfCube - HalfThickness, 0, HalfHeight));
@@ -269,7 +269,7 @@ void ACC_Cube::InitializeCubeWalls()
 	CubeWall_Left->SetGenerateOverlapEvents(true);
 	CubeWall_Left->ShapeColor = FColor::Blue;
 
-	// 위쪽 벽 (Y+) - 초록
+	// Top wall (Y+) - Green
 	CubeWall_Top = CreateDefaultSubobject<UBoxComponent>(TEXT("CubeWall_Top"));
 	CubeWall_Top->SetupAttachment(RootComponent);
 	CubeWall_Top->SetRelativeLocation(FVector(0, HalfCube + HalfThickness, HalfHeight));
@@ -280,7 +280,7 @@ void ACC_Cube::InitializeCubeWalls()
 	CubeWall_Top->SetGenerateOverlapEvents(true);
 	CubeWall_Top->ShapeColor = FColor::Green;
 
-	// 아래쪽 벽 (Y-) - 노랑
+	// Bottom wall (Y-) - Yellow
 	CubeWall_Bottom = CreateDefaultSubobject<UBoxComponent>(TEXT("CubeWall_Bottom"));
 	CubeWall_Bottom->SetupAttachment(RootComponent);
 	CubeWall_Bottom->SetRelativeLocation(FVector(0, -HalfCube - HalfThickness, HalfHeight));
@@ -299,7 +299,7 @@ void ACC_Cube::InitializeCube(FIntPoint Coordinate)
 
 	UE_LOG(LogTemp, Log, TEXT("[Cube] Initializing at CubeSize is :(%f)"), CubeSize);
 
-	// 큐브 위치 설정 (월드 좌표)
+	// Set cube world location based on coordinate
 	FVector CubeWorldLocation(
 		-Coordinate.X * CubeSize,
 		Coordinate.Y * CubeSize,
@@ -307,13 +307,13 @@ void ACC_Cube::InitializeCube(FIntPoint Coordinate)
 	);
 	SetActorLocation(CubeWorldLocation);
 
-	// Floor 크기 설정
+	// Scale floor mesh to cube size
 	if (FloorMesh)
 	{
 		FloorMesh->SetWorldScale3D(FVector(CubeSize / 100.0f, CubeSize / 100.0f, 1.0f));
 	}
 
-	// 경계 트리거 생성
+	// Create boundary triggers
 	CreateBoundaryTriggers();
 
 	//DrawDebugInfo();
@@ -340,10 +340,10 @@ void ACC_Cube::CreateBoundaryTriggers()
 	};
 
 	TArray<FBoundaryInfo> Boundaries = {
-	{ EBoundaryDirection::Up, FVector(HalfSize, 0, 0), FVector(TriggerThickness, HalfSize, TriggerHeight), TEXT("UpBoundary"), FLinearColor::Red },
-	{ EBoundaryDirection::Down, FVector(-HalfSize, 0, 0), FVector(TriggerThickness, HalfSize, TriggerHeight), TEXT("DownBoundary"), FLinearColor::Blue },
-	{ EBoundaryDirection::Left, FVector(0 , -HalfSize, 0), FVector(HalfSize, TriggerThickness, TriggerHeight), TEXT("LeftBoundary"), FLinearColor::Green },
-	{ EBoundaryDirection::Right, FVector(0 , HalfSize, 0), FVector(HalfSize, TriggerThickness, TriggerHeight), TEXT("RightBoundary"), FLinearColor::Yellow }
+		{ EBoundaryDirection::Up,    FVector(HalfSize,  0,         0), FVector(TriggerThickness, HalfSize,         TriggerHeight), TEXT("UpBoundary"),    FLinearColor::Red    },
+		{ EBoundaryDirection::Down,  FVector(-HalfSize, 0,         0), FVector(TriggerThickness, HalfSize,         TriggerHeight), TEXT("DownBoundary"),  FLinearColor::Blue   },
+		{ EBoundaryDirection::Left,  FVector(0,         -HalfSize, 0), FVector(HalfSize,         TriggerThickness, TriggerHeight), TEXT("LeftBoundary"),  FLinearColor::Green  },
+		{ EBoundaryDirection::Right, FVector(0,         HalfSize,  0), FVector(HalfSize,         TriggerThickness, TriggerHeight), TEXT("RightBoundary"), FLinearColor::Yellow }
 	};
 
 	for (const FBoundaryInfo& Info : Boundaries)
@@ -361,7 +361,7 @@ void ACC_Cube::CreateBoundaryTriggers()
 			Trigger->SetGenerateOverlapEvents(true);
 			Trigger->ShapeColor = Info.Color.ToFColor(true);
 
-			// Overlap 이벤트 바인딩
+			// Bind overlap event
 			Trigger->OnComponentBeginOverlap.AddDynamic(this, &ACC_Cube::OnBoundaryOverlap);
 
 			BoundaryTriggers.Add(Trigger);
@@ -413,32 +413,31 @@ void ACC_Cube::Freeze()
 
 	CubeState = ECubeState::Frozen;
 
-	// 큐브 자체 비활성화
+	// Hide and disable the entire cube
 	SetActorHiddenInGame(true);
 	SetActorTickEnabled(false);
 
-	// 소속 Actor들 Freeze
+	// Freeze all managed actors
 	for (AActor* Actor : ManagedActors)
 	{
 		if (!Actor || Actor->IsPendingKillPending())
 			continue;
 
-		// 기본 비활성화
+		// Basic deactivation
 		Actor->SetActorHiddenInGame(true);
 		Actor->SetActorTickEnabled(false);
 
-		// Freezable 인터페이스 구현 Actor
+		// Actor implementing Freezable interface
 		if (Actor->GetClass()->ImplementsInterface(UCC_Freezable::StaticClass()))
 		{
 			ICC_Freezable::Execute_Freeze(Actor);
 		}
 		else
 		{
-			// 기본 Freeze 처리
-			// Character인 경우
+			// Default freeze handling for Characters
 			if (ACharacter* Character = Cast<ACharacter>(Actor))
 			{
-				// AI 정지
+				// Stop AI
 				if (AAIController* AI = Cast<AAIController>(Character->GetController()))
 				{
 					AI->StopMovement();
@@ -448,17 +447,17 @@ void ACC_Cube::Freeze()
 					}
 				}
 
-				// 시간 정지
+				// Stop time dilation
 				Character->CustomTimeDilation = 0.0f;
 
-				// 애니메이션 멈춤
+				// Pause animation
 				if (USkeletalMeshComponent* Mesh = Character->GetMesh())
 				{
 					Mesh->bPauseAnims = true;
 				}
 			}
 
-			// Physics 정지
+			// Stop physics simulation
 			TArray<UActorComponent*> Components;
 			Actor->GetComponents(UPrimitiveComponent::StaticClass(), Components);
 			for (UActorComponent* Comp : Components)
@@ -474,6 +473,11 @@ void ACC_Cube::Freeze()
 		}
 	}
 
+	if (ScatterComponent)
+	{
+		ScatterComponent->FreezeScatter();
+	}
+
 	UE_LOG(LogTemp, Warning, TEXT("[Cube %d,%d] FROZEN (%d actors)"),
 		CubeCoordinate.X, CubeCoordinate.Y, ManagedActors.Num());
 }
@@ -485,31 +489,31 @@ void ACC_Cube::Unfreeze()
 
 	CubeState = ECubeState::Active;
 
-	// 큐브 자체 활성화
+	// Show and enable the entire cube
 	SetActorHiddenInGame(false);
 	SetActorTickEnabled(true);
 
-	// 소속 Actor들 Unfreeze
+	// Unfreeze all managed actors
 	for (AActor* Actor : ManagedActors)
 	{
 		if (!Actor || Actor->IsPendingKillPending())
 			continue;
 
-		// 기본 활성화
+		// Basic reactivation
 		Actor->SetActorHiddenInGame(false);
 		Actor->SetActorTickEnabled(true);
 
-		// Freezable 인터페이스 구현 Actor
+		// Actor implementing Freezable interface
 		if (Actor->GetClass()->ImplementsInterface(UCC_Freezable::StaticClass()))
 		{
 			ICC_Freezable::Execute_Unfreeze(Actor);
 		}
 		else
 		{
-			// 기본 Unfreeze 처리
+			// Default unfreeze handling for Characters
 			if (ACharacter* Character = Cast<ACharacter>(Actor))
 			{
-				// AI 재개
+				// Resume AI
 				if (AAIController* AI = Cast<AAIController>(Character->GetController()))
 				{
 					if (AI->BrainComponent)
@@ -518,15 +522,27 @@ void ACC_Cube::Unfreeze()
 					}
 				}
 
-				// 시간 재개
+				// Resume time dilation
 				Character->CustomTimeDilation = 1.0f;
 
-				// 애니메이션 재개
+				// Resume animation
 				if (USkeletalMeshComponent* Mesh = Character->GetMesh())
 				{
 					Mesh->bPauseAnims = false;
 				}
 			}
+		}
+	}
+
+	if (ScatterComponent)
+	{
+		if (!ScatterComponent->bGenerated)
+		{
+			ScatterComponent->Generate(CubeCoordinate);
+		}
+		else
+		{
+			ScatterComponent->UnfreezeScatter();
 		}
 	}
 
@@ -545,7 +561,7 @@ void ACC_Cube::OnBoundaryOverlap(UPrimitiveComponent* OverlappedComp, AActor* Ot
 	if (IsFrozen())
 		return;
 
-	// 플레이어인지 확인
+	// Check if it is the player
 	ACharacter* Player = Cast<ACharacter>(OtherActor);
 	if (!Player || !Player->IsPlayerControlled())
 		return;
@@ -560,7 +576,7 @@ void ACC_Cube::OnBoundaryOverlap(UPrimitiveComponent* OverlappedComp, AActor* Ot
 		CubeCoordinate.X, CubeCoordinate.Y,
 		*UEnum::GetValueAsString(Direction));
 
-	// CubeWorldManager 찾아서 전환 요청
+	// Find CubeWorldManager and request transition
 	TArray<AActor*> FoundActors;
 	UGameplayStatics::GetAllActorsOfClass(GetWorld(), ACC_CubeWorldManager::StaticClass(), FoundActors);
 
@@ -591,13 +607,12 @@ void ACC_Cube::DrawDebugInfo()
 	if (!GetWorld())
 		return;
 
-	FBox Bounds = GetCubeBounds();
 	FColor Color = (CubeState == ECubeState::Active) ? FColor::Green : FColor::Red;
 
 	//DrawDebugBox(GetWorld(), Bounds.GetCenter(), Bounds.GetExtent(),
 	//	Color, false, -1.0f, 0, 50.0f);
 
-	// 좌표 텍스트
+	// Coordinate text
 	FString CoordText = FString::Printf(TEXT("Cube [%d, %d]"), CubeCoordinate.X, CubeCoordinate.Y);
 	DrawDebugString(GetWorld(), GetCubeCenter() + FVector(0, 0, 500),
 		CoordText, nullptr, Color, -1.0f, true, 2.0f);
@@ -607,24 +622,19 @@ void ACC_Cube::DrawDebugInfo()
 		if (!Trigger)
 			continue;
 
-		// Trigger의 월드 위치와 크기
 		FVector TriggerLocation = Trigger->GetComponentLocation();
 		FVector TriggerExtent = Trigger->GetScaledBoxExtent();
 		FRotator TriggerRotation = Trigger->GetComponentRotation();
-
-		// Trigger 색상 (ShapeColor 사용)
 		FColor TriggerColor = Trigger->ShapeColor;
 
-		// Trigger 박스 그리기 (회전 적용)
 		DrawDebugBox(GetWorld(), TriggerLocation, TriggerExtent, TriggerRotation.Quaternion(),
 			TriggerColor, false, 10.0f, 0, 5.0f);
 
-		// Trigger 방향 텍스트
 		EBoundaryDirection* Direction = BoundaryDirectionMap.Find(Trigger);
 		if (Direction)
 		{
 			FString DirectionText = UEnum::GetValueAsString(*Direction);
-			// "EBoundaryDirection::Right" -> "Right"만 추출
+			// "EBoundaryDirection::Right" -> "Right"
 			DirectionText.RemoveFromStart(TEXT("EBoundaryDirection::"));
 
 			DrawDebugString(GetWorld(), TriggerLocation,

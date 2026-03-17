@@ -26,6 +26,23 @@ void ACC_EnemyManager::BeginPlay()
 	
 }
 
+void ACC_EnemyManager::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+
+    if (Instance == this)
+    {
+        Instance = nullptr;
+    }
+
+    ActiveEnemies.Empty();
+    NearestEnemyCache.Empty();
+    PendingRemoval.Reset();
+
+    UE_LOG(LogTemp, Log, TEXT("[ENEMY MANAGER] EndPlay — Instance cleared, arrays emptied"));
+
+    Super::EndPlay(EndPlayReason);
+}
+
 // Called every frame
 void ACC_EnemyManager::Tick(float DeltaTime)
 {
@@ -43,28 +60,41 @@ void ACC_EnemyManager::Tick(float DeltaTime)
 
 ACC_EnemyManager* ACC_EnemyManager::Get(const UObject* WorldContextObject)
 {
-    if (!Instance && WorldContextObject)
+    if (IsValid(Instance))
     {
-        UWorld* World = GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::LogAndReturnNull);
-        if (World)
-        {
-            // Try to find existing instance
-            for (TActorIterator<ACC_EnemyManager> It(World); It; ++It)
-            {
-                Instance = *It;
-                break;
-            }
-
-            // Create if not found
-            if (!Instance)
-            {
-                FActorSpawnParameters SpawnParams;
-                SpawnParams.Name = FName("EnemyManager");
-                Instance = World->SpawnActor<ACC_EnemyManager>(ACC_EnemyManager::StaticClass(), SpawnParams);
-                UE_LOG(LogTemp, Warning, TEXT("[ENEMY MANAGER] Auto-created instance"));
-            }
-        }
+        return Instance;
     }
+
+	Instance = nullptr; // Clear invalid instance
+
+    if (!WorldContextObject)
+    {
+        return nullptr;
+    }
+
+    UWorld* World = GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::LogAndReturnNull);
+
+    if (!World)
+    {
+        return nullptr;
+    }
+
+
+    // Try to find existing instance
+    for (TActorIterator<ACC_EnemyManager> It(World); It; ++It)
+    {
+        Instance = *It;
+        break;
+    }
+
+    // Create if not found
+    if (!Instance)
+    {
+        FActorSpawnParameters SpawnParams;
+        SpawnParams.Name = FName("EnemyManager");
+        Instance = World->SpawnActor<ACC_EnemyManager>(ACC_EnemyManager::StaticClass(), SpawnParams);
+        UE_LOG(LogTemp, Warning, TEXT("[ENEMY MANAGER] Auto-created instance"));
+     }
 
     return Instance;
 }
@@ -89,8 +119,10 @@ void ACC_EnemyManager::UnregisterEnemy(AActor* Enemy)
         return;
     }
 
-    ActiveEnemies.Remove(Enemy);
-    NearestEnemyCache.Remove(Enemy);
+    PendingRemoval.Add(Enemy);
+
+    // CycleManager에 킬 알림 (직접 참조 없이 델리게이트로)
+    OnEnemyUnregistered.Broadcast(Enemy);
 
     UE_LOG(LogTemp, VeryVerbose, TEXT("[ENEMY MANAGER] Unregistered enemy (Total: %d)"), ActiveEnemies.Num());
 
@@ -150,8 +182,28 @@ TArray<AActor*> ACC_EnemyManager::GetEnemiesInRadius(const FVector& Location, fl
 
 void ACC_EnemyManager::UpdateNearestEnemyCache()
 {
+    if (PendingRemoval.Num() > 0)
+    {
+        for (AActor* Enemy : PendingRemoval)
+        {
+            ActiveEnemies.RemoveSingleSwap(Enemy, EAllowShrinking::No); // O(1) 제거
+            NearestEnemyCache.Remove(Enemy);
+        }
+        PendingRemoval.Reset(); // 내용만 비움 (메모리 유지)
+        ActiveEnemies.Shrink(); // 제거 후 메모리 정리
+    }
+
     // Remove invalid enemies
     ActiveEnemies.RemoveAll([](AActor* Enemy) {
         return !IsValid(Enemy);
         });
+
+	// Update cache for all valid enemies
+    for (auto It = NearestEnemyCache.CreateIterator(); It; ++It)
+    {
+        if (!IsValid(It.Key()) || !IsValid(It.Value()))
+        {
+            It.RemoveCurrent();
+        }
+    }
 }

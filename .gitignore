@@ -398,3 +398,6 @@ Thumbs.db
 # Git LFS setup: git lfs track "*.uasset" && git lfs track "*.umap"
 필독.txt
 Documentation/
+
+Content/sA_PickupSet_1/
+Content/MSPresets/

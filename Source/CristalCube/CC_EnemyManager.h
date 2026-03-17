@@ -6,7 +6,7 @@
 #include "GameFramework/Actor.h"
 #include "CC_EnemyManager.generated.h"
 
-
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnEnemyUnregistered, AActor*, Enemy);
 /**
  * Central manager for all enemies
  * Provides optimized enemy queries for weapons
@@ -24,6 +24,7 @@ protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
 
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 public:	
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
@@ -43,6 +44,9 @@ protected:
     // Cache for nearest enemy queries
     UPROPERTY()
     TMap<AActor*, AActor*> NearestEnemyCache;
+
+    UPROPERTY()
+    TSet<AActor*> PendingRemoval;
 
     // Update interval for cache (0.1s = 10 FPS)
     UPROPERTY(EditAnywhere, Category = "Performance")
@@ -82,6 +86,9 @@ public:
     // Get all enemies
     UFUNCTION(BlueprintPure, Category = "Enemy Manager")
     const TArray<AActor*>& GetAllEnemies() const { return ActiveEnemies; }
+
+    UPROPERTY(BlueprintAssignable, Category = "Enemy Manager")
+    FOnEnemyUnregistered OnEnemyUnregistered;
 
 protected:
     // Update cache

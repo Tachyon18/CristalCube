@@ -133,6 +133,9 @@ protected:
 	// UTILITY FUNCTIONS
 	//==========================================================================
 
+	UFUNCTION()
+	void OnProjectileHit(class ACC_SkillEffector* Effector, AActor* HitActor);
+
 	/**
 	 * 가장 가까운 적 찾기
 	 */

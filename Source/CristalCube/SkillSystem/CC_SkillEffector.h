@@ -7,6 +7,14 @@
 #include "../CristalCubeStruct.h"
 #include "CC_SkillEffector.generated.h"
 
+// SkillSystem으로 충돌 이벤트를 위임하는 델리게이트
+// Effector는 충돌 및 판정 감지만, 판단·처리는 SkillSystem이 담당
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(
+	FOnEffectorHit,
+	ACC_SkillEffector*, Effector,
+	AActor*, HitActor
+);
+
 UCLASS()
 class CRISTALCUBE_API ACC_SkillEffector : public AActor
 {
@@ -45,6 +53,18 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "VFX")
 	void SetVFXColor(FLinearColor PrimaryColor, FLinearColor SecondaryColor);
 
+	//==========================================================================
+	// SKILL DATA (SkillSystem이 주입)
+	//==========================================================================
+
+	// SkillSystem이 Spawn 후 직접 설정
+	UPROPERTY(BlueprintReadWrite, Category = "Skill Effector")
+	FSkillExecutionContext SkillContext;
+
+	// SkillSystem의 OnProjectileHit 핸들러에서 접근
+	UPROPERTY(BlueprintReadOnly, Category = "Skill Effector")
+	FSkillDefinition SkillDef;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gameplay")
 	float EffectDuration = 3.0f;
 
@@ -54,13 +74,14 @@ public:
 	UPROPERTY(BlueprintReadOnly, Category = "Skill Effector")
 	AActor* SkillOwner = nullptr;
 
+	UPROPERTY(BlueprintAssignable, Category = "Skill Effector")
+	FOnEffectorHit OnEffectorHit;
+
 protected:
 
 	UPROPERTY(BlueprintReadOnly, Category = "Skill Effector")
 	ESkillCoreType SkillCoreType = ESkillCoreType::None;
 
-	UPROPERTY(BlueprintReadOnly, Category = "Skill Effector")
-	FSkillDefinition SkillDef;
 
 public:
 
@@ -79,24 +100,5 @@ public:
 	void SetupAsProjectile();
 
 protected:
-
-	//==========================================================================
-	// PENETRATE LOGIC
-	//==========================================================================
-
-	UPROPERTY(BlueprintReadOnly, Category = "Skill Effector|Penetrate")
-	bool bCanPenetrate = false;
-
-	/** Maximum number of pierce */
-	UPROPERTY(BlueprintReadOnly, Category = "Skill Effector|Penetrate")
-	int32 MaxPenetrateCount = 0;
-
-	/** Current pierce count */
-	UPROPERTY(BlueprintReadOnly, Category = "Skill Effector|Penetrate")
-	int32 CurrentPenetrateCount = 0;
-
-	/** Actors that have been hit (to prevent duplicate hits) */
-	UPROPERTY()
-	TArray<AActor*> HitActors;
 
 };

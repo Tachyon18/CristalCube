@@ -170,6 +170,12 @@ protected:
 
 public:
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Test")
+	UNiagaraSystem* TestIceEffect = nullptr;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Test")
+	UNiagaraSystem* TestLightningEffect = nullptr;
+
 	UFUNCTION(BlueprintCallable, Category = "Test")
 	void TestBasicSkill();
 
@@ -196,6 +202,9 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Skills")
 	void CastPiercingArrow();      // 관통 화살 - 투사체 + 관통
+
+	UFUNCTION(BlueprintCallable, Category = "Skills")
+	void CastThunderStrike();      // 천둥 벼락 - 즉발 + 폭발
 
 	// === 벡터 레이저 (마우스 드래그) ===
 	UFUNCTION(BlueprintCallable, Category = "Skills")

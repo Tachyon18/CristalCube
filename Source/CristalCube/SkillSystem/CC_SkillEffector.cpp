@@ -20,7 +20,7 @@ ACC_SkillEffector::ACC_SkillEffector()
 	CollisionSphere->SetSphereRadius(50.0f);
 	CollisionSphere->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 	CollisionSphere->SetCollisionResponseToAllChannels(ECR_Ignore);
-	CollisionSphere->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
+	CollisionSphere->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
 	CollisionSphere->SetNotifyRigidBodyCollision(true);
 	CollisionSphere->SetGenerateOverlapEvents(true);
 
@@ -107,12 +107,6 @@ void ACC_SkillEffector::Initialize(ESkillCoreType InCoreType, const FSkillDefini
 	SkillCoreType = InCoreType;
 	SkillDef = InSkillDef;
 	
-	if (SkillDef.Addons.Contains(ESkillAddonType::Penetrate))
-	{
-		bCanPenetrate = true;
-		MaxPenetrateCount = SkillDef.Passives.PierceCount;
-		CurrentPenetrateCount = 0;
-	}
 
 	switch (SkillCoreType)
 	{
@@ -140,59 +134,16 @@ void ACC_SkillEffector::OnOverlapBegin(UPrimitiveComponent* OverlappedComp, AAct
 		return;
 	}
 
-	if (HitActors.Contains(OtherActor))
+	if (SkillContext.HitActors.Contains(OtherActor))
 	{
 		return;
 	}
 
-	HitActors.Add(OtherActor);
+	SkillContext.HitActors.Add(OtherActor);
 
 	UE_LOG(LogTemp, Warning, TEXT("[SkillEffector] Hit: %s"), *OtherActor->GetName());
 
-	ApplyDamageToActor(OtherActor);
-
-	FVector HitLocation = SweepResult.ImpactPoint.IsZero() ?
-		OtherActor->GetActorLocation() : FVector(SweepResult.ImpactPoint);
-
-
-	if (bCanPenetrate)
-	{
-		CurrentPenetrateCount++;
-		
-		if (CurrentPenetrateCount >= MaxPenetrateCount)
-		{
-			UE_LOG(LogTemp, Log, TEXT("[SkillEffector] Penetrate limit reached (%d/%d), destroying."), CurrentPenetrateCount, MaxPenetrateCount);
-			Destroy();
-		}
-	}
-	else
-	{
-		Destroy();
-	}
-
-	//PlayHitEffects(HitLocation);
-
-	//if (SkillSystem)
-	//{
-	//	FHitResult HitResult = SweepResult;
-	//	HitResult.ImpactPoint = HitLocation;
-	//	HitResult.GetActor() ? HitResult.GetActor() : OtherActor;
-
-	//	SkillSystem->ProcessAddons(CurrentSkill, ExecutionContext, HitResult);
-	//}
-
-	//if (bCanPierce && ShouldPierceThrough(OtherActor))
-	//{
-	//	CurrentPierceCount++;
-	//	if (PierceCount > 0 && CurrentPierceCount >= PierceCount)
-	//	{
-	//		Destroy();
-	//	}
-	//}
-	//else if (bDestroyOnHit)
-	//{
-	//	Destroy();
-	//}
+	OnEffectorHit.Broadcast(this, OtherActor);
 }
 
 void ACC_SkillEffector::ApplyDamageToActor(AActor* TargetActor)

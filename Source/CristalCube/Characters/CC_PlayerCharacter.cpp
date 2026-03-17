@@ -487,7 +487,7 @@ void ACC_PlayerCharacter::TestProjectileSkill()
 	// Addon 테스트
 	TestSkill.Addons.Add(ESkillAddonType::MultiShot);
 	TestSkill.Addons.Add(ESkillAddonType::Penetrate);
-	TestSkill.Passives.PierceCount = 3;
+	TestSkill.Passives.PierceData.PierceCount = 3;
 
 	// VFX는 nullptr로 (안전)
 	TestSkill.CastEffect = nullptr;
@@ -548,9 +548,14 @@ void ACC_PlayerCharacter::CastLightningBolt()
 	Lightning.Range = 1500.0f;
 	Lightning.Cooldown = 0.8f;
 
+	if (TestLightningEffect)
+	{
+		Lightning.HitEffect = TestLightningEffect;
+	}
+
 	// 연쇄 효과 (최대 4번)
 	Lightning.Addons.Add(ESkillAddonType::Chain);
-	Lightning.Passives.ChainCount = 4;
+	Lightning.Passives.ChainData.ChainCount = 4;
 
 	// 원소: 번개
 	Lightning.ElementType = ESkillElementType::Lightning;
@@ -638,7 +643,7 @@ void ACC_PlayerCharacter::CastPiercingArrow()
 
 	// 관통 (5명)
 	Arrow.Addons.Add(ESkillAddonType::Penetrate);
-	Arrow.Passives.PierceCount = 5;
+	Arrow.Passives.PierceData.PierceCount = 5;
 	Arrow.Passives.SpeedMultiplier = 1.5f;
 
 	// 원소: 물리
@@ -648,6 +653,40 @@ void ACC_PlayerCharacter::CastPiercingArrow()
 	SkillSystem->ExecuteSkill(Arrow, TargetLocation);
 
 	UE_LOG(LogTemp, Warning, TEXT("Piercing Arrow cast!"));
+}
+
+void ACC_PlayerCharacter::CastThunderStrike()
+{
+	if (!SkillSystem)
+	{
+		return;
+	}
+
+	FSkillDefinition ThunderStrike;
+	ThunderStrike.SkillID = FName("ThunderStrike");
+	ThunderStrike.DisplayName = FText::FromString("Thunder Strike");
+	ThunderStrike.CoreType = ESkillCoreType::Instant;
+	ThunderStrike.BaseDamage = 50.0f;
+	ThunderStrike.Range = 1200.0f;
+	ThunderStrike.Cooldown = 2.0f;
+
+	if (TestLightningEffect)
+	{
+		ThunderStrike.HitEffect = TestLightningEffect;
+	}
+
+	// Explosion Addon
+	ThunderStrike.Addons.Add(ESkillAddonType::Explosion);
+	ThunderStrike.Passives.ExplosionData.Radius = 350.0f;
+	ThunderStrike.Passives.ExplosionData.MinDamageRatio = 0.5f;
+
+	// 속성: 번개
+	ThunderStrike.ElementType = ESkillElementType::Lightning;
+
+	FVector TargetLocation = GetActorLocation() + GetActorForwardVector() * 1000.0f;
+	SkillSystem->ExecuteSkill(ThunderStrike, TargetLocation);
+
+	UE_LOG(LogTemp, Warning, TEXT("[Test] Thunder Strike cast!"));
 }
 
 void ACC_PlayerCharacter::StartVectorLaser()
@@ -719,7 +758,7 @@ void ACC_PlayerCharacter::ReleaseVectorLaser()
 
 		// 관통 추가
 		VectorLaser.Addons.Add(ESkillAddonType::Penetrate);
-		VectorLaser.Passives.PierceCount = 10;
+		VectorLaser.Passives.PierceData.PierceCount = 10;
 
 		// 원소: 번개
 		VectorLaser.ElementType = ESkillElementType::Lightning;

@@ -67,7 +67,7 @@ void UCC_SkillSystem::ExecuteSkill(const FSkillDefinition& Skill, FVector Target
 	UE_LOG(LogTemp, Log, TEXT("Executing Skill : %s, Core : %d"), *Skill.SkillID.ToString(),
 		(int32)Skill.CoreType);
 
-	// Cast VFX
+	//// Cast VFX
 	//if (Skill.CastEffect)
 	//{
 	//	SpawnEffect(Skill.CastEffect, Context.StartLocation);
@@ -146,8 +146,9 @@ void UCC_SkillSystem::ExecuteProjectile(const FSkillDefinition& Skill, FSkillExe
 		if (ProjectileCount > 1)
 		{
 			// MultiShot: 부채꼴 형태로 분산 (중앙 기준 ±30도)
-			float AngleStep = 60.0f / (ProjectileCount - 1); // 총 60도 범위
-			float Angle = -30.0f + (i * AngleStep);
+			float SpreadAngle = Skill.Passives.MultiShotData.SpreadAngle;
+			float AngleStep = SpreadAngle / (ProjectileCount - 1); // 총 60도 범위
+			float Angle = -(SpreadAngle * 0.5f) + (i * AngleStep);
 
 			// 방향 벡터 회전
 			SpawnDirection = Context.Direction.RotateAngleAxis(Angle, FVector::UpVector);
@@ -167,7 +168,10 @@ void UCC_SkillSystem::ExecuteProjectile(const FSkillDefinition& Skill, FSkillExe
 		{
 			// 3. 투사체 초기화
 			SkillEffectorProjectile->SetSkillOwner(Context.Caster);
+			SkillEffectorProjectile->SkillContext = Context;
 			SkillEffectorProjectile->Initialize(Skill.CoreType, Skill);
+
+			SkillEffectorProjectile->OnEffectorHit.AddDynamic(this, &UCC_SkillSystem::OnProjectileHit);
 
 			//// 4. Penetrate Addon 설정
 			//if (Skill.Addons.Contains(ESkillAddonType::Penetrate))
@@ -202,17 +206,132 @@ void UCC_SkillSystem::ExecuteProjectile(const FSkillDefinition& Skill, FSkillExe
 
 void UCC_SkillSystem::ExecuteInstant(const FSkillDefinition& Skill, FSkillExecutionContext& Context)
 {
-	UE_LOG(LogTemp, Log, TEXT("ExecuteInstant - TODO (Week 9 Day 4)"));
+	AActor* Target = FindNearestEnemy(Context.StartLocation, Skill.Range, Context.HitActors);
 
-	// TODO: LineTrace, 즉시 피해, Hit VFX
+	if (!Target)
+	{
+		UE_LOG(LogTemp, Log, TEXT("ExecuteInstant [%s]: No target found within range %.0f"),
+			*Skill.SkillID.ToString(), Skill.Range);
+		return;
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("ExecuteInstant [%s]: Targeting %s"),
+		*Skill.SkillID.ToString(), *Target->GetName());
+
+	ApplyDamage(Target, Context.CurrentDamage, Context.Caster);
+	Context.HitActors.Add(Target);
+
+	FVector HitLocation = Target->GetActorLocation(); // 간단히 타겟 위치로 히트 위치 설정 (향후 개선 가능)
+
+	if(Skill.HitEffect)
+	{
+		SpawnEffect(Skill.HitEffect, HitLocation);
+	}
+
+	if (bShowDebugShapes)
+	{
+		DrawDebugLine(
+			GetWorld(),
+			Context.StartLocation,
+			HitLocation,
+			FColor::Yellow,
+			false,
+			DebugDrawDuration,
+			0,
+			2.0f
+		);
+		DrawDebugSphere(
+			GetWorld(),
+			HitLocation,
+			30.0f,
+			12,
+			FColor::Yellow,
+			false,
+			DebugDrawDuration
+		);
+	}
+
+	FHitResult InstantHit;
+	InstantHit.ImpactPoint = HitLocation;
+	InstantHit.HitObjectHandle = FActorInstanceHandle(Target);
+
+	ProcessAddons(Skill, Context, InstantHit);
+
+	UE_LOG(LogTemp, Log, TEXT("ExecuteInstant [%s]: Hit %s for %.1f damage"),
+		*Skill.SkillID.ToString(), *Target->GetName(), Context.CurrentDamage);
 }
 
 void UCC_SkillSystem::ExecuteArea(const FSkillDefinition& Skill, FSkillExecutionContext& Context)
 {
 
-	UE_LOG(LogTemp, Log, TEXT("ExecuteArea - TODO (Week 9 Day 4)"));
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
 
-	// TODO: SphereOverlap, 범위 피해, Area VFX
+	//==========================================================================
+	// 1. 범위 내 적 탐색 (Skill.Range를 Area 반경으로 사용)
+	//==========================================================================
+	TArray<AActor*> EnemiesInRange = FindEnemiesInRadius(Context.StartLocation, Skill.Range);
+
+	UE_LOG(LogTemp, Log, TEXT("ExecuteArea [%s]: %d enemies in range %.0f"),
+		*Skill.SkillID.ToString(), EnemiesInRange.Num(), Skill.Range);
+
+	//==========================================================================
+	// 2. 범위 내 모든 적에게 데미지
+	//==========================================================================
+	for (AActor* Enemy : EnemiesInRange)
+	{
+		if (!IsValid(Enemy) || Context.HitActors.Contains(Enemy))
+		{
+			continue;
+		}
+
+		ApplyDamage(Enemy, Context.CurrentDamage, Context.Caster);
+		Context.HitActors.Add(Enemy);
+
+		// 개별 Hit VFX
+		if (Skill.HitEffect)
+		{
+			SpawnEffect(Skill.HitEffect, Enemy->GetActorLocation());
+		}
+
+		// 개별 Addon 처리 (Area도 Chain/Explosion 조합 가능)
+		FHitResult Hit;
+		Hit.HitObjectHandle = FActorInstanceHandle(Enemy);
+		Hit.ImpactPoint = Enemy->GetActorLocation();
+		ProcessAddons(Skill, Context, Hit);
+
+		UE_LOG(LogTemp, Log, TEXT("ExecuteArea: Hit %s for %.1f dmg"),
+			*Enemy->GetName(), Context.CurrentDamage);
+	}
+
+	//==========================================================================
+	// 3. Area Cast VFX (시전자 위치 기준)
+	//==========================================================================
+	if (Skill.CastEffect)
+	{
+		SpawnEffect(Skill.CastEffect, Context.StartLocation);
+	}
+
+	//==========================================================================
+	// 4. 디버그
+	//==========================================================================
+	if (bShowDebugShapes)
+	{
+		DrawDebugSphere(
+			World,
+			Context.StartLocation,
+			Skill.Range,
+			24,
+			FColor::Green,
+			false,
+			DebugDrawDuration,
+			0,
+			3.0f
+		);
+	}
 }
 
 void UCC_SkillSystem::ExecuteBeam(const FSkillDefinition& Skill, FSkillExecutionContext& Context)
@@ -335,17 +454,162 @@ void UCC_SkillSystem::ExecuteBeam(const FSkillDefinition& Skill, FSkillExecution
 
 void UCC_SkillSystem::ProcessAddons(const FSkillDefinition& Skill, FSkillExecutionContext& Context, const FHitResult& Hit)
 {
-	UE_LOG(LogTemp, Log, TEXT("ProcessAddons - TODO (Week 9 Day 5-7)"));
+	AActor* HitTarget = Hit.GetActor();
+	FVector HitLocation = Hit.ImpactPoint;
+
+	if (HitTarget && !IsValid(HitTarget))
+	{
+		HitTarget = nullptr;
+	}
+
+	for (ESkillAddonType Addon : Skill.Addons)
+	{
+		switch (Addon)
+		{
+		case ESkillAddonType::Explosion:
+			ApplyExplosion(Skill, Context, HitLocation);
+			break;
+
+		case ESkillAddonType::Chain:
+			if (HitTarget)
+			{
+				ApplyChain(Skill, Context, HitTarget);
+			}
+			break;
+
+			// Penetrate / MultiShot은 SkillEffector / ExecuteProjectile에서 처리
+		case ESkillAddonType::Penetrate:
+		case ESkillAddonType::MultiShot:
+		default:
+			break;
+		}
+	}
 }
 
 void UCC_SkillSystem::ApplyExplosion(const FSkillDefinition& Skill, FSkillExecutionContext& Context, FVector Location)
 {
-	UE_LOG(LogTemp, Log, TEXT("ApplyExplosion - TODO (Week 9 Day 5-7)"));
+	const FExplosionAddonData& ExplosionData = Skill.Passives.ExplosionData;
+
+	TArray<AActor*> EnemiesInRange = FindEnemiesInRadius(Location, ExplosionData.Radius);
+
+	UE_LOG(LogTemp, Log, TEXT("ApplyExplosion [%s]: %d enemies in radius %.0f"),
+		*Skill.SkillID.ToString(), EnemiesInRange.Num(), ExplosionData.Radius);
+
+	for (AActor* Enemy : EnemiesInRange)
+	{
+		if (!Enemy || Context.HitActors.Contains(Enemy))
+		{
+			continue;  // 이미 맞은 적 스킵
+		}
+
+		float Distance = FVector::Dist(Location, Enemy->GetActorLocation());
+		float DistanceRatio = FMath::Clamp(Distance / ExplosionData.Radius, 0.0f, 1.0f);
+
+		// 중심: 100%, 외곽: 50% ? 선형 감소 적용 (거리 별 데미지 비율은 추후 전용 데이터 사용)
+		float DamageMultiplier = FMath::Lerp(1.0f, ExplosionData.MinDamageRatio, DistanceRatio);
+		float ExplosionDamage = Context.CurrentDamage * DamageMultiplier;
+
+		ApplyDamage(Enemy, ExplosionDamage, Context.Caster);
+		Context.HitActors.Add(Enemy);
+
+		UE_LOG(LogTemp, Log, TEXT("ApplyExplosion: Hit %s ? %.0fcm → %.1f dmg (x%.2f)"),
+			*Enemy->GetName(), Distance, ExplosionDamage, DamageMultiplier);
+	}
+
+	if (Skill.ExplosionEffect)
+	{
+		SpawnEffect(Skill.ExplosionEffect, Location);
+	}
+
+	// 디버그 구체
+	if (bShowDebugShapes)
+	{
+		DrawDebugSphere(
+			GetWorld(),
+			Location,
+			ExplosionData.Radius,
+			24,
+			FColor::Orange,
+			false,
+			DebugDrawDuration,
+			0,
+			3.0f
+		);
+	}
+
 }
 
 void UCC_SkillSystem::ApplyChain(const FSkillDefinition& Skill, FSkillExecutionContext& Context, AActor* HitTarget)
 {
-	UE_LOG(LogTemp, Log, TEXT("ApplyChain - TODO (Week 9 Day 5-7)"));
+	//
+	const FChainAddonData& ChainData = Skill.Passives.ChainData;
+
+	if(Context.CurrentChainCount >= ChainData.ChainCount)
+	{
+		UE_LOG(LogTemp, Log, TEXT("ApplyChain [%s]: Chain limit reached (%d/%d)"),
+			*Skill.SkillID.ToString(), Context.CurrentChainCount, ChainData.ChainCount);
+		return;
+	}
+
+	FVector SearchOrigin = HitTarget ? HitTarget->GetActorLocation() : Context.StartLocation;
+
+	AActor* NextTarget = FindNearestEnemy(SearchOrigin, ChainData.SearchRadius, Context.HitActors);
+
+	if (!NextTarget)
+	{
+		UE_LOG(LogTemp, Log, TEXT("ApplyChain [%s]: No next target for chain %d"),
+			*Skill.SkillID.ToString(), Context.CurrentChainCount + 1);
+		return;
+	}
+
+
+	Context.CurrentChainCount++;
+	Context.HitActors.Add(NextTarget);
+
+	ApplyDamage(NextTarget, Context.CurrentDamage, Context.Caster);
+
+	FVector NextHitLocation = NextTarget->GetActorLocation();
+
+	UE_LOG(LogTemp, Log, TEXT("ApplyChain [%s]: Chain %d → %s (%.1f dmg)"),
+		*Skill.SkillID.ToString(), Context.CurrentChainCount,
+		*NextTarget->GetName(), Context.CurrentDamage);
+
+
+
+	if (Skill.HitEffect)
+	{
+		SpawnEffect(Skill.HitEffect, NextHitLocation);
+	}
+
+	// 디버그
+	if (bShowDebugShapes && HitTarget)
+	{
+		DrawDebugLine(
+			GetWorld(),
+			SearchOrigin,
+			NextHitLocation,
+			FColor::Cyan,
+			false,
+			DebugDrawDuration,
+			0,
+			2.0f
+		);
+		DrawDebugSphere(
+			GetWorld(),
+			NextHitLocation,
+			25.0f,
+			12,
+			FColor::Cyan,
+			false,
+			DebugDrawDuration
+		);
+	}
+
+	FHitResult ChainHit;
+	ChainHit.ImpactPoint = NextHitLocation;
+	ChainHit.HitObjectHandle = FActorInstanceHandle(NextTarget);
+
+	ProcessAddons(Skill, Context, ChainHit);
 }
 
 bool UCC_SkillSystem::CanPenetrate(const FSkillDefinition& Skill, FSkillExecutionContext& Context) const
@@ -355,7 +619,7 @@ bool UCC_SkillSystem::CanPenetrate(const FSkillDefinition& Skill, FSkillExecutio
 		return false;
 	}
 
-	return Context.CurrentPierceCount < Skill.Passives.PierceCount;
+	return Context.CurrentPierceCount < Skill.Passives.PierceData.PierceCount;
 }
 
 int32 UCC_SkillSystem::GetProjectileCount(const FSkillDefinition& Skill) const
@@ -364,7 +628,7 @@ int32 UCC_SkillSystem::GetProjectileCount(const FSkillDefinition& Skill) const
 
 	if (Skill.Addons.Contains(ESkillAddonType::MultiShot))
 	{
-		Count += 2;  // MultiShot은 +2개
+		Count += Skill.Passives.MultiShotData.AdditionalCount;  // AdditionalCount만큼 발사 수 증가
 	}
 
 	return FMath::Max(1, Count);
@@ -373,6 +637,49 @@ int32 UCC_SkillSystem::GetProjectileCount(const FSkillDefinition& Skill) const
 //==============================================================================
 // UTILITY FUNCTIONS
 //==============================================================================
+
+void UCC_SkillSystem::OnProjectileHit(ACC_SkillEffector* Effector, AActor* HitActor)
+{
+	if (!Effector || !IsValid(Effector) || !IsValid(HitActor))
+	{
+		return;
+	}
+
+	FSkillExecutionContext& Context = Effector->SkillContext;
+	const FSkillDefinition& Skill = Effector->SkillDef;
+
+	ApplyDamage(HitActor, Context.CurrentDamage, Context.Caster);
+	Context.HitActors.Add(HitActor);
+	
+	if (Skill.HitEffect)
+	{
+		SpawnEffect(Skill.HitEffect, HitActor->GetActorLocation());
+	}
+
+	FHitResult Hit;
+	Hit.HitObjectHandle = FActorInstanceHandle(HitActor);
+	Hit.ImpactPoint = HitActor->GetActorLocation();
+	ProcessAddons(Skill, Context, Hit);
+
+	bool bHasPenetrate = Skill.Addons.Contains(ESkillAddonType::Penetrate);
+
+	if (bHasPenetrate)
+	{
+		Context.CurrentPierceCount++;
+		UE_LOG(LogTemp, Log, TEXT("[SkillSystem] Penetrate %d/%d ? continuing"),
+			Context.CurrentPierceCount, Skill.Passives.PierceData.PierceCount);
+
+		if (!CanPenetrate(Skill, Context))
+		{
+			Effector->Destroy();
+		}
+	}
+	else
+	{
+		Effector->Destroy();
+	}
+
+}
 
 AActor* UCC_SkillSystem::FindNearestEnemy(FVector Origin, float Radius, const TArray<AActor*>& ExcludeActors) const
 {
@@ -384,7 +691,7 @@ AActor* UCC_SkillSystem::FindNearestEnemy(FVector Origin, float Radius, const TA
 
 	for (AActor* Enemy : FoundEnemies)
 	{
-		if (!Enemy || ExcludeActors.Contains(Enemy))
+		if (!Enemy || !IsValid(Enemy) || ExcludeActors.Contains(Enemy))
 		{
 			continue;
 		}
@@ -408,7 +715,7 @@ TArray<AActor*> UCC_SkillSystem::FindEnemiesInRadius(FVector Origin, float Radiu
 	TArray<AActor*> EnemiesInRadius;
 	for (AActor* Enemy : FoundEnemies)
 	{
-		if (!Enemy)
+		if (!Enemy || !IsValid(Enemy))
 		{
 			continue;
 		}

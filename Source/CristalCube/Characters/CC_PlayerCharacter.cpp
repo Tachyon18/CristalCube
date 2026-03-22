@@ -78,6 +78,8 @@ void ACC_PlayerCharacter::BeginPlay()
 {
 	Super::BeginPlay();
 
+	BaseMaxHealth = MaxHealth;
+
 	CC_LOG_PLAYER(Warning, "PlayerCharacter BeginPlay completed - Input handled by PlayerController");
 	CC_LOG_PLAYER(Warning, "Camera Distance: %.1f, Angle: %.1f",
 		CameraBoom->TargetArmLength,
@@ -814,11 +816,25 @@ void ACC_PlayerCharacter::UpdateGameHUD()
 
 }
 
+void ACC_PlayerCharacter::RefreshWeaponAutoAttacks()
+{
+	TArray<ACC_Weapon*> EquippedWeaponSnapshot = EquippedWeapons;
+
+	for (ACC_Weapon* Weapon : EquippedWeaponSnapshot)
+	{
+		if (!IsValid(Weapon))
+		{
+			continue;
+		}
+
+		StopWeaponAutoAttack(Weapon);
+		StartWeaponAutoAttack(Weapon);
+	}
+}
+
 float ACC_PlayerCharacter::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser)
 {
 	float ActualDamage = Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
-
-	CurrentHealth = FMath::Max(0.0f, CurrentHealth - ActualDamage);
 
 	UpdateGameHUD();
 
@@ -935,19 +951,167 @@ void ACC_PlayerCharacter::OnWeaponSelected(FName WeaponName)
 	HideLevelUpUI();
 }
 
-void ACC_PlayerCharacter::ApplyWeaponUpgrade(FName WeaponID)
+bool ACC_PlayerCharacter::ApplyCubeClearReward(const FCubeClearReward& Reward)
 {
-	UCC_WeaponManagerSubsystem* WeaponMgr = GetGameInstance()
-		->GetSubsystem<UCC_WeaponManagerSubsystem>();
-
-	FWeaponData* Data = WeaponMgr->GetWeaponDataPtr(WeaponID);
-
-	if (Data && Data->WeaponClass)
+	switch (Reward.RewardType)
 	{
-		CreateAndEquipWeapon(Data->WeaponClass);
+	case ECubeClearRewardType::HealFull:
+		return ApplyFullHealReward();
+
+	case ECubeClearRewardType::WeaponUpgrade:
+		return ApplyWeaponUpgrade(Reward.DataRowName);
+
+	case ECubeClearRewardType::StatBoost:
+		return ApplyStatBoostReward(Reward.StatUpgradeType, Reward.StatValue);
+
+	case ECubeClearRewardType::SkillGrant:
+		return ApplySkillGrant(Reward.DataRowName);
+
+	default:
+		UE_LOG(LogTemp, Warning, TEXT("[Player] Unsupported Cube Clear reward type."));
+		return false;
+	}
+}
+
+bool ACC_PlayerCharacter::ApplyFullHealReward()
+{
+	const float HealedAmount = Heal(MaxHealth);
+	UpdateGameHUD();
+
+	UE_LOG(LogTemp, Log, TEXT("[Player] Cube Clear reward applied: Full Heal (%.1f restored)"), HealedAmount);
+	return true;
+}
+
+bool ACC_PlayerCharacter::ApplyStatBoostReward(EUpgradeType UpgradeType, float StatValue)
+{
+	if (UpgradeType == EUpgradeType::None)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[Player] Cube Clear stat boost rejected: invalid upgrade type."));
+		return false;
 	}
 
-	UGameplayStatics::SetGamePaused(GetWorld(), false);
+	if (StatValue <= 0.0f)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[Player] Cube Clear stat boost rejected: invalid value %.2f"), StatValue);
+		return false;
+	}
+
+	// Accept either delta values (0.2 = +20%) or multiplier values (1.2 = x1.2).
+	const float StatDelta = StatValue >= 1.0f ? (StatValue - 1.0f) : StatValue;
+
+	switch (UpgradeType)
+	{
+	case EUpgradeType::Damage:
+		PlayerStats.BasicStats.DamageMultiplier += StatDelta;
+		break;
+
+	case EUpgradeType::AttackSpeed:
+		PlayerStats.BasicStats.AttackSpeedMultiplier += StatDelta;
+		break;
+
+	case EUpgradeType::MoveSpeed:
+		PlayerStats.BasicStats.MoveSpeedMultiplier += StatDelta;
+		break;
+
+	case EUpgradeType::Health:
+		PlayerStats.BasicStats.HealthMultiplier += StatDelta;
+		break;
+
+	default:
+		UE_LOG(LogTemp, Warning, TEXT("[Player] Cube Clear stat boost type is not implemented yet."));
+		return false;
+	}
+
+	ApplyPlayerStats();
+	RefreshWeaponAutoAttacks();
+	UpdateGameHUD();
+
+	UE_LOG(LogTemp, Log, TEXT("[Player] Cube Clear stat boost applied: %s +%.2f"),
+		*UEnum::GetValueAsString(UpgradeType), StatDelta);
+	return true;
+}
+
+bool ACC_PlayerCharacter::ApplyWeaponUpgrade(FName WeaponID)
+{
+	if (WeaponID.IsNone())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[Player] Cube Clear weapon reward rejected: invalid row name."));
+		return false;
+	}
+
+	if (!WeaponManager)
+	{
+		InitializeWeaponSystem();
+	}
+
+	if (!WeaponManager)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[Player] Cube Clear weapon reward rejected: WeaponManager unavailable."));
+		return false;
+	}
+
+	FWeaponData* Data = WeaponManager->GetWeaponDataPtr(WeaponID);
+
+	if (!Data || !Data->WeaponClass)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[Player] Cube Clear weapon reward rejected: %s not found."),
+			*WeaponID.ToString());
+		return false;
+	}
+
+	ACC_Weapon* ExistingWeapon = FindWeaponByClass(Data->WeaponClass);
+	const int32 CurrentUpgradeLevel = WeaponRewardLevels.FindRef(WeaponID);
+	const int32 MaxUpgradeLevel = FMath::Max(Data->MaxLevel - 1, 0);
+
+	if (ExistingWeapon)
+	{
+		if (CurrentUpgradeLevel >= MaxUpgradeLevel)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[Player] %s is already at max reward level (%d)."),
+				*WeaponID.ToString(), Data->MaxLevel);
+			return false;
+		}
+
+		if (!ExistingWeapon->ApplyUpgrade())
+		{
+			return false;
+		}
+
+		WeaponRewardLevels.Add(WeaponID, CurrentUpgradeLevel + 1);
+		RefreshWeaponAutoAttacks();
+
+		UE_LOG(LogTemp, Log, TEXT("[Player] Cube Clear weapon upgraded: %s -> reward level %d/%d"),
+			*WeaponID.ToString(), CurrentUpgradeLevel + 1, MaxUpgradeLevel);
+		return true;
+	}
+
+	if (!CanEquipMoreWeapons())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[Player] Cannot grant weapon %s: no empty weapon slot."),
+			*WeaponID.ToString());
+		return false;
+	}
+
+	ACC_Weapon* NewWeapon = CreateAndEquipWeapon(Data->WeaponClass);
+	if (!NewWeapon)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[Player] Failed to create reward weapon: %s"),
+			*WeaponID.ToString());
+		return false;
+	}
+
+	WeaponRewardLevels.FindOrAdd(WeaponID) = 0;
+	UpdateGameHUD();
+
+	UE_LOG(LogTemp, Log, TEXT("[Player] Cube Clear weapon granted: %s"), *WeaponID.ToString());
+	return true;
+}
+
+bool ACC_PlayerCharacter::ApplySkillGrant(FName SkillID)
+{
+	UE_LOG(LogTemp, Warning, TEXT("[Player] SkillGrant reward is not implemented yet: %s"),
+		*SkillID.ToString());
+	return false;
 }
 
 void ACC_PlayerCharacter::ApplyStats()
@@ -960,18 +1124,26 @@ void ACC_PlayerCharacter::ApplyStats()
 		Movement->MaxWalkSpeed = FinalMoveSpeed;
 	}
 
-	// Apply health multiplier
-	float FinalMaxHealth = MaxHealth * PlayerStats.BasicStats.HealthMultiplier;
+	const float PreviousMaxHealth = MaxHealth;
+	if (BaseMaxHealth <= 0.0f)
+	{
+		BaseMaxHealth = PreviousMaxHealth;
+	}
+
+	// Apply health multiplier from the original max health so repeated rewards do not compound twice.
+	const float FinalMaxHealth = BaseMaxHealth * PlayerStats.BasicStats.HealthMultiplier;
 
 	// If health was at max, keep it at max after stat change
-	if (FMath::IsNearlyEqual(CurrentHealth, MaxHealth))
+	if (FMath::IsNearlyEqual(CurrentHealth, PreviousMaxHealth))
 	{
 		CurrentHealth = FinalMaxHealth;
 	}
 	else
 	{
 		// Otherwise, adjust current health proportionally
-		float HealthPercentage = CurrentHealth / MaxHealth;
+		const float HealthPercentage = PreviousMaxHealth > 0.0f
+			? (CurrentHealth / PreviousMaxHealth)
+			: 1.0f;
 		CurrentHealth = FinalMaxHealth * HealthPercentage;
 	}
 

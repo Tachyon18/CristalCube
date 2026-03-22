@@ -273,7 +273,14 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Stats")
 	float GameTime = 0.0f;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Cube Clear")
+	TMap<FName, int32> WeaponRewardLevels;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Stats")
+	float BaseMaxHealth = 0.0f;
+
 	void UpdateGameHUD();
+	void RefreshWeaponAutoAttacks();
 
 
 
@@ -314,8 +321,20 @@ public:
 	UFUNCTION(BlueprintCallable)
 	void OnWeaponSelected(FName WeaponName);
 
-	UFUNCTION(BlueprintCallable)
-	void ApplyWeaponUpgrade(FName WeaponID);
+	UFUNCTION(BlueprintCallable, Category = "Cube Clear")
+	bool ApplyCubeClearReward(const FCubeClearReward& Reward);
+
+	UFUNCTION(BlueprintCallable, Category = "Cube Clear")
+	bool ApplyFullHealReward();
+
+	UFUNCTION(BlueprintCallable, Category = "Cube Clear")
+	bool ApplyStatBoostReward(EUpgradeType UpgradeType, float StatValue);
+
+	UFUNCTION(BlueprintCallable, Category = "Cube Clear")
+	bool ApplyWeaponUpgrade(FName WeaponID);
+
+	UFUNCTION(BlueprintCallable, Category = "Cube Clear")
+	bool ApplySkillGrant(FName SkillID);
 
 	/** Returns CameraBoom subobject */
 	FORCEINLINE USpringArmComponent* GetCameraBoom() const { return CameraBoom; }

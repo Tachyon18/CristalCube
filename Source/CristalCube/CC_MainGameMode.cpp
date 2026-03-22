@@ -64,7 +64,15 @@ void ACC_MainGameMode::ShowCubeClearUI(int32 ClearedCycle)
     {
         UE_LOG(LogTemp, Warning,
             TEXT("[MainGameMode] CubeClearWidgetClass not set! Auto-proceeding."));
-        OnCubeClearRewardSelected(FCubeClearReward());
+
+        HideCubeClearUI();
+        SetGameState(EGameState::Playing);
+
+        if (CycleManager)
+        {
+            CycleManager->StartNextCycle();
+        }
+
         return;
     }
 
@@ -75,6 +83,7 @@ void ACC_MainGameMode::ShowCubeClearUI(int32 ClearedCycle)
     if (CurrentCubeClearWidget)
     {
         CurrentCubeClearWidget->AddToViewport();
+        UGameplayStatics::SetGamePaused(GetWorld(), true);
         PC->SetInputMode(FInputModeUIOnly());
         PC->SetShowMouseCursor(true);
     }
@@ -91,6 +100,7 @@ void ACC_MainGameMode::HideCubeClearUI()
     APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0);
     if (PC)
     {
+        UGameplayStatics::SetGamePaused(GetWorld(), false);
         PC->SetInputMode(FInputModeGameOnly());
         PC->SetShowMouseCursor(false);
     }
@@ -101,10 +111,13 @@ void ACC_MainGameMode::OnCubeClearRewardSelected(FCubeClearReward SelectedReward
     HideCubeClearUI();
     SetGameState(EGameState::Playing);
 
-    // 보상 적용 — 블루프린트에서 오버라이드하거나 PlayerCharacter에 위임
+    const bool bRewardApplied = ApplyCubeClearRewardToPlayer(SelectedReward);
+
     UE_LOG(LogTemp, Log,
-        TEXT("[MainGameMode] Reward selected: %s. Starting next cycle."),
-        *SelectedReward.DisplayName.ToString());
+        TEXT("[MainGameMode] Reward selected: %s (%s). Applied=%s. Starting next cycle."),
+        *SelectedReward.DisplayName.ToString(),
+        *UEnum::GetValueAsString(SelectedReward.RewardType),
+        bRewardApplied ? TEXT("true") : TEXT("false"));
 
     if (CycleManager)
     {
@@ -150,4 +163,17 @@ void ACC_MainGameMode::TriggerGameOver()
             GameOverTimerHandle, this, &ACC_MainGameMode::RestartCurrentLevel, GameOverDelay, false);
     }
     // GameOverDelay == 0 이면 블루프린트(WBP_GameOver)에서 수동 처리
+}
+
+bool ACC_MainGameMode::ApplyCubeClearRewardToPlayer(const FCubeClearReward& SelectedReward)
+{
+    ACC_PlayerCharacter* PlayerCharacter = GetPlayerCharacter();
+    if (!PlayerCharacter)
+    {
+        UE_LOG(LogTemp, Warning,
+            TEXT("[MainGameMode] Failed to apply Cube Clear reward: player character not found."));
+        return false;
+    }
+
+    return PlayerCharacter->ApplyCubeClearReward(SelectedReward);
 }

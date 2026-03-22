@@ -140,6 +140,18 @@ void ACC_PlayerCharacter::ApplyPlayerStats()
 	ApplyStats();
 }
 
+void ACC_PlayerCharacter::InitializeBasePlayerStats()
+{
+	if (bBasePlayerStatsInitialized)
+	{
+		return;
+	}
+
+	BaseMaxHealth = MaxHealth;
+	BaseMoveSpeed = MoveSpeed;
+	bBasePlayerStatsInitialized = true;
+}
+
 void ACC_PlayerCharacter::InitializeWeaponSystem()
 {
 	UGameInstance* GameInstance = GetGameInstance();
@@ -954,29 +966,41 @@ void ACC_PlayerCharacter::ApplyStats()
 {
 	Super::ApplyStats();
 
+	InitializeBasePlayerStats();
+
+	const float PreviousMaxHealth = MaxHealth;
+	const bool bHadValidPreviousMaxHealth = PreviousMaxHealth > 0.0f;
+	const bool bWasAtFullHealth = bHadValidPreviousMaxHealth
+		&& FMath::IsNearlyEqual(CurrentHealth, PreviousMaxHealth);
+	const float PreviousHealthRatio = bHadValidPreviousMaxHealth
+		? FMath::Clamp(CurrentHealth / PreviousMaxHealth, 0.0f, 1.0f)
+		: 0.0f;
+
+	const float FinalMoveSpeed = BaseMoveSpeed * PlayerStats.BasicStats.MoveSpeedMultiplier;
+
 	if (UCharacterMovementComponent* Movement = GetCharacterMovement())
 	{
-		float FinalMoveSpeed = MoveSpeed * PlayerStats.BasicStats.MoveSpeedMultiplier;
 		Movement->MaxWalkSpeed = FinalMoveSpeed;
 	}
 
-	// Apply health multiplier
-	float FinalMaxHealth = MaxHealth * PlayerStats.BasicStats.HealthMultiplier;
+	const float FinalMaxHealth = BaseMaxHealth * PlayerStats.BasicStats.HealthMultiplier;
+	MaxHealth = FinalMaxHealth;
 
-	// If health was at max, keep it at max after stat change
-	if (FMath::IsNearlyEqual(CurrentHealth, MaxHealth))
+	if (FMath::IsNearlyZero(FinalMaxHealth))
+	{
+		CurrentHealth = 0.0f;
+	}
+	else if (bWasAtFullHealth)
 	{
 		CurrentHealth = FinalMaxHealth;
 	}
 	else
 	{
-		// Otherwise, adjust current health proportionally
-		float HealthPercentage = CurrentHealth / MaxHealth;
-		CurrentHealth = FinalMaxHealth * HealthPercentage;
+		CurrentHealth = FinalMaxHealth * PreviousHealthRatio;
+		CurrentHealth = FMath::Clamp(CurrentHealth, 0.0f, FinalMaxHealth);
 	}
 
-	MaxHealth = FinalMaxHealth;
-
-	UE_LOG(LogTemp, Log, TEXT("Stats Applied - Health: %.0f/%.0f, Speed: %.0f"),
-		CurrentHealth, MaxHealth, GetCharacterMovement()->MaxWalkSpeed);
+	UE_LOG(LogTemp, Log,
+		TEXT("Stats Applied - BaseHealth: %.0f, FinalHealth: %.0f/%.0f, BaseSpeed: %.0f, FinalSpeed: %.0f"),
+		BaseMaxHealth, CurrentHealth, MaxHealth, BaseMoveSpeed, FinalMoveSpeed);
 }

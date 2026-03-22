@@ -28,6 +28,8 @@ public:
 
 protected:
 
+	bool bReportedActualDeath = false;
+
 	// Target player reference
 	UPROPERTY()
 	class ACC_PlayerCharacter* TargetPlayer;
@@ -101,6 +103,8 @@ protected:
 
 	// Override Die() to drop experience
 	virtual void Die() override;
+
+	void ReportActualDeathToEnemyManager();
 
 
 protected:

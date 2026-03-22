@@ -60,21 +60,24 @@ void ACC_CycleManager::BindToEnemyManager()
         return;
     }
 
-    EM->OnEnemyUnregistered.AddDynamic(this, &ACC_CycleManager::OnEnemyKilled);
-    UE_LOG(LogTemp, Log, TEXT("[CycleManager] Bound to EnemyManager::OnEnemyUnregistered."));
+    EM->OnEnemyKilled.AddUniqueDynamic(this, &ACC_CycleManager::OnEnemyKilled);
+    UE_LOG(LogTemp, Log, TEXT("[CycleManager] Bound to EnemyManager::OnEnemyKilled."));
 }
 
 void ACC_CycleManager::OnEnemyKilled(AActor* KilledEnemy)
 {
-    if (!bCycleActive) return;
+    if (!bCycleActive)
+    {
+        return;
+    }
 
     ++KillsThisCycle;
     ++TotalKills;
 
     OnKillCountUpdated.Broadcast(KillsThisCycle, GetKillsRequired());
 
-    UE_LOG(LogTemp, Log, TEXT("[CycleManager] Kill %d / %d"),
-        KillsThisCycle, GetKillsRequired());
+    UE_LOG(LogTemp, Log, TEXT("[CycleManager] Counted confirmed kill for %s (%d / %d)"),
+        *GetNameSafe(KilledEnemy), KillsThisCycle, GetKillsRequired());
 
     CheckCycleCompletion();
 }

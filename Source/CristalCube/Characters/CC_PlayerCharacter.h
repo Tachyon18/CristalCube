@@ -44,9 +44,20 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats")
 	FCristalCubePlayerStats PlayerStats;
 
+	// Stable, pre-multiplier values used as the source of truth for repeated stat application.
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Stats")
+	float BaseMaxHealth = 0.0f;
+
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Stats")
+	float BaseMoveSpeed = 0.0f;
+
+	bool bBasePlayerStatsInitialized = false;
+
 	// Apply stats to character (called when stats change)
 	UFUNCTION(BlueprintCallable, Category = "Stats")
 	void ApplyPlayerStats();
+
+	void InitializeBasePlayerStats();
 
 	// Getters
 	UFUNCTION(BlueprintCallable, Category = "Stats")

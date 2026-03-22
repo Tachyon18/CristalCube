@@ -26,6 +26,9 @@ public:
 
 	virtual void Tick(float DeltaTime) override;
 
+	UFUNCTION(BlueprintCallable, Category = "Enemy|Stats")
+	void ApplyCycleStatScaling(float DamageMultiplier, float SpeedMultiplier);
+
 protected:
 
 	// Target player reference
@@ -193,6 +196,19 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "Combat")
 	float GetAttackCooldownPercent() const;
+
+private:
+
+	void CacheBaseStatsIfNeeded();
+	void ApplyCurrentCycleStatScalingFallback();
+
+	bool bBaseStatsCached = false;
+	bool bCycleStatScalingApplied = false;
+	float BaseMoveSpeed = 0.0f;
+	float BaseContactDamage = 0.0f;
+	FCristalCubeEnemyStats BaseEnemyStats;
+	float AppliedDamageMultiplier = 1.0f;
+	float AppliedSpeedMultiplier = 1.0f;
 
 protected:
 	

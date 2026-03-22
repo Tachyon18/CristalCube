@@ -15,6 +15,8 @@
 #include "../CC_EnemyManager.h"
 #include "../CC_AIManager.h"
 #include "../CC_EnemyAIController.h"
+#include "../CC_CycleManager.h"
+#include "../CC_MainGameMode.h"
 #include "../Gameplay/CC_ExperienceGem.h"
 
 ACC_EnemyCharacter::ACC_EnemyCharacter()
@@ -70,9 +72,75 @@ ACC_EnemyCharacter::ACC_EnemyCharacter()
 	bIsBoss = false;
 }
 
+void ACC_EnemyCharacter::CacheBaseStatsIfNeeded()
+{
+	if (bBaseStatsCached)
+	{
+		return;
+	}
+
+	BaseMoveSpeed = MoveSpeed;
+	BaseContactDamage = ContactDamage;
+	BaseEnemyStats = EnemyStats;
+	bBaseStatsCached = true;
+}
+
+void ACC_EnemyCharacter::ApplyCycleStatScaling(float DamageMultiplier, float SpeedMultiplier)
+{
+	CacheBaseStatsIfNeeded();
+
+	AppliedDamageMultiplier = FMath::Max(DamageMultiplier, 0.0f);
+	AppliedSpeedMultiplier = FMath::Max(SpeedMultiplier, 0.0f);
+
+	EnemyStats = BaseEnemyStats;
+	EnemyStats.AttackDamage = BaseEnemyStats.AttackDamage * AppliedDamageMultiplier;
+	ContactDamage = BaseContactDamage * AppliedDamageMultiplier;
+	MoveSpeed = BaseMoveSpeed * AppliedSpeedMultiplier;
+
+	if (UCharacterMovementComponent* Movement = GetCharacterMovement())
+	{
+		Movement->MaxWalkSpeed = MoveSpeed;
+	}
+
+	bCycleStatScalingApplied = true;
+
+	UE_LOG(LogTemp, Log,
+		TEXT("[ENEMY] %s cycle scaling applied - Damage x%.2f, Speed x%.2f (Attack: %.1f, Contact: %.1f, MoveSpeed: %.1f)"),
+		*GetName(),
+		AppliedDamageMultiplier,
+		AppliedSpeedMultiplier,
+		EnemyStats.AttackDamage,
+		ContactDamage,
+		MoveSpeed);
+}
+
+void ACC_EnemyCharacter::ApplyCurrentCycleStatScalingFallback()
+{
+	float DamageMultiplier = 1.0f;
+	float SpeedMultiplier = 1.0f;
+
+	if (ACC_MainGameMode* MainGameMode = Cast<ACC_MainGameMode>(UGameplayStatics::GetGameMode(this)))
+	{
+		if (ACC_CycleManager* CycleManager = MainGameMode->GetCycleManager())
+		{
+			const FCycleConfig CycleConfig = CycleManager->GetCurrentCycleConfig();
+			DamageMultiplier = CycleConfig.EnemyDamageMultiplier;
+			SpeedMultiplier = CycleConfig.EnemySpeedMultiplier;
+		}
+	}
+
+	ApplyCycleStatScaling(DamageMultiplier, SpeedMultiplier);
+}
+
 void ACC_EnemyCharacter::BeginPlay()
 {
 	Super::BeginPlay();
+
+	CacheBaseStatsIfNeeded();
+	if (!bCycleStatScalingApplied)
+	{
+		ApplyCurrentCycleStatScalingFallback();
+	}
 
 	if (!GetController())
 	{
@@ -91,8 +159,8 @@ void ACC_EnemyCharacter::BeginPlay()
 		Capsule->OnComponentBeginOverlap.AddDynamic(this, &ACC_EnemyCharacter::OnOverlapBegin);
 	}
 
-	CC_LOG_ENEMY(Warning, TEXT("Spawned enemy: %s (HP: %.0f, Damage: %.0f)"),
-		*EnemyType, MaxHealth, ContactDamage);
+	CC_LOG_ENEMY(Warning, TEXT("Spawned enemy: %s (HP: %.0f, Attack: %.1f, Contact: %.1f, Speed: %.1f)"),
+		*EnemyType, MaxHealth, EnemyStats.AttackDamage, ContactDamage, MoveSpeed);
 
 	if (AttackRangeSphere)
 	{
@@ -115,7 +183,7 @@ void ACC_EnemyCharacter::BeginPlay()
 	else
 	{
 		UE_LOG(LogTemp, Warning, TEXT("AI Manager not found, using fallback AI for: %s"), *GetName());
-		// Fallback: ±âÁ¸ ¹æ½ÄÀ¸·Î µ¿ÀÛ (AI Manager ¾ø¾îµµ °ÔÀÓ ÁøÇà °¡´É)
+		// Fallback: Â±Ã¢ÃÂ¸ Â¹Ã¦Â½Ã„Ã€Â¸Â·Ã ÂµÂ¿Ã€Ã› (AI Manager Â¾Ã¸Â¾Ã®ÂµÂµ Â°Ã”Ã€Ã“ ÃÃ¸Ã‡Ã  Â°Â¡Â´Ã‰)
 	}
 
 	if (USkeletalMeshComponent* SkeletalMesh = GetMesh())
@@ -236,7 +304,7 @@ bool ACC_EnemyCharacter::PerformAttackHit(const FAttackHitData& HitData, TArray<
 	{
 		case EAttackHitType::Point:
 		{
-			// ´ÜÀÏ Å¸°Ù¸¸
+			// Â´ÃœÃ€Ã Ã…Â¸Â°Ã™Â¸Â¸
 			if (!TargetPlayer) return false;
 
 			float Distance = FVector::Dist(Start, TargetPlayer->GetActorLocation());
@@ -249,7 +317,7 @@ bool ACC_EnemyCharacter::PerformAttackHit(const FAttackHitData& HitData, TArray<
 
 		case EAttackHitType::Sphere:
 		{
-			// 360µµ ¿øÇü ¹üÀ§
+			// 360ÂµÂµ Â¿Ã¸Ã‡Ã¼ Â¹Ã¼Ã€Â§
 			TArray<FOverlapResult> Overlaps;
 			FCollisionQueryParams Params;
 			Params.AddIgnoredActor(this);
@@ -276,16 +344,16 @@ bool ACC_EnemyCharacter::PerformAttackHit(const FAttackHitData& HitData, TArray<
 
 		case EAttackHitType::Line:
 		{
-			// È¾º£±â: ÁÂ¿ì·Î ³Ğ°í Àü¹æÀ¸·Î ¾ãÀº Box
+			// ÃˆÂ¾ÂºÂ£Â±Ã¢: ÃÃ‚Â¿Ã¬Â·Ã Â³ÃÂ°Ã­ Ã€Ã¼Â¹Ã¦Ã€Â¸Â·Ã Â¾Ã£Ã€Âº Box
 			FVector HitStart = Start;
 			FVector HitEnd = Start + (Forward * HitData.Range);
 			FVector HitCenter = (HitStart + HitEnd) * 0.5f;
 
-			// Box Å©±â: X=¾ã°Ô, Y=³Ğ°Ô!
+			// Box Ã…Â©Â±Ã¢: X=Â¾Ã£Â°Ã”, Y=Â³ÃÂ°Ã”!
 			FVector BoxExtent(
-				HitData.Thickness * 0.5f,  // Àü¹æ µÎ²² (¾ã°Ô)
-				HitData.Width * 1.f,      // ÁÂ¿ì Æø (³Ğ°Ô!)
-				HitData.Height * 0.5f      // »óÇÏ ³ôÀÌ
+				HitData.Thickness * 0.5f,  // Ã€Ã¼Â¹Ã¦ ÂµÃÂ²Â² (Â¾Ã£Â°Ã”)
+				HitData.Width * 1.f,      // ÃÃ‚Â¿Ã¬ Ã†Ã¸ (Â³ÃÂ°Ã”!)
+				HitData.Height * 0.5f      // Â»Ã³Ã‡Ã Â³Ã´Ã€ÃŒ
 			);
 
 			TArray<FHitResult> HitResults;
@@ -315,7 +383,7 @@ bool ACC_EnemyCharacter::PerformAttackHit(const FAttackHitData& HitData, TArray<
 
 		case EAttackHitType::Box:
 		{
-			// Àü¹æ »ç°¢Çü
+			// Ã€Ã¼Â¹Ã¦ Â»Ã§Â°Â¢Ã‡Ã¼
 			FVector HitStart = Start;
 			FVector HitEnd = Start + (Forward * HitData.Range);
 
@@ -352,12 +420,12 @@ bool ACC_EnemyCharacter::PerformAttackHit(const FAttackHitData& HitData, TArray<
 
 		case EAttackHitType::Cone:
 		{
-			// ºÎÃ¤²Ã
+			// ÂºÃÃƒÂ¤Â²Ãƒ
 			TArray<FOverlapResult> Overlaps;
 			FCollisionQueryParams Params;
 			Params.AddIgnoredActor(this);
 
-			// ÀÏ´Ü ±¸Ã¼·Î ÈÄº¸ Ã£±â
+			// Ã€ÃÂ´Ãœ Â±Â¸ÃƒÂ¼Â·Ã ÃˆÃ„ÂºÂ¸ ÃƒÂ£Â±Ã¢
 			GetWorld()->OverlapMultiByChannel(
 				Overlaps,
 				Start,
@@ -367,7 +435,7 @@ bool ACC_EnemyCharacter::PerformAttackHit(const FAttackHitData& HitData, TArray<
 				Params
 			);
 
-			// °¢µµ ÇÊÅÍ¸µ
+			// Â°Â¢ÂµÂµ Ã‡ÃŠÃ…ÃÂ¸Âµ
 			for (const FOverlapResult& Overlap : Overlaps)
 			{
 				if (ACC_PlayerCharacter* Target = Cast<ACC_PlayerCharacter>(Overlap.GetActor()))
@@ -389,7 +457,7 @@ bool ACC_EnemyCharacter::PerformAttackHit(const FAttackHitData& HitData, TArray<
 
 		case EAttackHitType::Capsule:
 		{
-			// ±ä ¿øÅë
+			// Â±Ã¤ Â¿Ã¸Ã…Ã«
 			FVector HitStart = Start;
 			FVector HitEnd = Start + (Forward * HitData.Range);
 
@@ -419,7 +487,7 @@ bool ACC_EnemyCharacter::PerformAttackHit(const FAttackHitData& HitData, TArray<
 		}
 	}
 
-	// µğ¹ö±× ½Ã°¢È­
+	// ÂµÃ°Â¹Ã¶Â±Ã— Â½ÃƒÂ°Â¢ÃˆÂ­
 	if (bShowAttackDebug)
 	{
 		DrawAttackDebug(HitData, OutHitTargets.Num() > 0);

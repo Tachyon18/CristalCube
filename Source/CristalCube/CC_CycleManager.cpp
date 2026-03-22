@@ -99,7 +99,9 @@ void ACC_CycleManager::StartCycle(int32 CycleNumber)
     KillsThisCycle = 0;
     bCycleActive = true;
 
-    FCycleConfig Config = GetCurrentCycleConfig();
+    GetWorldTimerManager().ClearTimer(TimeLimitHandle);
+
+    const FCycleConfig Config = GetCurrentCycleConfig();
 
     // 제한 시간 설정 (0이면 킬 수 기반)
     if (Config.TimeLimit > 0.f)
@@ -113,8 +115,13 @@ void ACC_CycleManager::StartCycle(int32 CycleNumber)
     OnCycleStarted.Broadcast(CurrentCycle);
     OnKillCountUpdated.Broadcast(0, GetKillsRequired());
 
-    UE_LOG(LogTemp, Warning, TEXT("[CycleManager] Cycle %d started — KillsRequired: %d, MaxEnemies: %d"),
-        CurrentCycle, GetKillsRequired(), Config.MaxEnemies);
+    UE_LOG(LogTemp, Warning,
+        TEXT("[CycleManager] Cycle %d started — KillsRequired: %d, MaxEnemies: %d, Damage x%.2f, Speed x%.2f"),
+        CurrentCycle,
+        GetKillsRequired(),
+        Config.MaxEnemies,
+        Config.EnemyDamageMultiplier,
+        Config.EnemySpeedMultiplier);
 }
 
 void ACC_CycleManager::CheckCycleCompletion()
@@ -147,7 +154,18 @@ void ACC_CycleManager::OnTimeLimitReached()
 
 FCycleConfig ACC_CycleManager::GetCurrentCycleConfig() const
 {
-    int32 Index = CurrentCycle - 1;
+    return GetCycleConfigForCycle(CurrentCycle);
+}
+
+FCycleConfig ACC_CycleManager::GetCycleConfigForCycle(int32 CycleNumber) const
+{
+    if (CycleConfigs.IsEmpty())
+    {
+        return FCycleConfig();
+    }
+
+    const int32 SafeCycleNumber = FMath::Max(CycleNumber, 1);
+    const int32 Index = SafeCycleNumber - 1;
 
     if (CycleConfigs.IsValidIndex(Index))
     {
@@ -156,11 +174,13 @@ FCycleConfig ACC_CycleManager::GetCurrentCycleConfig() const
 
     // 배열 초과 시 마지막 항목에 누적 배율 적용
     FCycleConfig Last = CycleConfigs.Last();
-    int32 Overflow = Index - (CycleConfigs.Num() - 1);
+    const int32 Overflow = Index - (CycleConfigs.Num() - 1);
 
     Last.KillsRequired += KillsIncreasePerCycle * Overflow;
     Last.EnemyDamageMultiplier += DamageMultiplierIncreasePerCycle * Overflow;
-    Last.EnemySpeedMultiplier = FMath::Min(Last.EnemySpeedMultiplier + 0.05f * Overflow, 2.0f);
+    Last.EnemySpeedMultiplier = FMath::Min(
+        Last.EnemySpeedMultiplier + SpeedMultiplierIncreasePerCycle * Overflow,
+        2.0f);
 
     return Last;
 }

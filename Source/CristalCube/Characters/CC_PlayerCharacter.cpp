@@ -140,6 +140,18 @@ void ACC_PlayerCharacter::ApplyPlayerStats()
 	ApplyStats();
 }
 
+void ACC_PlayerCharacter::CaptureBaseStatsIfNeeded()
+{
+	if (bHasCapturedBaseStats)
+	{
+		return;
+	}
+
+	BaseMaxHealthStat = MaxHealth;
+	BaseMoveSpeedStat = MoveSpeed;
+	bHasCapturedBaseStats = true;
+}
+
 void ACC_PlayerCharacter::InitializeWeaponSystem()
 {
 	UGameInstance* GameInstance = GetGameInstance();
@@ -816,11 +828,13 @@ void ACC_PlayerCharacter::UpdateGameHUD()
 
 float ACC_PlayerCharacter::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser)
 {
-	float ActualDamage = Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
+	const float PreviousHealth = CurrentHealth;
+	const float ActualDamage = Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
 
-	CurrentHealth = FMath::Max(0.0f, CurrentHealth - ActualDamage);
-
-	UpdateGameHUD();
+	if (ActualDamage > 0.0f && !FMath::IsNearlyEqual(CurrentHealth, PreviousHealth))
+	{
+		UpdateGameHUD();
+	}
 
 	return ActualDamage;
 }
@@ -937,8 +951,19 @@ void ACC_PlayerCharacter::OnWeaponSelected(FName WeaponName)
 
 void ACC_PlayerCharacter::ApplyWeaponUpgrade(FName WeaponID)
 {
-	UCC_WeaponManagerSubsystem* WeaponMgr = GetGameInstance()
-		->GetSubsystem<UCC_WeaponManagerSubsystem>();
+	UGameInstance* GameInstance = GetGameInstance();
+	if (!GameInstance)
+	{
+		CC_LOG_PLAYER(Warning, TEXT("Cannot apply weapon upgrade without a game instance"));
+		return;
+	}
+
+	UCC_WeaponManagerSubsystem* WeaponMgr = GameInstance->GetSubsystem<UCC_WeaponManagerSubsystem>();
+	if (!WeaponMgr)
+	{
+		CC_LOG_PLAYER(Warning, TEXT("Cannot apply weapon upgrade without WeaponManagerSubsystem"));
+		return;
+	}
 
 	FWeaponData* Data = WeaponMgr->GetWeaponDataPtr(WeaponID);
 
@@ -947,31 +972,99 @@ void ACC_PlayerCharacter::ApplyWeaponUpgrade(FName WeaponID)
 		CreateAndEquipWeapon(Data->WeaponClass);
 	}
 
-	UGameplayStatics::SetGamePaused(GetWorld(), false);
+	if (UWorld* World = GetWorld())
+	{
+		UGameplayStatics::SetGamePaused(World, false);
+	}
+}
+
+bool ACC_PlayerCharacter::ApplyCubeClearReward(const FCubeClearReward& Reward)
+{
+	switch (Reward.RewardType)
+	{
+	case ECubeClearRewardType::WeaponUpgrade:
+		if (Reward.DataRowName.IsNone())
+		{
+			return false;
+		}
+
+		ApplyWeaponUpgrade(Reward.DataRowName);
+		return true;
+
+	case ECubeClearRewardType::SkillGrant:
+		UE_LOG(LogTemp, Warning, TEXT("[Player] SkillGrant reward is not implemented yet: %s"),
+			*Reward.DataRowName.ToString());
+		return false;
+
+	case ECubeClearRewardType::StatBoost:
+		return ApplyStatUpgrade(Reward.StatUpgradeType, Reward.StatValue);
+
+	case ECubeClearRewardType::HealFull:
+		return Heal(MaxHealth) > 0.0f || FMath::IsNearlyEqual(CurrentHealth, MaxHealth);
+	}
+
+	return false;
+}
+
+bool ACC_PlayerCharacter::ApplyStatUpgrade(EUpgradeType UpgradeType, float UpgradeValue)
+{
+	if (FMath::IsNearlyZero(UpgradeValue))
+	{
+		return false;
+	}
+
+	switch (UpgradeType)
+	{
+	case EUpgradeType::Damage:
+		PlayerStats.BasicStats.DamageMultiplier += UpgradeValue;
+		break;
+
+	case EUpgradeType::AttackSpeed:
+		PlayerStats.BasicStats.AttackSpeedMultiplier += UpgradeValue;
+		break;
+
+	case EUpgradeType::MoveSpeed:
+		PlayerStats.BasicStats.MoveSpeedMultiplier += UpgradeValue;
+		break;
+
+	case EUpgradeType::Health:
+		PlayerStats.BasicStats.HealthMultiplier += UpgradeValue;
+		break;
+
+	case EUpgradeType::None:
+	default:
+		return false;
+	}
+
+	ApplyPlayerStats();
+	UpdateGameHUD();
+	return true;
 }
 
 void ACC_PlayerCharacter::ApplyStats()
 {
 	Super::ApplyStats();
+	CaptureBaseStatsIfNeeded();
 
 	if (UCharacterMovementComponent* Movement = GetCharacterMovement())
 	{
-		float FinalMoveSpeed = MoveSpeed * PlayerStats.BasicStats.MoveSpeedMultiplier;
+		const float FinalMoveSpeed = BaseMoveSpeedStat * PlayerStats.BasicStats.MoveSpeedMultiplier;
 		Movement->MaxWalkSpeed = FinalMoveSpeed;
 	}
 
 	// Apply health multiplier
-	float FinalMaxHealth = MaxHealth * PlayerStats.BasicStats.HealthMultiplier;
+	const float PreviousMaxHealth = MaxHealth;
+	const float FinalMaxHealth = BaseMaxHealthStat * PlayerStats.BasicStats.HealthMultiplier;
 
 	// If health was at max, keep it at max after stat change
-	if (FMath::IsNearlyEqual(CurrentHealth, MaxHealth))
+	if (FMath::IsNearlyEqual(CurrentHealth, PreviousMaxHealth))
 	{
 		CurrentHealth = FinalMaxHealth;
 	}
 	else
 	{
 		// Otherwise, adjust current health proportionally
-		float HealthPercentage = CurrentHealth / MaxHealth;
+		const float HealthPercentage = PreviousMaxHealth > 0.0f ? (CurrentHealth / PreviousMaxHealth) : 0.0f;
 		CurrentHealth = FinalMaxHealth * HealthPercentage;
 	}
 

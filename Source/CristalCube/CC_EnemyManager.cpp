@@ -120,12 +120,29 @@ void ACC_EnemyManager::UnregisterEnemy(AActor* Enemy)
     }
 
     PendingRemoval.Add(Enemy);
-
-    // CycleManager에 킬 알림 (직접 참조 없이 델리게이트로)
     OnEnemyUnregistered.Broadcast(Enemy);
 
     UE_LOG(LogTemp, VeryVerbose, TEXT("[ENEMY MANAGER] Unregistered enemy (Total: %d)"), ActiveEnemies.Num());
 
+}
+
+void ACC_EnemyManager::NotifyEnemyKilled(AActor* Enemy)
+{
+    if (!Enemy || PendingRemoval.Contains(Enemy))
+    {
+        return;
+    }
+
+    if (!ActiveEnemies.Contains(Enemy))
+    {
+        return;
+    }
+
+    PendingRemoval.Add(Enemy);
+    OnEnemyKilled.Broadcast(Enemy);
+    OnEnemyUnregistered.Broadcast(Enemy);
+
+    UE_LOG(LogTemp, Log, TEXT("[ENEMY MANAGER] Enemy killed: %s"), *Enemy->GetName());
 }
 
 AActor* ACC_EnemyManager::GetNearestEnemy(const FVector& Location, float MaxRadius)

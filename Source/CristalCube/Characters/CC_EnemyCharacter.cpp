@@ -507,6 +507,11 @@ void ACC_EnemyCharacter::Die()
 		AIManager->UnregisterEnemy(this);
 	}
 
+	if (ACC_EnemyManager* Manager = ACC_EnemyManager::Get(this))
+	{
+		Manager->NotifyEnemyKilled(this);
+	}
+
 	// Call base class Die() to handle death animation, etc.
 	Super::Die();
 

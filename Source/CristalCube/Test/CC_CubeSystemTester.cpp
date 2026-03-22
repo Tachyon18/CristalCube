@@ -23,6 +23,7 @@ void ACC_CubeSystemTester::BeginPlay()
 
 	if (bAutoRunTests)
 	{
+		UE_LOG(LogTemp, Warning, TEXT("[CubeSystemTester] Legacy manual tester actor invoked. Prefer Unreal automation tests under CristalCube.Regression.* for regression coverage."));
 		// 딜레이 후 테스트 실행
 		GetWorld()->GetTimerManager().SetTimer(
 			TestTimerHandle,

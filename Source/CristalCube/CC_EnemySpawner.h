@@ -9,6 +9,8 @@
 
 class ACC_EnemyCharacter;
 class ACC_PlayerCharacter;
+class ACC_CycleManager;
+struct FCycleConfig;
 
 UCLASS()
 class CRISTALCUBE_API ACC_EnemySpawner : public AActor, public ICC_Freezable
@@ -110,6 +112,8 @@ protected:
 // SPAWNING
 //==========================================================================
 
+public:
+
 /** Start spawning enemies */
     UFUNCTION(BlueprintCallable, Category = "Spawner")
     void StartSpawning();
@@ -121,6 +125,9 @@ protected:
     /** Spawn enemies immediately */
     UFUNCTION(BlueprintCallable, Category = "Spawner")
     void SpawnEnemies();
+
+    /** Apply the current cycle's difficulty values to spawning behavior */
+    void ApplyCycleConfig(const FCycleConfig& CycleConfig);
 
     /** Spawn a single enemy at location */
     UFUNCTION(BlueprintCallable, Category = "Spawner")
@@ -173,4 +180,13 @@ protected:
 
     /** Find and cache player reference */
     void FindPlayer();
+
+    /** Pull the active cycle config if a cycle is already running */
+    void SyncWithActiveCycle();
+
+    /** Find the current cycle manager in the world */
+    ACC_CycleManager* FindCycleManager() const;
+
+    /** Rebuild the active spawn timer with the current interval */
+    void RefreshSpawnTimer();
 };

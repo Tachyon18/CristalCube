@@ -2,7 +2,9 @@
 
 
 #include "CC_CycleManager.h"
+#include "CC_EnemySpawner.h"
 #include "CC_EnemyManager.h"
+#include "Kismet/GameplayStatics.h"
 #include "TimerManager.h"
 
 // Sets default values
@@ -101,6 +103,8 @@ void ACC_CycleManager::StartCycle(int32 CycleNumber)
 
     FCycleConfig Config = GetCurrentCycleConfig();
 
+    GetWorldTimerManager().ClearTimer(TimeLimitHandle);
+
     // 제한 시간 설정 (0이면 킬 수 기반)
     if (Config.TimeLimit > 0.f)
     {
@@ -110,11 +114,14 @@ void ACC_CycleManager::StartCycle(int32 CycleNumber)
             Config.TimeLimit, false);
     }
 
+    ApplyCycleConfigToSpawners(Config);
+
     OnCycleStarted.Broadcast(CurrentCycle);
     OnKillCountUpdated.Broadcast(0, GetKillsRequired());
 
-    UE_LOG(LogTemp, Warning, TEXT("[CycleManager] Cycle %d started — KillsRequired: %d, MaxEnemies: %d"),
-        CurrentCycle, GetKillsRequired(), Config.MaxEnemies);
+    UE_LOG(LogTemp, Warning,
+        TEXT("[CycleManager] Cycle %d started — KillsRequired: %d, MaxEnemies: %d, SpawnInterval: %.2f"),
+        CurrentCycle, GetKillsRequired(), Config.MaxEnemies, Config.SpawnInterval);
 }
 
 void ACC_CycleManager::CheckCycleCompletion()
@@ -139,6 +146,30 @@ void ACC_CycleManager::OnTimeLimitReached()
     UE_LOG(LogTemp, Warning, TEXT("[CycleManager] Cycle %d — Time limit reached"), CurrentCycle);
 
     OnCubeCleared.Broadcast(CurrentCycle);
+}
+
+void ACC_CycleManager::ApplyCycleConfigToSpawners(const FCycleConfig& Config)
+{
+    TArray<AActor*> FoundSpawners;
+    UGameplayStatics::GetAllActorsOfClass(GetWorld(), ACC_EnemySpawner::StaticClass(), FoundSpawners);
+
+    int32 AppliedSpawnerCount = 0;
+
+    for (AActor* SpawnerActor : FoundSpawners)
+    {
+        ACC_EnemySpawner* Spawner = Cast<ACC_EnemySpawner>(SpawnerActor);
+        if (!Spawner)
+        {
+            continue;
+        }
+
+        Spawner->ApplyCycleConfig(Config);
+        ++AppliedSpawnerCount;
+    }
+
+    UE_LOG(LogTemp, Log,
+        TEXT("[CycleManager] Applied cycle %d spawn difficulty to %d spawner(s)."),
+        CurrentCycle, AppliedSpawnerCount);
 }
 
 // ============================================================

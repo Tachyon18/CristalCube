@@ -7,6 +7,7 @@
 #include "CC_EnemyManager.generated.h"
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnEnemyUnregistered, AActor*, Enemy);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnEnemyKilled, AActor*, Enemy);
 /**
  * Central manager for all enemies
  * Provides optimized enemy queries for weapons
@@ -67,9 +68,13 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Enemy Manager")
     void RegisterEnemy(AActor* Enemy);
 
-    // Unregister enemy (called by enemy on death/destroy)
+    // Unregister enemy from tracking (called during cleanup/end play)
     UFUNCTION(BlueprintCallable, Category = "Enemy Manager")
     void UnregisterEnemy(AActor* Enemy);
+
+    // Report a confirmed enemy death (called only from actual death flow)
+    UFUNCTION(BlueprintCallable, Category = "Enemy Manager")
+    void ReportEnemyKilled(AActor* Enemy);
 
     // Get nearest enemy to location (FAST!)
     UFUNCTION(BlueprintPure, Category = "Enemy Manager")
@@ -89,6 +94,9 @@ public:
 
     UPROPERTY(BlueprintAssignable, Category = "Enemy Manager")
     FOnEnemyUnregistered OnEnemyUnregistered;
+
+    UPROPERTY(BlueprintAssignable, Category = "Enemy Manager")
+    FOnEnemyKilled OnEnemyKilled;
 
 protected:
     // Update cache

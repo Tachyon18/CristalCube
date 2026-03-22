@@ -159,6 +159,26 @@ void ACC_EnemyCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	Super::EndPlay(EndPlayReason);
 }
 
+void ACC_EnemyCharacter::ReportActualDeathToEnemyManager()
+{
+	if (bReportedActualDeath)
+	{
+		return;
+	}
+
+	bReportedActualDeath = true;
+
+	if (ACC_EnemyManager* Manager = ACC_EnemyManager::Get(this))
+	{
+		Manager->ReportEnemyKilled(this);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[ENEMY] Failed to report actual death for %s - EnemyManager missing"),
+			*GetName());
+	}
+}
+
 void ACC_EnemyCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
@@ -460,6 +480,8 @@ void ACC_EnemyCharacter::DealContactDamage(AActor* OtherActor)
 
 void ACC_EnemyCharacter::Die()
 {
+	ReportActualDeathToEnemyManager();
+
 
 	// Drop experience for player
 	//if (TargetPlayer && ExperienceDrop > 0.0f)

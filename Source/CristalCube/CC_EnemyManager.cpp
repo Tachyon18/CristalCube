@@ -121,10 +121,29 @@ void ACC_EnemyManager::UnregisterEnemy(AActor* Enemy)
 
     PendingRemoval.Add(Enemy);
 
-    // CycleManager에 킬 알림 (직접 참조 없이 델리게이트로)
     OnEnemyUnregistered.Broadcast(Enemy);
 
-    UE_LOG(LogTemp, VeryVerbose, TEXT("[ENEMY MANAGER] Unregistered enemy (Total: %d)"), ActiveEnemies.Num());
+    UE_LOG(LogTemp, VeryVerbose, TEXT("[ENEMY MANAGER] Unregistered enemy for cleanup: %s (Tracked: %d)"),
+        *GetNameSafe(Enemy), ActiveEnemies.Num());
+}
+
+void ACC_EnemyManager::ReportEnemyKilled(AActor* Enemy)
+{
+    if (!Enemy)
+    {
+        return;
+    }
+
+    if (!ActiveEnemies.Contains(Enemy))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[ENEMY MANAGER] Ignored kill report for untracked enemy: %s"),
+            *GetNameSafe(Enemy));
+        return;
+    }
+
+    OnEnemyKilled.Broadcast(Enemy);
+
+    UE_LOG(LogTemp, Log, TEXT("[ENEMY MANAGER] Confirmed enemy death: %s"), *GetNameSafe(Enemy));
 
 }
 

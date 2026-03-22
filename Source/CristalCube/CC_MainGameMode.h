@@ -93,6 +93,7 @@ public:
 
 private:
     void SpawnCycleManager();
+    bool ApplyCubeClearRewardToPlayer(const FCubeClearReward& SelectedReward);
 
     UFUNCTION()
     void OnCubeCleared(int32 ClearedCycle);

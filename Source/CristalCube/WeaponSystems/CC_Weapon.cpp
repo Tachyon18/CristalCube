@@ -30,6 +30,9 @@ ACC_Weapon::ACC_Weapon()
 	bCanAttack = true;                    // Ready to attack
 	LastAttackTime = 0.0f;                // No previous attack
 	WeaponOwner = nullptr;                // No owner yet
+	UpgradeLevel = 0;
+	DamageMultiplierPerUpgrade = 0.25f;
+	AttackSpeedMultiplierPerUpgrade = 0.15f;
 
 	// Initialize effects (set in Blueprint or child classes)
 	AttackEffect = nullptr;
@@ -66,7 +69,8 @@ void ACC_Weapon::Attack()
 	PlayAttackEffects();
 
 	// Schedule cooldown reset based on attack speed
-	float CooldownDuration = 1.0f / BaseStats.AttackSpeed;
+	const float EffectiveAttackSpeed = FMath::Max(GetAttackSpeed(), KINDA_SMALL_NUMBER);
+	float CooldownDuration = 1.0f / EffectiveAttackSpeed;
 	GetWorld()->GetTimerManager().SetTimer(
 		AttackCooldownTimer,
 		this,
@@ -91,7 +95,8 @@ bool ACC_Weapon::CanAttack() const
 
 	// Verify cooldown has expired
 	float CurrentTime = GetWorld()->GetTimeSeconds();
-	float CooldownDuration = 1.0f / BaseStats.AttackSpeed;
+	const float EffectiveAttackSpeed = FMath::Max(GetAttackSpeed(), KINDA_SMALL_NUMBER);
+	float CooldownDuration = 1.0f / EffectiveAttackSpeed;
 	return (CurrentTime - LastAttackTime) >= CooldownDuration;
 }
 
@@ -113,6 +118,27 @@ void ACC_Weapon::OnUnequipped()
 	DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
 
 	UE_LOG(LogTemp, Log, TEXT("Weapon Uneauipped"));
+}
+
+float ACC_Weapon::GetAttackSpeed() const
+{
+	float FinalAttackSpeed = BaseStats.AttackSpeed * (1.0f + (UpgradeLevel * AttackSpeedMultiplierPerUpgrade));
+
+	if (const ACC_PlayerCharacter* PlayerCharacter = Cast<ACC_PlayerCharacter>(WeaponOwner))
+	{
+		FinalAttackSpeed *= PlayerCharacter->GetFinalAttackSpeedMultiplier();
+	}
+
+	return FinalAttackSpeed;
+}
+
+bool ACC_Weapon::ApplyUpgrade()
+{
+	++UpgradeLevel;
+
+	UE_LOG(LogTemp, Log, TEXT("[Weapon] %s upgraded to level %d"),
+		*GetName(), UpgradeLevel);
+	return true;
 }
 
 void ACC_Weapon::PerformRangedAttack()
@@ -200,7 +226,12 @@ void ACC_Weapon::PlayAttackEffects()
 
 float ACC_Weapon::CalculateFinalDamage() const
 {
-	float FinalDamage = BaseStats.BaseDamage;
+	float FinalDamage = BaseStats.BaseDamage * (1.0f + (UpgradeLevel * DamageMultiplierPerUpgrade));
+
+	if (const ACC_PlayerCharacter* PlayerCharacter = Cast<ACC_PlayerCharacter>(WeaponOwner))
+	{
+		FinalDamage *= PlayerCharacter->GetFinalDamageMultiplier();
+	}
 
 	return FinalDamage;
 }

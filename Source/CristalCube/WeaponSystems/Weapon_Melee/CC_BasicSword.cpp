@@ -30,7 +30,8 @@ void ACC_BasicSword::Attack()
 
 	ExecuteSwordAttack();
 
-	float CooldownDuration = 1.0f / BaseStats.AttackSpeed;
+	const float EffectiveAttackSpeed = FMath::Max(GetAttackSpeed(), KINDA_SMALL_NUMBER);
+	float CooldownDuration = 1.0f / EffectiveAttackSpeed;
 	GetWorld()->GetTimerManager().SetTimer(
 		AttackCooldownTimer,
 		this,

@@ -60,6 +60,15 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weapon State")
 	AActor* WeaponOwner;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weapon|Upgrade")
+	int32 UpgradeLevel;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon|Upgrade")
+	float DamageMultiplierPerUpgrade;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon|Upgrade")
+	float AttackSpeedMultiplierPerUpgrade;
+
 	// Projectile class to spawn (for Ranged weapons)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Ranged", meta = (EditCondition = "BaseStats.WeaponCategory == EWeaponCategory::Ranged", EditConditionHides))
 	TSubclassOf<class ACC_Projectile> ProjectileClass;
@@ -107,7 +116,13 @@ public:
 	float GetBaseDamage() const { return BaseStats.BaseDamage; }
 
 	UFUNCTION(BlueprintPure, Category = "Weapon")
-	float GetAttackSpeed() const { return BaseStats.AttackSpeed; }
+	float GetAttackSpeed() const;
+
+	UFUNCTION(BlueprintPure, Category = "Weapon")
+	int32 GetUpgradeLevel() const { return UpgradeLevel; }
+
+	UFUNCTION(BlueprintCallable, Category = "Weapon")
+	bool ApplyUpgrade();
 
 	//==========================================================================
 // TYPE-SPECIFIC ATTACK FUNCTIONS

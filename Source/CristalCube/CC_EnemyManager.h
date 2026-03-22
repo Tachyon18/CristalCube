@@ -7,6 +7,7 @@
 #include "CC_EnemyManager.generated.h"
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnEnemyUnregistered, AActor*, Enemy);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnEnemyKilled, AActor*, Enemy);
 /**
  * Central manager for all enemies
  * Provides optimized enemy queries for weapons
@@ -71,6 +72,9 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Enemy Manager")
     void UnregisterEnemy(AActor* Enemy);
 
+    UFUNCTION(BlueprintCallable, Category = "Enemy Manager")
+    void NotifyEnemyKilled(AActor* Enemy);
+
     // Get nearest enemy to location (FAST!)
     UFUNCTION(BlueprintPure, Category = "Enemy Manager")
     AActor* GetNearestEnemy(const FVector& Location, float MaxRadius = 10000.0f);
@@ -89,6 +93,9 @@ public:
 
     UPROPERTY(BlueprintAssignable, Category = "Enemy Manager")
     FOnEnemyUnregistered OnEnemyUnregistered;
+
+    UPROPERTY(BlueprintAssignable, Category = "Enemy Manager")
+    FOnEnemyKilled OnEnemyKilled;
 
 protected:
     // Update cache

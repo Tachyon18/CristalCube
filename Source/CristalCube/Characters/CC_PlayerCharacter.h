@@ -48,6 +48,8 @@ protected:
 	UFUNCTION(BlueprintCallable, Category = "Stats")
 	void ApplyPlayerStats();
 
+	void CaptureBaseStatsIfNeeded();
+
 	// Getters
 	UFUNCTION(BlueprintCallable, Category = "Stats")
 	FCristalCubePlayerStats GetPlayerStats() const { return PlayerStats; }
@@ -317,6 +319,12 @@ public:
 	UFUNCTION(BlueprintCallable)
 	void ApplyWeaponUpgrade(FName WeaponID);
 
+	UFUNCTION(BlueprintCallable, Category = "Cube Clear")
+	bool ApplyCubeClearReward(const FCubeClearReward& Reward);
+
+	UFUNCTION(BlueprintCallable, Category = "Cube Clear")
+	bool ApplyStatUpgrade(EUpgradeType UpgradeType, float UpgradeValue);
+
 	/** Returns CameraBoom subobject */
 	FORCEINLINE USpringArmComponent* GetCameraBoom() const { return CameraBoom; }
 
@@ -330,6 +338,15 @@ public:
 
 protected:
 	// Override ApplyStats to include player-specific stat calculations
+
+	UPROPERTY(Transient)
+	bool bHasCapturedBaseStats = false;
+
+	UPROPERTY(Transient)
+	float BaseMaxHealthStat = 0.0f;
+
+	UPROPERTY(Transient)
+	float BaseMoveSpeedStat = 0.0f;
 
 	virtual void ApplyStats() override;
 

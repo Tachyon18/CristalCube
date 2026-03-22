@@ -101,10 +101,16 @@ void ACC_MainGameMode::OnCubeClearRewardSelected(FCubeClearReward SelectedReward
     HideCubeClearUI();
     SetGameState(EGameState::Playing);
 
-    // 보상 적용 — 블루프린트에서 오버라이드하거나 PlayerCharacter에 위임
+    bool bRewardApplied = false;
+    if (ACC_PlayerCharacter* PlayerCharacter = GetPlayerCharacter())
+    {
+        bRewardApplied = PlayerCharacter->ApplyCubeClearReward(SelectedReward);
+    }
+
     UE_LOG(LogTemp, Log,
-        TEXT("[MainGameMode] Reward selected: %s. Starting next cycle."),
-        *SelectedReward.DisplayName.ToString());
+        TEXT("[MainGameMode] Reward selected: %s (Applied=%s). Starting next cycle."),
+        *SelectedReward.DisplayName.ToString(),
+        bRewardApplied ? TEXT("true") : TEXT("false"));
 
     if (CycleManager)
     {

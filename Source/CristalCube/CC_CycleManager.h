@@ -50,7 +50,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnKillCountUpdated, int32, Current
  * CC_MainGameMode에서 Spawn하여 참조.
  *
  * EnemyManager 연동:
- *   EnemyManager::OnEnemyUnregistered → OnEnemyKilled() 자동 호출
+ *   EnemyManager::OnEnemyKilled → HandleEnemyKilled() 자동 호출
  *   EnemyCharacter/CycleManager 간 직접 의존 없음
  *
  * 사이클 흐름:
@@ -147,14 +147,13 @@ public:
     UFUNCTION(BlueprintPure, Category = "Cycle")
     int32 GetKillsThisCycle() const { return KillsThisCycle; }
 
+    UFUNCTION(BlueprintCallable, Category = "Cycle")
+    void HandleEnemyKilled(AActor* KilledEnemy);
+
 private:
 
     void StartCycle(int32 CycleNumber);
     void CheckCycleCompletion();
-
-    /** 적 처치 시 호출 (EnemyCharacter 사망 시 연결) */
-    UFUNCTION(BlueprintCallable, Category = "Cycle")
-    void OnEnemyKilled(AActor* KilledEnemy);
 
     void BindToEnemyManager();
 

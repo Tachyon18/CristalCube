@@ -60,11 +60,11 @@ void ACC_CycleManager::BindToEnemyManager()
         return;
     }
 
-    EM->OnEnemyUnregistered.AddDynamic(this, &ACC_CycleManager::OnEnemyKilled);
-    UE_LOG(LogTemp, Log, TEXT("[CycleManager] Bound to EnemyManager::OnEnemyUnregistered."));
+    EM->OnEnemyKilled.AddDynamic(this, &ACC_CycleManager::HandleEnemyKilled);
+    UE_LOG(LogTemp, Log, TEXT("[CycleManager] Bound to EnemyManager::OnEnemyKilled."));
 }
 
-void ACC_CycleManager::OnEnemyKilled(AActor* KilledEnemy)
+void ACC_CycleManager::HandleEnemyKilled(AActor* KilledEnemy)
 {
     if (!bCycleActive) return;
 
@@ -102,7 +102,7 @@ void ACC_CycleManager::StartCycle(int32 CycleNumber)
     FCycleConfig Config = GetCurrentCycleConfig();
 
     // 제한 시간 설정 (0이면 킬 수 기반)
-    if (Config.TimeLimit > 0.f)
+    if (Config.TimeLimit > 0.f && GetWorld())
     {
         GetWorldTimerManager().SetTimer(
             TimeLimitHandle, this,
@@ -122,7 +122,10 @@ void ACC_CycleManager::CheckCycleCompletion()
     if (KillsThisCycle < GetKillsRequired()) return;
 
     bCycleActive = false;
-    GetWorldTimerManager().ClearTimer(TimeLimitHandle);
+    if (GetWorld())
+    {
+        GetWorldTimerManager().ClearTimer(TimeLimitHandle);
+    }
 
     UE_LOG(LogTemp, Warning,
         TEXT("[CycleManager] === Cube %d CLEARED ==="), CurrentCycle);

@@ -43,7 +43,7 @@ public:
 
 	/** 자동 테스트 실행 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Testing")
-	bool bAutoRunTests = true;
+	bool bAutoRunTests = false;
 
 	/** 테스트 시작 딜레이 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Testing")

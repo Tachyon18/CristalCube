@@ -26,6 +26,18 @@ void ACC_TileManager::BeginPlay()
 	UE_LOG(LogTemp, Warning, TEXT("[TileManager] Initialized - 3x3 Grid Created"));	
 }
 
+void ACC_TileManager::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	if (Instance == this)
+	{
+		Instance = nullptr;
+		UE_LOG(LogTemp, Warning, TEXT("[TileManager] Instance reset on EndPlay"));
+	}
+	
+	Super::EndPlay(EndPlayReason);
+	
+}
+
 // Called every frame
 void ACC_TileManager::Tick(float DeltaTime)
 {
@@ -35,10 +47,12 @@ void ACC_TileManager::Tick(float DeltaTime)
 
 ACC_TileManager* ACC_TileManager::Get(UWorld* World)
 {
-	if (Instance)
+	if (IsValid(Instance))
 	{
 		return Instance;
 	}
+
+	Instance = nullptr;
 
 	TArray<AActor*> FoundActors;
 	UGameplayStatics::GetAllActorsOfClass(World, ACC_TileManager::StaticClass(), FoundActors);

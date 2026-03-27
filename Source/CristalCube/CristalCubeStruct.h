@@ -921,6 +921,52 @@ struct FCubeData
     int32 CubeType = 0; // ���� Ȯ���
 };
 
+//==============================================================================
+// GLASS UI SYSTEM
+//==============================================================================
+
+UENUM(BlueprintType)
+enum class EGlassTheme : uint8
+{
+    Ocean   UMETA(DisplayName = "Ocean"),    // (0.20, 0.60, 1.00)
+    Galaxy  UMETA(DisplayName = "Galaxy"),   // (0.55, 0.25, 1.00)
+    Sunset  UMETA(DisplayName = "Sunset"),   // (1.00, 0.30, 0.55)
+    Fire    UMETA(DisplayName = "Fire"),     // (1.00, 0.45, 0.10)
+    Forest  UMETA(DisplayName = "Forest"),   // (0.15, 0.85, 0.55)
+    White   UMETA(DisplayName = "White"),    // (0.70, 0.80, 1.00)
+    Custom  UMETA(DisplayName = "Custom")    // 직접 지정
+};
+
+USTRUCT(BlueprintType)
+struct FGlassThemeData
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Glass|Panel")
+    FLinearColor TintColor = FLinearColor(0.08f, 0.25f, 0.80f, 1.f);
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Glass|Panel")
+    float PanelOpacity = 0.10f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Glass|Panel")
+    float PrismIntensity = 0.15f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Glass|Glow")
+    FLinearColor GlowColor = FLinearColor(0.20f, 0.60f, 1.00f, 1.f);
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Glass|Glow")
+    float GlowOpacity = 0.28f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Glass|Shape")
+    float CornerRadius = 0.08f;  // UV 비율
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Glass|Shape")
+    float AspectRatio = 2.0f;   // Width / Height
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Glass|Blur")
+    float BlurStrength = 12.0f;
+};
+
 UCLASS()
 class CRISTALCUBE_API ACristalCubeStruct : public AActor
 {

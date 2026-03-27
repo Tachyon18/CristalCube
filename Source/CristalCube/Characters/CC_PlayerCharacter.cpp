@@ -816,11 +816,15 @@ void ACC_PlayerCharacter::UpdateGameHUD()
 
 float ACC_PlayerCharacter::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser)
 {
-	float ActualDamage = Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
+	const float PreviousHealth = CurrentHealth;
+	const float ActualDamage = Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
 
-	CurrentHealth = FMath::Max(0.0f, CurrentHealth - ActualDamage);
-
-	UpdateGameHUD();
+	// Base character damage flow owns health reduction and death checks.
+	// The player override only syncs the HUD after health actually changes.
+	if (ActualDamage > 0.0f && !FMath::IsNearlyEqual(CurrentHealth, PreviousHealth))
+	{
+		UpdateGameHUD();
+	}
 
 	return ActualDamage;
 }
@@ -956,12 +960,14 @@ void ACC_PlayerCharacter::ApplyStats()
 
 	if (UCharacterMovementComponent* Movement = GetCharacterMovement())
 	{
-		float FinalMoveSpeed = MoveSpeed * PlayerStats.BasicStats.MoveSpeedMultiplier;
+		float AddMoveSpeed = BaseMoveSpeed * PlayerStats.BasicStats.MoveSpeedMultiplier;
+		float FinalMoveSpeed = MoveSpeed + AddMoveSpeed;
 		Movement->MaxWalkSpeed = FinalMoveSpeed;
 	}
 
 	// Apply health multiplier
-	float FinalMaxHealth = MaxHealth * PlayerStats.BasicStats.HealthMultiplier;
+	float AddMaxHealth = BaseMaxHealth * PlayerStats.BasicStats.HealthMultiplier;
+	float FinalMaxHealth = MaxHealth + AddMaxHealth;
 
 	// If health was at max, keep it at max after stat change
 	if (FMath::IsNearlyEqual(CurrentHealth, MaxHealth))

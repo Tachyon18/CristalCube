@@ -10,10 +10,11 @@ ACC_Character::ACC_Character()
  	// Set this character to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
 
-
-	MaxHealth = 100.0f;
+	MaxHealth = 100.f;
+	BaseMaxHealth = MaxHealth;
 	CurrentHealth = MaxHealth;
 	MoveSpeed = 600.0f;
+	BaseMoveSpeed = MoveSpeed;
 
 	// Apply core movement speed
 	GetCharacterMovement()->MaxWalkSpeed = MoveSpeed;

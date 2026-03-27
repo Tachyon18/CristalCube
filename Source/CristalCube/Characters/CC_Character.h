@@ -32,11 +32,16 @@ protected:
 	float MaxHealth;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats")
+	float BaseMaxHealth;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats")
 	float CurrentHealth;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats")
 	float MoveSpeed;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats")
+	float BaseMoveSpeed;
 
 public:
 	// Damage System
@@ -61,6 +66,8 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "Stats")
 	float GetHealthPercentage() const { return MaxHealth > 0.0f ? (CurrentHealth / MaxHealth) : 0.0f; }
+
+
 
 protected:
 

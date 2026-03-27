@@ -20,6 +20,13 @@ public:
 
 protected:
 
+	// ── Glass 패널 (각각 독립 인스턴스) ────────────────────────
+	UPROPERTY(meta = (BindWidget))
+	class UCC_GlassWidget* StatsPanel;
+
+	UPROPERTY(meta = (BindWidget))
+	UCC_GlassWidget* TimerPanel;
+
 	UPROPERTY(EditAnywhere, meta = (BindWidget))
 	class UProgressBar* HealthBar;
 
@@ -42,4 +49,12 @@ public:
 
 	UFUNCTION(BlueprintCallable)
 	void UpdateTimer(float TotalSeconds);
+
+	UFUNCTION(BlueprintCallable)
+	void PlayHitFlash();
+
+private:
+
+	FTimerHandle HitFlashTimer;
+	void ResetHitFlash();
 };

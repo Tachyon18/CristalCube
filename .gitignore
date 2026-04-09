@@ -325,6 +325,11 @@ FodyWeavers.xsd
 [Ss]aved/
 DerivedDataCache/
 
+# Content/Develop 예외 — 머티리얼·위젯 에셋 추적
+!Content/Develop/
+!Content/Develop/**
+
+
 # Unreal Engine Plugin files
 [Pp]lugins/*/[Bb]inaries/
 [Pp]lugins/*/[Ii]ntermediate/
@@ -401,3 +406,4 @@ Documentation/
 
 Content/sA_PickupSet_1/
 Content/MSPresets/
+Content/Develop/Animation/

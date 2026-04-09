@@ -59,10 +59,7 @@ protected:
     UImage* GlassTintLayer;             // L2  M_Glass_Panel
 
     UPROPERTY(meta = (BindWidget))
-    UImage* GlassCornerGlow;            // L3  M_Glass_CornerGlow
-
-    UPROPERTY(meta = (BindWidget))
-    UImage* GlassBorderImage;           // L4
+    UImage* GlassBorderImage;           // L3
 
     // ── 머티리얼 에셋 레퍼런스 (에디터에서 할당) ─────────────
 
@@ -70,17 +67,11 @@ protected:
     UMaterialInterface* PanelMaterial;
 
     UPROPERTY(EditAnywhere, Category = "Glass|Materials")
-    UMaterialInterface* CornerGlowMaterial;
-
-    UPROPERTY(EditAnywhere, Category = "Glass|Materials")
     UMaterialInterface* BorderMaterial;
 
 private:
     UPROPERTY()
     UMaterialInstanceDynamic* PanelMI;
-
-    UPROPERTY()
-    UMaterialInstanceDynamic* CornerGlowMI;
 
     UPROPERTY()
     UMaterialInstanceDynamic* BorderMI;

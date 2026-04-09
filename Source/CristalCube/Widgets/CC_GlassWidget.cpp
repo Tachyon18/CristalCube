@@ -48,12 +48,6 @@ void UCC_GlassWidget::InitMaterials()
 		GlassTintLayer->SetBrushFromMaterial(PanelMI);
 	}
 
-	if (CornerGlowMaterial && GlassCornerGlow)
-	{
-		CornerGlowMI = UMaterialInstanceDynamic::Create(CornerGlowMaterial, this);
-		GlassCornerGlow->SetBrushFromMaterial(CornerGlowMI);
-	}
-
 	if (BorderMaterial && GlassBorderImage)
 	{
 		BorderMI = UMaterialInstanceDynamic::Create(BorderMaterial, this);
@@ -71,13 +65,24 @@ void UCC_GlassWidget::ApplyThemeData(const FGlassThemeData& Data)
 		PanelMI->SetScalarParameterValue(TEXT("PrismIntensity"), Data.PrismIntensity);
 		PanelMI->SetScalarParameterValue(TEXT("CornerRadius"), Data.CornerRadius);
 		PanelMI->SetScalarParameterValue(TEXT("AspectRatio"), Data.AspectRatio);
-	}
 
-	// CornerGlow MI
-	if (CornerGlowMI)
-	{
-		CornerGlowMI->SetVectorParameterValue(TEXT("GlowColor"), Data.GlowColor);
-		CornerGlowMI->SetScalarParameterValue(TEXT("GlowOpacity"), Data.GlowOpacity);
+		PanelMI->SetVectorParameterValue(TEXT("Light0_PosRadius"), Data.Light0_PosRadius);
+		PanelMI->SetVectorParameterValue(TEXT("Light0_Color"), Data.Light0_Color);
+		PanelMI->SetScalarParameterValue(TEXT("Light0_Intensity"), Data.Light0_Intensity);
+
+		PanelMI->SetVectorParameterValue(TEXT("Light1_PosRadius"), Data.Light1_PosRadius);
+		PanelMI->SetVectorParameterValue(TEXT("Light1_Color"), Data.Light1_Color);
+		PanelMI->SetScalarParameterValue(TEXT("Light1_Intensity"), Data.Light1_Intensity);
+
+		PanelMI->SetVectorParameterValue(TEXT("Light2_PosRadius"), Data.Light2_PosRadius);
+		PanelMI->SetVectorParameterValue(TEXT("Light2_Color"), Data.Light2_Color);
+		PanelMI->SetScalarParameterValue(TEXT("Light2_Intensity"), Data.Light2_Intensity);
+
+		PanelMI->SetVectorParameterValue(TEXT("Light3_PosRadius"), Data.Light3_PosRadius);
+		PanelMI->SetVectorParameterValue(TEXT("Light3_Color"), Data.Light3_Color);
+		PanelMI->SetScalarParameterValue(TEXT("Light3_Intensity"), Data.Light3_Intensity);
+
+		PanelMI->SetScalarParameterValue(TEXT("SceneLightsOpacityBoost"), Data.SceneLightsOpacityBoost);
 	}
 
 	if (BorderMI)
@@ -105,36 +110,120 @@ FGlassThemeData UCC_GlassWidget::GetThemeData(EGlassTheme Theme)
 		D.PrismIntensity = 0.18f;
 		D.GlowColor = FLinearColor(0.20f, 0.60f, 1.00f, 1.f);
 		D.GlowOpacity = 0.28f;
+
+		D.Light0_PosRadius = FLinearColor(0.00f, 0.00f, 0.55f, 0.f);
+		D.Light0_Color = FLinearColor(0.20f, 0.60f, 1.00f, 0.f);
+		D.Light0_Intensity = 0.22f;
+		D.Light1_PosRadius = FLinearColor(0.80f, 0.18f, 0.28f, 0.f);
+		D.Light1_Color = FLinearColor(1.00f, 0.80f, 0.40f, 0.f);
+		D.Light1_Intensity = 0.045f;
+		D.Light2_PosRadius = FLinearColor(0.16f, 0.78f, 0.32f, 0.f);
+		D.Light2_Color = FLinearColor(0.30f, 0.65f, 1.00f, 0.f);
+		D.Light2_Intensity = 0.032f;
+		D.Light3_PosRadius = FLinearColor(0.55f, 0.55f, 0.14f, 0.f);
+		D.Light3_Color = FLinearColor(0.55f, 0.35f, 1.00f, 0.f);
+		D.Light3_Intensity = 0.020f;
+		D.SceneLightsOpacityBoost = 0.35f;
 		break;
 	case EGlassTheme::Galaxy:
 		D.TintColor = FLinearColor(0.25f, 0.10f, 0.80f, 1.f);
 		D.PrismIntensity = 0.20f;
 		D.GlowColor = FLinearColor(0.55f, 0.25f, 1.00f, 1.f);
 		D.GlowOpacity = 0.26f;
+
+		D.Light0_PosRadius = FLinearColor(0.00f, 0.00f, 0.55f, 0.f);
+		D.Light0_Color = FLinearColor(0.55f, 0.25f, 1.00f, 0.f);
+		D.Light0_Intensity = 0.24f;
+		D.Light1_PosRadius = FLinearColor(0.82f, 0.15f, 0.30f, 0.f);
+		D.Light1_Color = FLinearColor(0.80f, 0.45f, 1.00f, 0.f);
+		D.Light1_Intensity = 0.48f;
+		D.Light2_PosRadius = FLinearColor(0.15f, 0.80f, 0.34f, 0.f);
+		D.Light2_Color = FLinearColor(0.30f, 0.18f, 1.00f, 0.f);
+		D.Light2_Intensity = 0.36f;
+		D.Light3_PosRadius = FLinearColor(0.55f, 0.50f, 0.14f, 0.f);
+		D.Light3_Color = FLinearColor(1.00f, 0.45f, 0.90f, 0.f);
+		D.Light3_Intensity = 0.22f;
+		D.SceneLightsOpacityBoost = 0.35f;
 		break;
 	case EGlassTheme::Sunset:
 		D.TintColor = FLinearColor(0.80f, 0.12f, 0.30f, 1.f);
 		D.PrismIntensity = 0.18f;
 		D.GlowColor = FLinearColor(1.00f, 0.30f, 0.55f, 1.f);
 		D.GlowOpacity = 0.24f;
+
+		D.Light0_PosRadius = FLinearColor(0.00f, 0.00f, 0.55f, 0.f);
+		D.Light0_Color = FLinearColor(1.00f, 0.30f, 0.55f, 0.f);
+		D.Light0_Intensity = 0.22f;
+		D.Light1_PosRadius = FLinearColor(0.80f, 0.18f, 0.28f, 0.f);
+		D.Light1_Color = FLinearColor(1.00f, 0.65f, 0.30f, 0.f);
+		D.Light1_Intensity = 0.040f;
+		D.Light2_PosRadius = FLinearColor(0.16f, 0.80f, 0.30f, 0.f);
+		D.Light2_Color = FLinearColor(0.80f, 0.20f, 0.50f, 0.f);
+		D.Light2_Intensity = 0.028f;
+		D.Light3_PosRadius = FLinearColor(0.52f, 0.52f, 0.13f, 0.f);
+		D.Light3_Color = FLinearColor(1.00f, 0.50f, 0.70f, 0.f);
+		D.Light3_Intensity = 0.018f;
+		D.SceneLightsOpacityBoost = 0.35f;
 		break;
 	case EGlassTheme::Fire:
 		D.TintColor = FLinearColor(0.60f, 0.20f, 0.05f, 1.f);
 		D.PrismIntensity = 0.16f;
 		D.GlowColor = FLinearColor(1.00f, 0.45f, 0.10f, 1.f);
 		D.GlowOpacity = 0.26f;
+
+		D.Light0_PosRadius = FLinearColor(0.00f, 0.00f, 0.55f, 0.f);
+		D.Light0_Color = FLinearColor(1.00f, 0.45f, 0.10f, 0.f);
+		D.Light0_Intensity = 0.24f;
+		D.Light1_PosRadius = FLinearColor(0.82f, 0.15f, 0.30f, 0.f);
+		D.Light1_Color = FLinearColor(1.00f, 0.70f, 0.20f, 0.f);
+		D.Light1_Intensity = 0.055f;
+		D.Light2_PosRadius = FLinearColor(0.16f, 0.80f, 0.30f, 0.f);
+		D.Light2_Color = FLinearColor(1.00f, 0.25f, 0.05f, 0.f);
+		D.Light2_Intensity = 0.030f;
+		D.Light3_PosRadius = FLinearColor(0.50f, 0.52f, 0.12f, 0.f);
+		D.Light3_Color = FLinearColor(1.00f, 0.80f, 0.20f, 0.f);
+		D.Light3_Intensity = 0.018f;
+		D.SceneLightsOpacityBoost = 0.35f;
 		break;
 	case EGlassTheme::Forest:
 		D.TintColor = FLinearColor(0.06f, 0.50f, 0.25f, 1.f);
 		D.PrismIntensity = 0.16f;
 		D.GlowColor = FLinearColor(0.15f, 0.85f, 0.55f, 1.f);
 		D.GlowOpacity = 0.24f;
+
+		D.Light0_PosRadius = FLinearColor(0.00f, 0.00f, 0.55f, 0.f);
+		D.Light0_Color = FLinearColor(0.15f, 0.85f, 0.55f, 0.f);
+		D.Light0_Intensity = 0.20f;
+		D.Light1_PosRadius = FLinearColor(0.80f, 0.18f, 0.28f, 0.f);
+		D.Light1_Color = FLinearColor(0.60f, 1.00f, 0.30f, 0.f);
+		D.Light1_Intensity = 0.038f;
+		D.Light2_PosRadius = FLinearColor(0.16f, 0.80f, 0.30f, 0.f);
+		D.Light2_Color = FLinearColor(0.10f, 0.60f, 0.40f, 0.f);
+		D.Light2_Intensity = 0.025f;
+		D.Light3_PosRadius = FLinearColor(0.52f, 0.52f, 0.12f, 0.f);
+		D.Light3_Color = FLinearColor(0.30f, 1.00f, 0.55f, 0.f);
+		D.Light3_Intensity = 0.016f;
+		D.SceneLightsOpacityBoost = 0.35f;
 		break;
 	case EGlassTheme::White:
 		D.TintColor = FLinearColor(0.80f, 0.85f, 1.00f, 1.f);
 		D.PrismIntensity = 0.12f;
 		D.GlowColor = FLinearColor(0.70f, 0.80f, 1.00f, 1.f);
 		D.GlowOpacity = 0.22f;
+
+		D.Light0_PosRadius = FLinearColor(0.00f, 0.00f, 0.55f, 0.f);
+		D.Light0_Color = FLinearColor(0.70f, 0.80f, 1.00f, 0.f);
+		D.Light0_Intensity = 0.18f;
+		D.Light1_PosRadius = FLinearColor(0.80f, 0.18f, 0.28f, 0.f);
+		D.Light1_Color = FLinearColor(1.00f, 1.00f, 0.90f, 0.f);
+		D.Light1_Intensity = 0.030f;
+		D.Light2_PosRadius = FLinearColor(0.16f, 0.80f, 0.30f, 0.f);
+		D.Light2_Color = FLinearColor(0.70f, 0.85f, 1.00f, 0.f);
+		D.Light2_Intensity = 0.022f;
+		D.Light3_PosRadius = FLinearColor(0.52f, 0.52f, 0.12f, 0.f);
+		D.Light3_Color = FLinearColor(0.80f, 0.80f, 1.00f, 0.f);
+		D.Light3_Intensity = 0.014f;
+		D.SceneLightsOpacityBoost = 0.35f;
 		break;
 	default: break;
 	}

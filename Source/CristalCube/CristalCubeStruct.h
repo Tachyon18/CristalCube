@@ -965,6 +965,58 @@ struct FGlassThemeData
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Glass|Blur")
     float BlurStrength = 12.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    float BeamOffset = 0.40f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    float BeamWidth = 0.15f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    float BeamSoftness = 0.08f;
+
+    // ── 통합 광원 파라미터 (v3) ────────────────────────────────
+    // XY = UV위치, Z = 반경, W = 미사용(0)
+    // SetVectorParameterValue에 직접 전달 가능 (FLinearColor 일치)
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Glass|Lights")
+    FLinearColor Light0_PosRadius = FLinearColor(0.00f, 0.00f, 0.55f, 0.f);
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Glass|Lights")
+    FLinearColor Light0_Color = FLinearColor(0.55f, 0.25f, 1.00f, 0.f);
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Glass|Lights")
+    float Light0_Intensity = 0.24f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Glass|Lights")
+    FLinearColor Light1_PosRadius = FLinearColor(0.82f, 0.15f, 0.30f, 0.f);
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Glass|Lights")
+    FLinearColor Light1_Color = FLinearColor(0.80f, 0.45f, 1.00f, 0.f);
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Glass|Lights")
+    float Light1_Intensity = 0.48f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Glass|Lights")
+    FLinearColor Light2_PosRadius = FLinearColor(0.15f, 0.80f, 0.34f, 0.f);
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Glass|Lights")
+    FLinearColor Light2_Color = FLinearColor(0.30f, 0.18f, 1.00f, 0.f);
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Glass|Lights")
+    float Light2_Intensity = 0.36f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Glass|Lights")
+    FLinearColor Light3_PosRadius = FLinearColor(0.55f, 0.50f, 0.14f, 0.f);
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Glass|Lights")
+    FLinearColor Light3_Color = FLinearColor(1.00f, 0.45f, 0.90f, 0.f);
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Glass|Lights")
+    float Light3_Intensity = 0.22f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Glass|Lights")
+    float SceneLightsOpacityBoost = 0.35f;
 };
 
 UCLASS()

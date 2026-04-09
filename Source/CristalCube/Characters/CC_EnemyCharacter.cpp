@@ -3,6 +3,7 @@
 
 #include "CC_EnemyCharacter.h"
 #include "Engine/DamageEvents.h"
+#include "Engine/OverlapResult.h"
 #include "Kismet/GameplayStatics.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/SphereComponent.h"
@@ -528,6 +529,8 @@ void ACC_EnemyCharacter::Die()
 		AIManager->UnregisterEnemy(this);
 	}
 
+	ReportActualDeathToEnemyManager();
+
 	// Call base class Die() to handle death animation, etc.
 	Super::Die();
 
@@ -835,4 +838,48 @@ void ACC_EnemyCharacter::DrawAttackDebug(const FAttackHitData& HitData, bool bHi
 		break;
 	}
 	}
+}
+
+void ACC_EnemyCharacter::Freeze_Implementation()
+{
+	if (bIsFrozen) return;
+
+	bIsFrozen = true;
+
+	// 추적 즉시 중단 ? AIManager가 다음 Tick에 덮어쓰지 못하도록 먼저 끊음
+	SetChasePlayer(false);
+
+	// 시간 정지 (이동/물리/애니 모두 영향)
+	CustomTimeDilation = 0.0f;
+
+	// 애니메이션 정지
+	if (USkeletalMeshComponent* SM = GetMesh())
+	{
+		SM->bPauseAnims = true;
+	}
+
+	// 공격 타이머 정지
+	GetWorldTimerManager().PauseTimer(AttackCooldownTimer);
+
+	UE_LOG(LogTemp, Log, TEXT("[Enemy %s] FROZEN"), *GetName());
+}
+
+void ACC_EnemyCharacter::Unfreeze_Implementation()
+{
+	if (!bIsFrozen) return;
+
+	bIsFrozen = false;
+
+	CustomTimeDilation = 1.0f;
+
+	if (USkeletalMeshComponent* SM = GetMesh())
+	{
+		SM->bPauseAnims = false;
+	}
+
+	GetWorldTimerManager().UnPauseTimer(AttackCooldownTimer);
+
+	// SetChasePlayer 복원은 AIManager 다음 Tick에 자동 처리됨
+
+	UE_LOG(LogTemp, Log, TEXT("[Enemy %s] UNFROZEN"), *GetName());
 }

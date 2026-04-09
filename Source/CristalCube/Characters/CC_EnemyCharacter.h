@@ -5,13 +5,14 @@
 #include "CoreMinimal.h"
 #include "CC_Character.h"
 #include "../CristalCubeStruct.h"
+#include "../Gameplay/CC_Freezable.h"
 #include "CC_EnemyCharacter.generated.h"
 
 /**
  * 
  */
 UCLASS()
-class CRISTALCUBE_API ACC_EnemyCharacter : public ACC_Character
+class CRISTALCUBE_API ACC_EnemyCharacter : public ACC_Character, public ICC_Freezable
 {
 	GENERATED_BODY()
 
@@ -217,4 +218,18 @@ protected:
 	// Debug
 
 	void DrawAttackDebug(const FAttackHitData& HitData, bool bHit);
+
+protected:
+	
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "AI")
+	bool bIsFrozen = false;
+
+public:
+	
+	virtual void Freeze_Implementation() override;
+	virtual void Unfreeze_Implementation() override;
+	virtual bool IsFrozen_Implementation() const override { return bIsFrozen; }
+
+	UFUNCTION(BlueprintPure, Category = "AI")
+	bool GetIsFrozen() const { return bIsFrozen; }
 };

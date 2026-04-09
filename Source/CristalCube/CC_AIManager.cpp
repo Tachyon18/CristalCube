@@ -175,10 +175,9 @@ ACC_PlayerCharacter* UCC_AIManager::GetPlayerCharacter() const
 
 void UCC_AIManager::UpdateEnemyAIState(ACC_EnemyCharacter* Enemy, const FVector& PlayerLocation)
 {
-	if (!Enemy)
-	{
-		return;
-	}
+	if (!Enemy) return;
+
+	if (Enemy->GetIsFrozen()) return;
 
 	FVector EnemyLocation = Enemy->GetActorLocation();
 

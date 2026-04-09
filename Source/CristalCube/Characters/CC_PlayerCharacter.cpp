@@ -13,6 +13,7 @@
 #include "../CC_LogHelper.h"
 #include "../CC_WeaponManagerSubsystem.h"
 #include "../CC_SearchingComponent.h"
+#include "../CC_GameModeBase.h"
 #include "../Widgets/CC_GameHUD.h"
 #include "../Widgets/CC_LevelUpWidget.h"
 #include "../CC_TileTrackerComponent.h"
@@ -138,6 +139,98 @@ void ACC_PlayerCharacter::Tick(float DeltaTime)
 void ACC_PlayerCharacter::ApplyPlayerStats()
 {
 	ApplyStats();
+}
+
+void ACC_PlayerCharacter::ApplyStatUpgrade(EUpgradeType Type, float Value)
+{
+	switch (Type)
+	{
+		// ── BasicStats ───────────────────────────────────────
+	case EUpgradeType::Damage:
+		PlayerStats.BasicStats.DamageMultiplier += Value;
+		break;
+
+	case EUpgradeType::AttackSpeed:
+		PlayerStats.BasicStats.AttackSpeedMultiplier += Value;
+		break;
+
+	case EUpgradeType::MoveSpeed:
+		PlayerStats.BasicStats.MoveSpeedMultiplier += Value;
+		break;
+
+	case EUpgradeType::Health:
+		PlayerStats.BasicStats.HealthMultiplier += Value;
+		break;
+
+		// ── AdvancedStats (EUpgradeType 확장 후 활성화) ───────
+		// case EUpgradeType::CritChance:
+		//     PlayerStats.AdvancedStats.CriticalChance += Value;
+		//     break;
+
+	default:
+		UE_LOG(LogTemp, Warning,
+			TEXT("[Stats] ApplyStatUpgrade: Unhandled EUpgradeType(%d)"),
+			static_cast<int32>(Type));
+		return;  // 알 수 없는 타입 → 적용 없이 리턴
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("[Stats] Upgraded %d by %.3f"), static_cast<int32>(Type), Value);
+
+	// 변경된 스탯만 UE 시스템에 반영
+	RefreshStats();
+}
+
+void ACC_PlayerCharacter::ApplyStatOverride(const FCristalCubePlayerStats& InStats)
+{
+	PlayerStats = InStats;
+
+	UE_LOG(LogTemp, Log, TEXT("[Stats] StatOverride applied ? full refresh"));
+
+	RefreshStats();
+}
+
+void ACC_PlayerCharacter::RefreshStats()
+{
+	// ── 이동속도 ─────────────────────────────────────────────
+	if (UCharacterMovementComponent* Movement = GetCharacterMovement())
+	{
+		float FinalSpeed = BaseMoveSpeed * PlayerStats.BasicStats.MoveSpeedMultiplier;
+		Movement->MaxWalkSpeed = FinalSpeed;
+	}
+
+	// ── 체력 상한 ─────────────────────────────────────────────
+	float NewMaxHealth = BaseMaxHealth * PlayerStats.BasicStats.HealthMultiplier;
+
+	if (FMath::IsNearlyEqual(CurrentHealth, MaxHealth))
+	{
+		CurrentHealth = NewMaxHealth;
+	}
+	else
+	{
+		float Ratio = MaxHealth > 0.f ? (CurrentHealth / MaxHealth) : 1.f;
+		CurrentHealth = FMath::Clamp(NewMaxHealth * Ratio, 0.f, NewMaxHealth);
+	}
+	MaxHealth = NewMaxHealth;
+
+	// ── 공격속도 (무기 타이머 재설정) ────────────────────────
+	// AttackSpeedMultiplier는 Weapon->GetAttackSpeed()에서 직접 참조하므로
+	// 타이머만 재시작하면 자동 반영
+	for (ACC_Weapon* Weapon : EquippedWeapons)
+	{
+		if (!IsValid(Weapon)) continue;
+		StopWeaponAutoAttack(Weapon);
+		StartWeaponAutoAttack(Weapon);
+	}
+
+	// ── DamageMultiplier, AdvancedStats 등 ────────────────────
+	// 무기 공격 시 GetFinalDamageMultiplier()로 조회되므로 별도 처리 불필요
+
+	UE_LOG(LogTemp, Log,
+		TEXT("[Stats] Refreshed ? HP:%.0f/%.0f | Speed:%.0f | DmgMul:%.2f | AtkSpd:%.2f"),
+		CurrentHealth, MaxHealth,
+		GetCharacterMovement()->MaxWalkSpeed,
+		PlayerStats.BasicStats.DamageMultiplier,
+		PlayerStats.BasicStats.AttackSpeedMultiplier);
 }
 
 void ACC_PlayerCharacter::InitializeWeaponSystem()
@@ -791,6 +884,7 @@ void ACC_PlayerCharacter::LevelUp()
 	ExperienceToNextLevel *= ExperienceScaling;
 
 	// Heal to full on level up
+	RefreshStats();
 	Heal(MaxHealth);
 
 	UE_LOG(LogTemp, Log, TEXT("Level Up! Now level %d"), Level);
@@ -958,31 +1052,43 @@ void ACC_PlayerCharacter::ApplyStats()
 {
 	Super::ApplyStats();
 
-	if (UCharacterMovementComponent* Movement = GetCharacterMovement())
+	//if (UCharacterMovementComponent* Movement = GetCharacterMovement())
+	//{
+	//	float AddMoveSpeed = BaseMoveSpeed * PlayerStats.BasicStats.MoveSpeedMultiplier;
+	//	float FinalMoveSpeed = MoveSpeed + AddMoveSpeed;
+	//	Movement->MaxWalkSpeed = FinalMoveSpeed;
+	//}
+
+	//// Apply health multiplier
+	//float AddMaxHealth = BaseMaxHealth * PlayerStats.BasicStats.HealthMultiplier;
+	//float FinalMaxHealth = MaxHealth + AddMaxHealth;
+
+	//// If health was at max, keep it at max after stat change
+	//if (FMath::IsNearlyEqual(CurrentHealth, MaxHealth))
+	//{
+	//	CurrentHealth = FinalMaxHealth;
+	//}
+	//else
+	//{
+	//	// Otherwise, adjust current health proportionally
+	//	float HealthPercentage = CurrentHealth / MaxHealth;
+	//	CurrentHealth = FinalMaxHealth * HealthPercentage;
+	//}
+
+	//MaxHealth = FinalMaxHealth;
+
+	//UE_LOG(LogTemp, Log, TEXT("Stats Applied - Health: %.0f/%.0f, Speed: %.0f"),
+	//	CurrentHealth, MaxHealth, GetCharacterMovement()->MaxWalkSpeed);
+
+	ApplyStatOverride(PlayerStats);
+}
+
+void ACC_PlayerCharacter::Die()
+{
+	Super::Die();
+
+	if (ACC_GameModeBase* GM = Cast<ACC_GameModeBase>(UGameplayStatics::GetGameMode(this)))
 	{
-		float AddMoveSpeed = BaseMoveSpeed * PlayerStats.BasicStats.MoveSpeedMultiplier;
-		float FinalMoveSpeed = MoveSpeed + AddMoveSpeed;
-		Movement->MaxWalkSpeed = FinalMoveSpeed;
+		GM->TriggerGameOver();
 	}
-
-	// Apply health multiplier
-	float AddMaxHealth = BaseMaxHealth * PlayerStats.BasicStats.HealthMultiplier;
-	float FinalMaxHealth = MaxHealth + AddMaxHealth;
-
-	// If health was at max, keep it at max after stat change
-	if (FMath::IsNearlyEqual(CurrentHealth, MaxHealth))
-	{
-		CurrentHealth = FinalMaxHealth;
-	}
-	else
-	{
-		// Otherwise, adjust current health proportionally
-		float HealthPercentage = CurrentHealth / MaxHealth;
-		CurrentHealth = FinalMaxHealth * HealthPercentage;
-	}
-
-	MaxHealth = FinalMaxHealth;
-
-	UE_LOG(LogTemp, Log, TEXT("Stats Applied - Health: %.0f/%.0f, Speed: %.0f"),
-		CurrentHealth, MaxHealth, GetCharacterMovement()->MaxWalkSpeed);
 }

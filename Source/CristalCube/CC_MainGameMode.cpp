@@ -101,6 +101,25 @@ void ACC_MainGameMode::OnCubeClearRewardSelected(FCubeClearReward SelectedReward
     HideCubeClearUI();
     SetGameState(EGameState::Playing);
 
+    // StatBoost 보상 선택 시 , 플레이어 스탯 즉시 반영
+    if (SelectedReward.RewardType == ECubeClearRewardType::StatBoost && SelectedReward.StatUpgradeType != EUpgradeType::None)
+    {
+        if (APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0))
+        {
+            if (ACC_PlayerCharacter* Player = Cast<ACC_PlayerCharacter>(PC->GetPawn()))
+            {
+                Player->ApplyStatUpgrade(
+                    SelectedReward.StatUpgradeType,
+                    SelectedReward.StatValue);
+
+                UE_LOG(LogTemp, Log,
+                    TEXT("[MainGameMode] StatBoost applied: Type=%d Value=%.3f"),
+                    (int32)SelectedReward.StatUpgradeType,
+                    SelectedReward.StatValue);
+            }
+        }
+    }
+
     // 보상 적용 — 블루프린트에서 오버라이드하거나 PlayerCharacter에 위임
     UE_LOG(LogTemp, Log,
         TEXT("[MainGameMode] Reward selected: %s. Starting next cycle."),

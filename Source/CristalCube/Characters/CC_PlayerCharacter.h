@@ -58,6 +58,31 @@ protected:
 	UFUNCTION(BlueprintPure, Category = "Stats")
 	float GetFinalAttackSpeedMultiplier() const { return PlayerStats.BasicStats.AttackSpeedMultiplier; }
 
+public:
+
+	/**
+	 * 단일 스탯 수정 + 즉시 적용.
+	 * 업그레이드/스킬 보너스/큐브 보상 등 런타임 스탯 변경에 사용.
+	 * Value는 배율 기준 델타값 (예: MoveSpeed +10% → Value = 0.1f)
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Stats")
+	void ApplyStatUpgrade(EUpgradeType Type, float Value);
+
+	/**
+	 * 전체 구조체 덮어쓰기 + 일괄 적용.
+	 * BeginPlay 초기화, 세이브 로드, 완전 리셋 등 일괄 설정 시 사용.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Stats")
+	void ApplyStatOverride(const FCristalCubePlayerStats& InStats);
+
+	/**
+	 * PlayerStats 구조체는 건드리지 않고 UE 시스템에만 반영.
+	 * Blueprint에서 PlayerStats를 직접 수정한 뒤 호출.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Stats")
+	void RefreshStats();
+
+
 protected:
 
 	//==============================================================================
@@ -333,5 +358,6 @@ protected:
 
 	virtual void ApplyStats() override;
 
+	virtual void Die() override;
 
 };

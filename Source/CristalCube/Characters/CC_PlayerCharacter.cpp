@@ -346,6 +346,9 @@ bool ACC_PlayerCharacter::EquipWeapon(ACC_Weapon* Weapon)
 	// Add to equipped weapons list
 	EquippedWeapons.Add(Weapon);
 
+	// The equipped list is authoritative. CurrentWeapon is only a selection within it.
+	SyncCurrentWeapon(CurrentWeapon ? CurrentWeapon : Weapon);
+
 	// Start auto-attack
 	StartWeaponAutoAttack(Weapon);
 
@@ -411,6 +414,8 @@ void ACC_PlayerCharacter::UnequipWeapon(ACC_Weapon* Weapon)
 	// Remove from list
 	EquippedWeapons.Remove(Weapon);
 
+	SyncCurrentWeapon();
+
 	// Cleanup weapon
 	Weapon->OnUnequipped();
 	Weapon->Destroy();
@@ -429,19 +434,48 @@ void ACC_PlayerCharacter::UnequipAllWeapons()
 		UnequipWeapon(Weapon);
 	}
 
+	SyncCurrentWeapon();
+
 	CC_LOG_PLAYER(Log, "Unequipped all weapons");
 }
 
 void ACC_PlayerCharacter::SwitchWeapon()
 {
+	if (EquippedWeapons.Num() == 0)
+	{
+		CurrentWeapon = nullptr;
+		CC_LOG_PLAYER(Warning, "Cannot switch weapon - no equipped weapons");
+		return;
+	}
 
+	if (EquippedWeapons.Num() == 1)
+	{
+		SyncCurrentWeapon(EquippedWeapons[0]);
+		CC_LOG_PLAYER(VeryVerbose, "Weapon switch skipped - only one equipped weapon");
+		return;
+	}
+
+	const int32 CurrentWeaponIndex = EquippedWeapons.IndexOfByKey(CurrentWeapon);
+	const int32 NextWeaponIndex = (CurrentWeaponIndex == INDEX_NONE)
+		? 0
+		: (CurrentWeaponIndex + 1) % EquippedWeapons.Num();
+
+	SyncCurrentWeapon(EquippedWeapons[NextWeaponIndex]);
+
+	CC_LOG_PLAYER(Log, "Switched current weapon to: %s", CC_ACTOR_NAME(CurrentWeapon));
 }
 
 void ACC_PlayerCharacter::PerformAttack()
 {
+	SyncCurrentWeapon();
+
 	if (CurrentWeapon && CurrentWeapon->CanAttack())
 	{
 		CurrentWeapon->Attack();
+	}
+	else if (!CurrentWeapon)
+	{
+		CC_LOG_PLAYER(VeryVerbose, "Manual attack skipped - no current weapon selected");
 	}
 }
 
@@ -496,11 +530,35 @@ ACC_Weapon* ACC_PlayerCharacter::CreateWeapon(TSubclassOf<ACC_Weapon> WeaponClas
 	return NewWeapon;
 }
 
+void ACC_PlayerCharacter::SyncCurrentWeapon(ACC_Weapon* PreferredWeapon)
+{
+	if (PreferredWeapon && EquippedWeapons.Contains(PreferredWeapon))
+	{
+		CurrentWeapon = PreferredWeapon;
+		return;
+	}
+
+	if (CurrentWeapon && EquippedWeapons.Contains(CurrentWeapon))
+	{
+		return;
+	}
+
+	CurrentWeapon = EquippedWeapons.Num() > 0
+		? EquippedWeapons[0]
+		: nullptr;
+}
+
 void ACC_PlayerCharacter::StartWeaponAutoAttack(ACC_Weapon* Weapon)
 {
 	if (!Weapon)
 	{
 		CC_LOG_PLAYER(Warning, "Cannot start auto-attack - weapon is null");
+		return;
+	}
+
+	if (WeaponAttackTimers.Contains(Weapon))
+	{
+		CC_LOG_PLAYER(VeryVerbose, "Auto-attack already active for weapon");
 		return;
 	}
 

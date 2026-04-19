@@ -147,10 +147,14 @@ public:
     UFUNCTION(BlueprintPure, Category = "Cycle")
     int32 GetKillsThisCycle() const { return KillsThisCycle; }
 
+    UFUNCTION(BlueprintPure, Category = "Cycle")
+    bool IsCycleActive() const { return bCycleActive; }
+
 private:
 
     void StartCycle(int32 CycleNumber);
     void CheckCycleCompletion();
+    void ApplyCycleConfigToSpawners(const FCycleConfig& Config);
 
     /** 적 처치 시 호출 (EnemyCharacter 사망 시 연결) */
     UFUNCTION(BlueprintCallable, Category = "Cycle")

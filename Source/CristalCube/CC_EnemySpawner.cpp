@@ -2,10 +2,12 @@
 
 
 #include "CC_EnemySpawner.h"
+#include "CC_CycleManager.h"
 #include "Characters/CC_EnemyCharacter.h"
 #include "Characters/CC_PlayerCharacter.h"
 #include "Gameplay/CC_Cube.h"
 #include "CC_LogHelper.h"
+#include "EngineUtils.h"
 #include "TimerManager.h"
 #include "Kismet/GameplayStatics.h"
 
@@ -44,6 +46,7 @@ void ACC_EnemySpawner::BeginPlay()
     Super::BeginPlay();
 
     FindPlayer();
+    SyncWithActiveCycle();
 
     if (!EnemyClass)
     {
@@ -103,8 +106,20 @@ void ACC_EnemySpawner::StartSpawning()
         return;
     }
 
+    SyncWithActiveCycle();
+
     bIsSpawning = true;
-    CurrentSpawnInterval = SpawnInterval;
+
+    if (bIncreaseSpawnRate)
+    {
+        const float MinutesPlayed = GameTime / 60.0f;
+        const float IntervalDecrease = MinutesPlayed * SpawnIntervalDecreasePerMinute;
+        CurrentSpawnInterval = FMath::Max(SpawnInterval - IntervalDecrease, MinSpawnInterval);
+    }
+    else
+    {
+        CurrentSpawnInterval = SpawnInterval;
+    }
 
     // Set up repeating timer
     GetWorld()->GetTimerManager().SetTimer(
@@ -175,6 +190,43 @@ void ACC_EnemySpawner::SpawnEnemies()
     {
         CC_LOG_SPAWNER(Log, TEXT("Spawned %d enemies (Total: %d/%d, Interval: %.2fs)"),
             SuccessfulSpawns, GetAliveEnemyCount(), MaxEnemies, CurrentSpawnInterval);
+    }
+}
+
+void ACC_EnemySpawner::ApplyCycleConfig(const FCycleConfig& CycleConfig)
+{
+    const float PreviousSpawnInterval = SpawnInterval;
+    const int32 PreviousMaxEnemies = MaxEnemies;
+
+    SpawnInterval = FMath::Max(CycleConfig.SpawnInterval, KINDA_SMALL_NUMBER);
+    MaxEnemies = FMath::Max(CycleConfig.MaxEnemies, 0);
+
+    if (bIncreaseSpawnRate)
+    {
+        const float MinutesPlayed = GameTime / 60.0f;
+        const float IntervalDecrease = MinutesPlayed * SpawnIntervalDecreasePerMinute;
+        CurrentSpawnInterval = FMath::Max(SpawnInterval - IntervalDecrease, MinSpawnInterval);
+    }
+    else
+    {
+        CurrentSpawnInterval = SpawnInterval;
+    }
+
+    const bool bSpawnIntervalChanged = !FMath::IsNearlyEqual(PreviousSpawnInterval, SpawnInterval);
+    const bool bMaxEnemiesChanged = PreviousMaxEnemies != MaxEnemies;
+
+    if (bIsSpawning && bSpawnIntervalChanged)
+    {
+        RefreshSpawnTimer();
+    }
+
+    if (bSpawnIntervalChanged || bMaxEnemiesChanged)
+    {
+        CC_LOG_SPAWNER(Log,
+            TEXT("Applied cycle difficulty (SpawnInterval: %.2f -> %.2f, MaxEnemies: %d -> %d, ActiveInterval: %.2f)"),
+            PreviousSpawnInterval, SpawnInterval,
+            PreviousMaxEnemies, MaxEnemies,
+            CurrentSpawnInterval);
     }
 }
 
@@ -309,14 +361,7 @@ void ACC_EnemySpawner::UpdateSpawnInterval()
         // Restart timer with new interval
         if (bIsSpawning)
         {
-            GetWorld()->GetTimerManager().ClearTimer(SpawnTimerHandle);
-            GetWorld()->GetTimerManager().SetTimer(
-                SpawnTimerHandle,
-                this,
-                &ACC_EnemySpawner::SpawnEnemies,
-                CurrentSpawnInterval,
-                true
-            );
+            RefreshSpawnTimer();
 
             CC_LOG_SPAWNER(VeryVerbose, TEXT("Spawn interval updated to %.2fs (%.1f min elapsed)"),
                 CurrentSpawnInterval, MinutesPlayed);
@@ -396,4 +441,49 @@ void ACC_EnemySpawner::FindPlayer()
     {
         CC_LOG_SPAWNER(Warning, TEXT("Could not find player"));
     }
+}
+
+void ACC_EnemySpawner::SyncWithActiveCycle()
+{
+    ACC_CycleManager* CycleManager = FindCycleManager();
+    if (!CycleManager || !CycleManager->IsCycleActive())
+    {
+        return;
+    }
+
+    ApplyCycleConfig(CycleManager->GetCurrentCycleConfig());
+
+    CC_LOG_SPAWNER(Log, TEXT("Synced spawn settings from active cycle %d"), CycleManager->GetCurrentCycle());
+}
+
+ACC_CycleManager* ACC_EnemySpawner::FindCycleManager() const
+{
+    if (!GetWorld())
+    {
+        return nullptr;
+    }
+
+    for (TActorIterator<ACC_CycleManager> It(GetWorld()); It; ++It)
+    {
+        return *It;
+    }
+
+    return nullptr;
+}
+
+void ACC_EnemySpawner::RefreshSpawnTimer()
+{
+    if (!bIsSpawning || !GetWorld())
+    {
+        return;
+    }
+
+    GetWorld()->GetTimerManager().ClearTimer(SpawnTimerHandle);
+    GetWorld()->GetTimerManager().SetTimer(
+        SpawnTimerHandle,
+        this,
+        &ACC_EnemySpawner::SpawnEnemies,
+        CurrentSpawnInterval,
+        true
+    );
 }

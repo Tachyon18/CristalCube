@@ -5,6 +5,7 @@
 #include "Characters/CC_EnemyCharacter.h"
 #include "Characters/CC_PlayerCharacter.h"
 #include "Gameplay/CC_Cube.h"
+#include "CC_MainGameMode.h"
 #include "CC_LogHelper.h"
 #include "TimerManager.h"
 #include "Kismet/GameplayStatics.h"
@@ -186,33 +187,47 @@ ACC_EnemyCharacter* ACC_EnemySpawner::SpawnSingleEnemy(const FVector& Location)
     }
 
     FRotator SpawnRotation = FRotator::ZeroRotator;
+    const FTransform SpawnTransform(SpawnRotation, Location);
 
-    FActorSpawnParameters SpawnParams;
-    SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
-
-    ACC_EnemyCharacter* NewEnemy = GetWorld()->SpawnActor<ACC_EnemyCharacter>(
+    ACC_EnemyCharacter* NewEnemy = GetWorld()->SpawnActorDeferred<ACC_EnemyCharacter>(
         EnemyClass,
-        Location,
-        SpawnRotation,
-        SpawnParams
+        SpawnTransform,
+        this,
+        nullptr,
+        ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn
     );
 
-    if (NewEnemy)
-    {
-        if (OwnerCube)
-        {
-            OwnerCube->RegisterActor(NewEnemy);
-            CC_LOG_SPAWNER(VeryVerbose, TEXT("Registered enemy with Cube (%d, %d)"),
-                OwnerCube->CubeCoordinate.X, OwnerCube->CubeCoordinate.Y);
-        }
-
-        CC_LOG_SPAWNER(VeryVerbose, TEXT("Spawned enemy at (%.0f, %.0f, %.0f)"),
-            Location.X, Location.Y, Location.Z);
-    }
-    else
+    if (!NewEnemy)
     {
         CC_LOG_SPAWNER(Warning, TEXT("Failed to spawn enemy at location"));
+        return nullptr;
     }
+
+    float DamageMultiplier = 1.0f;
+    float SpeedMultiplier = 1.0f;
+
+    if (ACC_MainGameMode* MainGameMode = Cast<ACC_MainGameMode>(UGameplayStatics::GetGameMode(this)))
+    {
+        if (ACC_CycleManager* CycleManager = MainGameMode->GetCycleManager())
+        {
+            const FCycleConfig CycleConfig = CycleManager->GetCurrentCycleConfig();
+            DamageMultiplier = CycleConfig.EnemyDamageMultiplier;
+            SpeedMultiplier = CycleConfig.EnemySpeedMultiplier;
+        }
+    }
+
+    NewEnemy->ApplyCycleStatScaling(DamageMultiplier, SpeedMultiplier);
+    NewEnemy->FinishSpawning(SpawnTransform);
+
+    if (OwnerCube)
+    {
+        OwnerCube->RegisterActor(NewEnemy);
+        CC_LOG_SPAWNER(VeryVerbose, TEXT("Registered enemy with Cube (%d, %d)"),
+            OwnerCube->CubeCoordinate.X, OwnerCube->CubeCoordinate.Y);
+    }
+
+    CC_LOG_SPAWNER(VeryVerbose, TEXT("Spawned enemy at (%.0f, %.0f, %.0f)"),
+        Location.X, Location.Y, Location.Z);
 
     return NewEnemy;
 }

@@ -95,6 +95,10 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cycle Config")
     float DamageMultiplierIncreasePerCycle = 0.2f;
 
+    /** 배열 초과 시 사이클마다 누적되는 적 이동속도 배율 증가 */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cycle Config")
+    float SpeedMultiplierIncreasePerCycle = 0.05f;
+
     // ========== 런타임 상태 ==========
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "State")
@@ -133,6 +137,9 @@ public:
     /** 현재 사이클 Config 반환 */
     UFUNCTION(BlueprintPure, Category = "Cycle")
     FCycleConfig GetCurrentCycleConfig() const;
+
+    /** 특정 사이클의 Config 반환 */
+    FCycleConfig GetCycleConfigForCycle(int32 CycleNumber) const;
 
     /** 킬 진행도 (0.0 ~ 1.0) */
     UFUNCTION(BlueprintPure, Category = "Cycle")

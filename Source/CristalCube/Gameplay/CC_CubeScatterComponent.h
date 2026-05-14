@@ -119,4 +119,15 @@ private:
 
     /** HISM 컴포넌트 생성 및 등록 */
     UHierarchicalInstancedStaticMeshComponent* CreateHISM(UStaticMesh* Mesh);
+
+protected:
+
+    UPROPERTY()
+    class ACC_Cube* OwnerCube = nullptr;
+
+public:
+    
+    UFUNCTION()
+    void SetOwnerCube(ACC_Cube* InCube) { OwnerCube = InCube; }
+
 };

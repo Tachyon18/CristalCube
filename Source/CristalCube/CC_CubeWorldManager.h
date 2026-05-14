@@ -25,28 +25,74 @@ public:
 	virtual void Tick(float DeltaTime) override;
 
     // ========================================
-    // Properties
+    // Grid Configuration
     // ========================================
 
-    /** �׸��� ũ�� (3x3) */
+    /** 그리드 가로 크기 */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cube|Grid")
-    int32 GridSize = 3;
+    int32 GridWidth = 3;
 
-    /** ť�� ũ�� */
+	/** 그리드 세로 크기 */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cube|Grid")
+    int32 GridHeight = 3;
+
+    /** 큐브 크기*/
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cube|Grid")
     float CubeSize = 500.0f;
 
-    /** ť�� Ŭ���� */
+    /** 큐브 클래스*/
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cube|Grid")
     TSubclassOf<class ACC_Cube> CubeClass;
 
-    /** ���� ť�� ��ǥ */
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Cube|State")
-    FIntPoint CurrentCubeCoord;
+	/** 현재 큐브 좌표 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Cube|Grid")
+	FIntPoint CurrentCubeCoord;
 
-    /** ��ȯ ������ ���� */
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Cube|State")
-    bool bIsTransitioning = false;
+	/** 큐브 전환 중 여부 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Cube|Grid")
+	bool bIsTransitioning = false;
+
+    /** 커스텀 레이아웃 사용 여부 (비정방형/테트리스형) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cube|Grid")
+	bool bUseCustomLayout = false;
+
+    /** 커스텀 레이아웃 유효 셀 목록 (bUseCustomLayout=true 일 때 사용) */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cube|Grid",
+        meta = (EditCondition = "bUseCustomLayout"))
+    TArray<FIntPoint> CustomValidCells;
+
+    /** 시작 큐브 좌표 */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cube|Grid")
+    FIntPoint StartCoordinate = FIntPoint(1, 1);
+
+    /** 유효 좌표 여부 확인 */
+    UFUNCTION(BlueprintCallable, Category = "Cube|Grid")
+    bool IsValidCoordinate(FIntPoint Coord) const;
+
+    // ========================================
+    // Persistent Enemy System
+    // ========================================
+
+    /** Lock 발동 임계값 (기본: 12) */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cube|Persistent")
+    int32 LockThreshold = 12;
+
+    /** 현재 Lock 상태 */
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Cube|Persistent")
+    bool bCubeLocked = false;
+
+    /** WorldManager 레벨 관리 Persistent Enemy 목록 */
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Cube|Persistent")
+    TArray<class ACC_EnemyCharacter*> PersistentEnemyList;
+
+    UFUNCTION(BlueprintCallable, Category = "Cube|Persistent")
+    void RegisterPersistentEnemy(ACC_EnemyCharacter* Enemy);
+
+    UFUNCTION(BlueprintCallable, Category = "Cube|Persistent")
+    void UnregisterPersistentEnemy(ACC_EnemyCharacter* Enemy);
+
+    void CheckLockCondition();
+    void TeleportPersistentEnemiesToCube(ACC_Cube* TargetCube);
 
     // ========================================
     // Data Structures
@@ -153,4 +199,9 @@ protected:
 
     /** ���� ��ȯ ���� (�׽�Ʈ��) */
     EBoundaryDirection LastTransitionDirection;
+
+public:
+    
+    void OnEmenyUnregistered(AActor* Enemy);
+
 };

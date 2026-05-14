@@ -29,12 +29,19 @@ ACC_Cube::ACC_Cube()
 	CubeState = ECubeState::Unloaded;
 
 	ScatterComponent = CreateDefaultSubobject<UCC_CubeScatterComponent>(TEXT("ScatterComponent"));
+	ScatterComponent->SetOwnerCube(this);
+
 }
 
 // Called when the game starts or when spawned
 void ACC_Cube::BeginPlay()
 {
 	Super::BeginPlay();
+
+	//if (ScatterComponent)
+	//{
+	//	ScatterComponent->Generate(1);
+	//}
 }
 
 // Called every frame
@@ -319,6 +326,15 @@ void ACC_Cube::InitializeCube(FIntPoint Coordinate)
 	//DrawDebugInfo();
 
 	//UE_LOG(LogTemp, Log, TEXT("[Cube] Initialized at (%d, %d) - Location: %s"), Coordinate.X, Coordinate.Y, *CubeWorldLocation.ToString());
+
+	if (ScatterComponent && !ScatterComponent->bGenerated)
+	{
+		ScatterComponent->ScatterRadius = CubeSize / 2.0f;
+		UE_LOG(LogTemp, Warning, TEXT("[Cube %d,%d] ScatterRadius before Generate: %.1f"),
+			Coordinate.X, Coordinate.Y, ScatterComponent->ScatterRadius);
+		ScatterComponent->Generate(CubeCoordinate);
+	}
+
 }
 
 void ACC_Cube::CreateBoundaryTriggers()
@@ -373,6 +389,22 @@ void ACC_Cube::CreateBoundaryTriggers()
 	}
 }
 
+void ACC_Cube::SetBoundaryTriggersEnabled(bool bEnabled)
+{
+	for (UBoxComponent* Trigger : BoundaryTriggers)
+	{
+		if (!Trigger) continue;
+
+		Trigger->SetGenerateOverlapEvents(bEnabled);
+		Trigger->SetCollisionEnabled(
+			bEnabled ? ECollisionEnabled::QueryOnly : ECollisionEnabled::NoCollision);
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("[Cube %d,%d] Boundary triggers %s"),
+		CubeCoordinate.X, CubeCoordinate.Y,
+		bEnabled ? TEXT("ENABLED") : TEXT("DISABLED"));
+}
+
 void ACC_Cube::RegisterActor(AActor* Actor)
 {
 	if (!Actor || ManagedActors.Contains(Actor))
@@ -416,6 +448,8 @@ void ACC_Cube::Freeze()
 	// Hide and disable the entire cube
 	SetActorHiddenInGame(true);
 	SetActorTickEnabled(false);
+
+	//if (PCGComponent) PCGComponent->CleanupLocalGeneration(false, false);
 
 	// Freeze all managed actors
 	for (AActor* Actor : ManagedActors)
@@ -492,6 +526,8 @@ void ACC_Cube::Unfreeze()
 	// Show and enable the entire cube
 	SetActorHiddenInGame(false);
 	SetActorTickEnabled(true);
+
+	//if (PCGComponent) PCGComponent->GenerateLocal(false);
 
 	// Unfreeze all managed actors
 	for (AActor* Actor : ManagedActors)

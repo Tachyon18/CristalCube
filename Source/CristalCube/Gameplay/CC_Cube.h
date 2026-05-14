@@ -170,6 +170,9 @@ public:
 	/** 경계 트리거 생성 */
 	void CreateBoundaryTriggers();
 
+	UFUNCTION(BlueprintCallable, Category = "Cube")
+	void SetBoundaryTriggersEnabled(bool bEnabled);
+
 	/** Actor 등록 (이 큐브에 소속) */
 	UFUNCTION(BlueprintCallable, Category = "Cube")
 	void RegisterActor(AActor* Actor);
@@ -214,4 +217,6 @@ public:
 protected:
 
 	TMap<UBoxComponent*, EBoundaryDirection> BoundaryDirectionMap;
+
+public:
 };

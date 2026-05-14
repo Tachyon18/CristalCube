@@ -2,6 +2,7 @@
 
 
 #include "CC_CubeScatterComponent.h"
+#include "CC_Cube.h"
 #include "Math/RandomStream.h"
 
 // Sets default values for this component's properties
@@ -22,7 +23,11 @@ void UCC_CubeScatterComponent::BeginPlay()
 	Super::BeginPlay();
 
 	// ...
-	
+    if (OwnerCube)
+    {
+        ScatterRadius = OwnerCube->CubeSize / 2.f;
+    }
+    
 }
 
 
@@ -89,7 +94,7 @@ void UCC_CubeScatterComponent::Generate(FIntPoint CubeCoordinate)
     PlacedLocations.Reserve(Count);
 
     // 5. 배치 시도 (MaxAttempts로 MinDistance 보장)
-    int32 MaxAttempts = Count * 3;
+    int32 MaxAttempts = Count * 10;
     int32 Placed = 0;
 
     for (int32 Attempt = 0; Attempt < MaxAttempts && Placed < Count; ++Attempt)

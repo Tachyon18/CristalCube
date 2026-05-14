@@ -6,6 +6,8 @@
 #include "Kismet/GameplayStatics.h"
 #include "DrawDebugHelpers.h"
 #include "Gameplay/CC_Cube.h"
+#include "Characters/CC_EnemyCharacter.h"
+#include "CC_EnemyManager.h"
 
 // Sets default values
 ACC_CubeWorldManager::ACC_CubeWorldManager()
@@ -21,6 +23,11 @@ void ACC_CubeWorldManager::BeginPlay()
 	Super::BeginPlay();
 	
 	InitializeSystem();
+
+	if (ACC_EnemyManager* EnemyMgr = ACC_EnemyManager::Get(this))
+	{
+		//EnemyMgr->OnEnemyUnregistered.AddDynamic(this,)
+	}
 }
 
 // Called every frame
@@ -35,6 +42,71 @@ void ACC_CubeWorldManager::Tick(float DeltaTime)
 
 }
 
+bool ACC_CubeWorldManager::IsValidCoordinate(FIntPoint Coord) const
+{
+	return CubeGrid.Contains(Coord);
+}
+
+void ACC_CubeWorldManager::RegisterPersistentEnemy(ACC_EnemyCharacter* Enemy)
+{
+	if (!Enemy || PersistentEnemyList.Contains(Enemy)) return;
+
+	PersistentEnemyList.Add(Enemy);
+	UE_LOG(LogTemp, Log, TEXT("[Manager] Persistent enemy registered. Total: %d"),
+		PersistentEnemyList.Num());
+
+	CheckLockCondition();
+}
+
+void ACC_CubeWorldManager::UnregisterPersistentEnemy(ACC_EnemyCharacter* Enemy)
+{
+	if (!Enemy) return;
+
+	PersistentEnemyList.Remove(Enemy);
+	UE_LOG(LogTemp, Log, TEXT("[Manager] Persistent enemy unregistered. Total: %d"),
+		PersistentEnemyList.Num());
+
+	CheckLockCondition();
+}
+
+void ACC_CubeWorldManager::CheckLockCondition()
+{
+	if(!bCubeLocked && PersistentEnemyList.Num() >= LockThreshold)
+	{
+		bCubeLocked = true;
+		if (ActiveCube) ActiveCube->SetBoundaryTriggersEnabled(false);
+
+		UE_LOG(LogTemp, Warning, TEXT("[Manager] Cube LOCKED! Persistent enemy count: %d"), PersistentEnemyList.Num());
+	}
+	else if (bCubeLocked && PersistentEnemyList.Num() < LockThreshold)
+	{
+		bCubeLocked = false;
+		if (ActiveCube) ActiveCube->SetBoundaryTriggersEnabled(true);
+
+		UE_LOG(LogTemp, Warning, TEXT("[Manager] Cube UNLOCKED! Persistent enemy count: %d"), PersistentEnemyList.Num());
+	}
+}
+
+void ACC_CubeWorldManager::TeleportPersistentEnemiesToCube(ACC_Cube* TargetCube)
+{
+	if (!TargetCube) return;
+
+	FVector CubeCenter = TargetCube->GetCubeCenter();
+	float Spread = 600.0f;
+
+	for (ACC_EnemyCharacter* Enemy : PersistentEnemyList)
+	{
+		if (!IsValid(Enemy)) continue;
+
+		FVector Offset(
+			FMath::RandRange(-Spread, Spread),
+			FMath::RandRange(-Spread, Spread),
+			0.0f
+		);
+		Enemy->SetActorLocation(CubeCenter + Offset);
+	}
+}
+
 void ACC_CubeWorldManager::InitializeSystem()
 {
 	UE_LOG(LogTemp, Warning, TEXT("=============================================="));
@@ -43,7 +115,7 @@ void ACC_CubeWorldManager::InitializeSystem()
 
 	InitializeCubeGrid();
 	
-	CurrentCubeCoord = FIntPoint(1,1);
+	CurrentCubeCoord = StartCoordinate;
 	ActiveCube = FindOrSpawnCube(CurrentCubeCoord);
 
 	if (ActiveCube)
@@ -63,16 +135,32 @@ void ACC_CubeWorldManager::InitializeCubeGrid()
 {
 	CubeGrid.Empty();
 
-	for (int32 X = 0; X < GridSize; X++)
+	if(bUseCustomLayout)
 	{
-		for (int32 Y = 0; Y < GridSize; Y++)
+		// 커스텀 레이아웃: 지정된 셀만 등록
+		for (const FIntPoint& Cell : CustomValidCells)
 		{
 			FCubeData NewCubeData;
-			NewCubeData.Coordinate = FIntPoint(X, Y);
+			NewCubeData.Coordinate = Cell;
 			NewCubeData.State = ECubeState::Unloaded;
-			CubeGrid.Add(FIntPoint(X, Y), NewCubeData);
+			CubeGrid.Add(Cell, NewCubeData);
 		}
 	}
+	else
+	{
+		// 직사각형 모드: GridWidth x GridHeight
+		for (int32 X = 0; X < GridHeight; X++)
+		{
+			for (int32 Y = 0; Y < GridWidth; Y++)
+			{
+				FCubeData NewCubeData;
+				NewCubeData.Coordinate = FIntPoint(X, Y);
+				NewCubeData.State = ECubeState::Unloaded;
+				CubeGrid.Add(FIntPoint(X, Y), NewCubeData);
+			}
+		}
+	}
+	
 
 	UE_LOG(LogTemp, Log, TEXT("[Manager] Initialized %d cube data entries"), CubeGrid.Num());
 }
@@ -87,7 +175,6 @@ ACC_Cube* ACC_CubeWorldManager::SpawnCube(FIntPoint Coordinate)
 		return ExistingCube;
 	}
 
-	// ť�� Ŭ���� Ȯ��
 	if (!CubeClass)
 	{
 		UE_LOG(LogTemp, Error, TEXT("[Manager] CubeClass is not set!"));
@@ -98,30 +185,37 @@ ACC_Cube* ACC_CubeWorldManager::SpawnCube(FIntPoint Coordinate)
 	FVector SpawnLocation(-Coordinate.X * CubeSize, Coordinate.Y * CubeSize, 0.0f);
 	FActorSpawnParameters SpawnParams;
 	SpawnParams.Owner = this;
+	FTransform SpawnTransform(FRotator::ZeroRotator, SpawnLocation);
 
-	ACC_Cube* NewCube = GetWorld()->SpawnActor<ACC_Cube>(CubeClass, SpawnLocation, FRotator::ZeroRotator, SpawnParams);
+	//ACC_Cube* NewCube = GetWorld()->SpawnActor<ACC_Cube>(CubeClass, SpawnLocation, FRotator::ZeroRotator, SpawnParams);
 
-	if (NewCube)
-	{
-		NewCube->CubeSize = CubeSize;
-		NewCube->InitializeCube(Coordinate);
-		
-		LoadedCubes.Add(NewCube);
+	// BeginPlay 이전에 프로퍼티를 설정하기 위해 Deferred 사용
+	ACC_Cube* NewCube = GetWorld()->SpawnActorDeferred<ACC_Cube>(CubeClass, SpawnTransform, this);
 
-		// ������ ������Ʈ
-		if (CubeGrid.Contains(Coordinate))
-		{
-			CubeGrid[Coordinate].State = ECubeState::Active;
-		}
-
-		UE_LOG(LogTemp, Log, TEXT("[Manager] Spawned cube at (%d, %d) - Location: %s"),
-			Coordinate.X, Coordinate.Y, *SpawnLocation.ToString());
-	}
-	else
+	if (!NewCube)
 	{
 		UE_LOG(LogTemp, Error, TEXT("[Manager] Failed to spawn cube at (%d, %d)"),
 			Coordinate.X, Coordinate.Y);
+		return nullptr;
 	}
+
+	// BeginPlay 전에 CubeSize 확정
+	NewCube->CubeSize = CubeSize;
+
+	// BeginPlay 실행
+	UGameplayStatics::FinishSpawningActor(NewCube, SpawnTransform);
+
+	// 이후 초기화
+	NewCube->InitializeCube(Coordinate);
+	LoadedCubes.Add(NewCube);
+
+	if (CubeGrid.Contains(Coordinate))
+	{
+		CubeGrid[Coordinate].State = ECubeState::Active;
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("[Manager] Spawned cube at (%d,%d) - Location: %s"),
+		Coordinate.X, Coordinate.Y, *SpawnLocation.ToString());
 
 	return NewCube;
 }
@@ -166,24 +260,34 @@ ACC_Cube* ACC_CubeWorldManager::FindCube(FIntPoint CubeCoord) const
 
 void ACC_CubeWorldManager::RequestTransition(EBoundaryDirection Direction)
 {
+	if (bCubeLocked)
+	{
+		UE_LOG(LogTemp, Warning,
+			TEXT("[Manager] Cube is LOCKED. Clear persistent enemies first!"));
+		return;
+	}
+
 	if (bIsTransitioning)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[Manager] Already transitioning, ignoring request"));
 		return;
 	}
 
-	UE_LOG(LogTemp, Warning, TEXT("=============================================="));
-	UE_LOG(LogTemp, Warning, TEXT("   CUBE TRANSITION STARTED"));
-	UE_LOG(LogTemp, Warning, TEXT("   Direction: %s"), *UEnum::GetValueAsString(Direction));
-	UE_LOG(LogTemp, Warning, TEXT("=============================================="));
+	FIntPoint NextCoord = GetNextCubeCoord(CurrentCubeCoord, Direction);
+
+	if (NextCoord == CurrentCubeCoord)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[Manager] No valid neighbor in direction: %s"),
+			*UEnum::GetValueAsString(Direction));
+		return;
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("[Manager] Transition started: (%d,%d) -> (%d,%d)"),
+		CurrentCubeCoord.X, CurrentCubeCoord.Y, NextCoord.X, NextCoord.Y);
 
 	bIsTransitioning = true;
 	LastTransitionDirection = Direction;
 
-	// ���� ť�� ��ǥ ���
-	FIntPoint NextCoord = GetNextCubeCoord(CurrentCubeCoord, Direction);
-
-	// ��� ��ȯ (Fade ����)
 	PerformTransition(NextCoord);
 
 	bIsTransitioning = false;
@@ -193,28 +297,52 @@ void ACC_CubeWorldManager::RequestTransition(EBoundaryDirection Direction)
 
 FIntPoint ACC_CubeWorldManager::GetNextCubeCoord(FIntPoint Current, EBoundaryDirection Direction) const
 {
-	FIntPoint Next = Current;
+	FIntPoint Delta = FIntPoint::ZeroValue;
 
 	switch (Direction)
 	{
-	case EBoundaryDirection::Right:
-		Next.Y = (Current.Y + 1) % GridSize;
-		break;
-
-	case EBoundaryDirection::Left:
-		Next.Y = (Current.Y - 1 + GridSize) % GridSize;
-		break;
-
-	case EBoundaryDirection::Up:
-		Next.X = (Current.X - 1 + GridSize) % GridSize;
-		break;
-
-	case EBoundaryDirection::Down:
-		Next.X = (Current.X + 1) % GridSize;
-		break;
+	case EBoundaryDirection::Right: Delta = FIntPoint(0, 1); break;
+	case EBoundaryDirection::Left:  Delta = FIntPoint(0, -1); break;
+	case EBoundaryDirection::Up:    Delta = FIntPoint(-1, 0); break;
+	case EBoundaryDirection::Down:  Delta = FIntPoint(1, 0); break;
 	}
 
-	UE_LOG(LogTemp, Log, TEXT("[Manager] Next cube coord: (%d, %d) -> (%d, %d)"),
+	FIntPoint Next = Current + Delta;
+
+	if (IsValidCoordinate(Next)) return Next;
+
+	// 유효하지 않으면 같은 행/열에서 반대편 끝으로 랩핑
+	// 같은 행(Left/Right) 또는 같은 열(Up/Down)의 유효 셀 수집
+	TArray<FIntPoint> SameLine;
+	for (const auto& Pair : CubeGrid)
+	{
+		bool bSameAxis = (Direction == EBoundaryDirection::Left ||
+			Direction == EBoundaryDirection::Right)
+			? (Pair.Key.X == Current.X)   // 같은 행
+			: (Pair.Key.Y == Current.Y);  // 같은 열
+		if (bSameAxis)
+			SameLine.Add(Pair.Key);
+	}
+
+	if (SameLine.Num() == 0)
+		return Current; // 이동 불가
+
+	// 이동 방향 반대편 끝 셀 반환
+	SameLine.Sort([&](const FIntPoint& A, const FIntPoint& B)
+		{
+			return (Direction == EBoundaryDirection::Right ||
+				Direction == EBoundaryDirection::Left)
+				? A.Y < B.Y
+				: A.X < B.X;
+		});
+
+	// Right/Down → 첫 번째(최솟값), Left/Up → 마지막(최댓값)
+	bool bWrapToStart = (Direction == EBoundaryDirection::Right ||
+		Direction == EBoundaryDirection::Down);
+
+	Next = bWrapToStart ? SameLine[0] : SameLine.Last();
+
+	UE_LOG(LogTemp, Log, TEXT("[Manager] Wrapped (%d,%d) -> (%d,%d)"),
 		Current.X, Current.Y, Next.X, Next.Y);
 
 	return Next;
@@ -224,13 +352,7 @@ void ACC_CubeWorldManager::PerformTransition(FIntPoint NextCoord)
 {
 	UE_LOG(LogTemp, Log, TEXT("[Manager] Performing transition to (%d, %d)"), NextCoord.X, NextCoord.Y);
 
-	// 1. ���� ť�� Freeze
-	if (ActiveCube)
-	{
-		ActiveCube->Freeze();
-	}
-
-	// 2. �� ť�� Spawn �Ǵ� ã��
+	// 1. 다음 큐브 먼저 준비 (Persistent 이전에 위치 정보 필요)
 	ACC_Cube* NextCube = FindOrSpawnCube(NextCoord);
 	if (!NextCube)
 	{
@@ -238,10 +360,19 @@ void ACC_CubeWorldManager::PerformTransition(FIntPoint NextCoord)
 		return;
 	}
 
-	// 3. �� ť�� Unfreeze
+	// 2. Persistent Enemy 이전 — Freeze 전에 처리해야 소속 문제 없음
+	TeleportPersistentEnemiesToCube(NextCube);
+
+	// 3. 이전 큐브 Freeze
+	if (ActiveCube)
+	{
+		ActiveCube->Freeze();
+	}
+
+	// 4. 다음 큐브 Unfreeze
 	NextCube->Unfreeze();
 
-	// 4. �÷��̾� �̵�
+	// 5. 플레이어 이동
 	FVector NewPlayerPos = CalculatePlayerPositionInCube(NextCube, LastTransitionDirection);
 	ACharacter* Player = GetPlayerCharacter();
 	if (Player)
@@ -250,11 +381,9 @@ void ACC_CubeWorldManager::PerformTransition(FIntPoint NextCoord)
 		UE_LOG(LogTemp, Log, TEXT("[Manager] Player moved to: %s"), *NewPlayerPos.ToString());
 	}
 
-	// 5. Active ť�� ��ü
 	ActiveCube = NextCube;
 	CurrentCubeCoord = NextCoord;
 
-	// 6. �̺�Ʈ �߻�
 	OnCubeTransition.Broadcast(NextCoord);
 
 	UE_LOG(LogTemp, Log, TEXT("[Manager] Transition performed successfully"));
@@ -319,7 +448,7 @@ void ACC_CubeWorldManager::PrintDebugInfo()
 	UE_LOG(LogTemp, Warning, TEXT("=============================================="));
 	UE_LOG(LogTemp, Warning, TEXT("   CUBE WORLD DEBUG INFO"));
 	UE_LOG(LogTemp, Warning, TEXT("=============================================="));
-	UE_LOG(LogTemp, Warning, TEXT("Grid Size: %d x %d"), GridSize, GridSize);
+	UE_LOG(LogTemp, Warning, TEXT("Grid Size: %d x %d"), GridWidth, GridHeight);
 	UE_LOG(LogTemp, Warning, TEXT("Current Cube: (%d, %d)"), CurrentCubeCoord.X, CurrentCubeCoord.Y);
 	UE_LOG(LogTemp, Warning, TEXT("Loaded Cubes: %d"), LoadedCubes.Num());
 	UE_LOG(LogTemp, Warning, TEXT("Transitioning: %s"), bIsTransitioning ? TEXT("Yes") : TEXT("No"));
@@ -342,6 +471,17 @@ void ACC_CubeWorldManager::DrawAllCubes()
 		{
 			UE_LOG(LogTemp, Log, TEXT("[Manager] Drawing debug info for cube (%d, %d)"), Cube->CubeCoordinate.X, Cube->CubeCoordinate.Y);
 			Cube->DrawDebugInfo();
+		}
+	}
+}
+
+void ACC_CubeWorldManager::OnEmenyUnregistered(AActor* Enemy)
+{
+	if (ACC_EnemyCharacter* EnemyChar = Cast<ACC_EnemyCharacter>(Enemy))
+	{
+		if (EnemyChar->bPersistent)
+		{
+			UnregisterPersistentEnemy(EnemyChar);
 		}
 	}
 }

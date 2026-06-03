@@ -175,6 +175,63 @@ void ACC_Cube::DeactivateAllTiles()
 	UE_LOG(LogTemp, Log, TEXT("Cube: All tiles deactivated"));
 }
 
+void ACC_Cube::ApplyTheme(const FCubeThemeData& ThemeData)
+{
+	if (!FloorMesh || !ThemeData.FloorMaterial) return;
+
+	// Dynamic Material Instance 생성
+	FloorMID = UMaterialInstanceDynamic::Create(ThemeData.FloorMaterial, this);
+	if (!FloorMID) return;
+
+	//// World Position 기반 타일 크기 — 큐브 스케일과 무관하게 일정
+	//FloorMID->SetScalarParameterValue(TEXT("TextureTileSize"), ThemeData.TextureTileSize);
+
+	// 테마 색상
+	FloorMID->SetVectorParameterValue(TEXT("ThemeColor"), ThemeData.ThemeColor);
+	FloorMID->SetVectorParameterValue(TEXT("ThemeColorSecondary"), ThemeData.ThemeColorSecondary);
+	FloorMID->SetScalarParameterValue(TEXT("EmissiveStrength"), ThemeData.EmissiveStrength);
+
+	FloorMesh->SetMaterial(0, FloorMID);
+
+	//UE_LOG(LogTemp, Log, TEXT("[Cube %d,%d] Theme applied — TileSize: %.0f"), CubeCoordinate.X, CubeCoordinate.Y, ThemeData.TextureTileSize);
+
+	if (ScatterComponent)
+	{
+		ScatterComponent->ApplyThemeData(ThemeData);
+	}
+
+	UE_LOG(LogTemp, Log,
+		TEXT("[Cube %d,%d] ApplyTheme Completed — FloorMat: %s, ScatterMeshes: %d"),
+		CubeCoordinate.X, CubeCoordinate.Y,
+		ThemeData.FloorMaterial ? *ThemeData.FloorMaterial->GetName() : TEXT("No Material"),
+		ThemeData.ScatterMeshes.Num());
+}
+
+void ACC_Cube::SetLockWall(bool bLock)
+{
+	for (UBoxComponent* Trigger : BoundaryTriggers)
+	{
+		if (!Trigger) continue;
+
+		if (bLock)
+		{
+			Trigger->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+			Trigger->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
+			Trigger->SetGenerateOverlapEvents(false);
+		}
+		else
+		{
+			Trigger->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+			Trigger->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
+			Trigger->SetGenerateOverlapEvents(true);
+		}
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("[Cube %d,%d] LockWall %s"),
+		CubeCoordinate.X, CubeCoordinate.Y,
+		bLock ? TEXT("ON (Block)") : TEXT("OFF (Overlap)"));
+}
+
 // ========== Cube Wall Overlap Events ==========
 
 void ACC_Cube::OnCubeWallHit_Right(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
@@ -301,6 +358,8 @@ void ACC_Cube::InitializeCubeWalls()
 
 void ACC_Cube::InitializeCube(FIntPoint Coordinate)
 {
+	UE_LOG(LogTemp, Error, TEXT("[InitializeCube] Received Coordinate: (%d,%d)"),
+		Coordinate.X, Coordinate.Y);
 	CubeCoordinate = Coordinate;
 	CubeState = ECubeState::Active;
 
@@ -454,8 +513,7 @@ void ACC_Cube::Freeze()
 	// Freeze all managed actors
 	for (AActor* Actor : ManagedActors)
 	{
-		if (!Actor || Actor->IsPendingKillPending())
-			continue;
+		if (!IsValid(Actor)) continue;
 
 		// Basic deactivation
 		Actor->SetActorHiddenInGame(true);
@@ -532,8 +590,7 @@ void ACC_Cube::Unfreeze()
 	// Unfreeze all managed actors
 	for (AActor* Actor : ManagedActors)
 	{
-		if (!Actor || Actor->IsPendingKillPending())
-			continue;
+		if (!IsValid(Actor)) continue;
 
 		// Basic reactivation
 		Actor->SetActorHiddenInGame(false);

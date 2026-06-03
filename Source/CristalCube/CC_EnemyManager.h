@@ -32,7 +32,7 @@ public:
 
 protected:
     // Singleton instance
-    static ACC_EnemyManager* Instance;
+    static TWeakObjectPtr<ACC_EnemyManager> WeakInstance;
 
     //==========================================================================
     // ENEMY TRACKING

@@ -106,11 +106,13 @@ protected:
     UPROPERTY()
     bool bIsFrozen = false;
 
-    //==========================================================================
-// SPAWNING
-//==========================================================================
+public:
 
-/** Start spawning enemies */
+    //==========================================================================
+    // SPAWNING
+    //==========================================================================
+
+    /** Start spawning enemies */
     UFUNCTION(BlueprintCallable, Category = "Spawner")
     void StartSpawning();
 
@@ -137,6 +139,8 @@ protected:
     /** Update spawn interval based on game time */
     void UpdateSpawnInterval();
 
+public:
+
     //==========================================================================
     // GETTERS
     //==========================================================================
@@ -157,6 +161,9 @@ protected:
     /** Get owner cube */
     UFUNCTION(BlueprintPure, Category = "Spawner")
     class ACC_Cube* GetOwnerCube() const { return OwnerCube; }
+
+	UFUNCTION(BlueprintPure, Category = "Spawner")
+	bool GetIsAutoStart() const { return bAutoStart; }
 
     //==========================================================================
     // FREEZABLE INTERFACE

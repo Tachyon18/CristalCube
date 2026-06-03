@@ -143,7 +143,7 @@ void UCC_CubeMoodComponent::ApplyToDirectionalLight(const FCubeMoodSettings& Set
 {
     if (!CachedSunLight) return;
 
-    UDirectionalLightComponent* LightComp = CachedSunLight->GetComponent();
+    UDirectionalLightComponent* LightComp = Cast<UDirectionalLightComponent>(CachedSunLight->GetLightComponent());
     if (!LightComp) return;
 
     LightComp->SetLightColor(Settings.SunColor);

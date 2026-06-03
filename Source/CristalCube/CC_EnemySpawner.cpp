@@ -51,17 +51,63 @@ void ACC_EnemySpawner::BeginPlay()
         return;
     }
 
-    CC_LOG_SPAWNER(Warning, TEXT("EnemySpawner initialized (Interval: %.1fs, Enemies/Spawn: %d, Max: %d)"),
-        SpawnInterval, EnemiesPerSpawn, MaxEnemies);
+    if (!OwnerCube)
+    {
+        TArray<AActor*> FoundCubes;
+        UGameplayStatics::GetAllActorsOfClass(
+            GetWorld(), ACC_Cube::StaticClass(), FoundCubes);
 
-    if (bAutoStart && !OwnerCube)
-    {
-        StartSpawning();
+        float BestDist = FLT_MAX;
+        for (AActor* A : FoundCubes)
+        {
+            if (!A) continue;
+            float Dist = FVector::Dist(GetActorLocation(), A->GetActorLocation());
+            if (Dist < BestDist)
+            {
+                BestDist = Dist;
+                OwnerCube = Cast<ACC_Cube>(A);
+            }
+        }
+
+        if (OwnerCube)
+        {
+            CC_LOG_SPAWNER(Log, TEXT("OwnerCube auto-assigned: Cube (%d,%d)"),
+                OwnerCube->CubeCoordinate.X, OwnerCube->CubeCoordinate.Y);
+        }
     }
-    else if(OwnerCube)
+
+    // ─── Cube에 자신을 등록 (Freeze/Unfreeze 수신 경로 확보) ──────────────
+    if (OwnerCube)
     {
-        CC_LOG_SPAWNER(Log, TEXT("Spawner waiting for Cube to unfreeze"));
-	}
+        OwnerCube->RegisterActor(this);
+        CC_LOG_SPAWNER(Log, TEXT("[Spawner] Registered with Cube (%d,%d)"),
+            OwnerCube->CubeCoordinate.X, OwnerCube->CubeCoordinate.Y);
+
+        // 이미 Active 상태면 지금 바로 스폰 시작
+        // Frozen 상태면 Unfreeze_Implementation에서 StartSpawning 호출
+        if (bAutoStart && !OwnerCube->IsFrozen())
+        {
+            StartSpawning();
+        }
+        else
+        {
+            CC_LOG_SPAWNER(Log, TEXT("[Spawner] Cube is Frozen — waiting for Unfreeze"));
+        }
+    }
+    else
+    {
+        // OwnerCube를 끝내 못 찾은 경우 — Freeze 연동 없이 fallback 스폰
+        CC_LOG_SPAWNER(Warning, TEXT("[Spawner] No OwnerCube found. "
+            "Freeze integration disabled. Falling back to auto-start."));
+        if (bAutoStart)
+        {
+            StartSpawning();
+        }
+    }
+
+    CC_LOG_SPAWNER(Warning,
+        TEXT("EnemySpawner initialized (Interval: %.1fs, Enemies/Spawn: %d, Max: %d)"),
+        SpawnInterval, EnemiesPerSpawn, MaxEnemies);
 	
 }
 
@@ -202,6 +248,16 @@ ACC_EnemyCharacter* ACC_EnemySpawner::SpawnSingleEnemy(const FVector& Location)
         if (OwnerCube)
         {
             OwnerCube->RegisterActor(NewEnemy);
+
+            if (OwnerCube->IsFrozen())
+            {
+                NewEnemy->SetActorHiddenInGame(true);
+                NewEnemy->SetActorTickEnabled(false);
+                ICC_Freezable::Execute_Freeze(NewEnemy);
+                CC_LOG_SPAWNER(Log,
+                    TEXT("[Spawner] NewEnemy Frozen immediately (Cube was already Frozen)"));
+            }
+
             CC_LOG_SPAWNER(VeryVerbose, TEXT("Registered enemy with Cube (%d, %d)"),
                 OwnerCube->CubeCoordinate.X, OwnerCube->CubeCoordinate.Y);
         }

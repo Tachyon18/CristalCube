@@ -47,6 +47,14 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cube")
 	TSubclassOf<class ACC_Tile> TileClass;
 
+	/** 이 큐브의 테마 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cube|Theme")
+	ECubeTheme CubeTheme = ECubeTheme::None;
+
+	/** FloorMesh Dynamic Material Instance */
+	UPROPERTY()
+	UMaterialInstanceDynamic* FloorMID = nullptr;
+
 	// ========== 큐브 벽 (외부 충돌) ==========
 
 	/** 큐브 벽 - 오른쪽 (X+) */
@@ -104,6 +112,13 @@ public:
 	/** 모든 타일 비활성화 */
 	UFUNCTION(BlueprintCallable, Category = "Cube")
 	void DeactivateAllTiles();
+
+	/** 테마 머티리얼 적용 */
+	UFUNCTION(BlueprintCallable, Category = "Cube|Theme")
+	void ApplyTheme(const FCubeThemeData& ThemeData);
+
+	UFUNCTION(BlueprintCallable, Category = "Cube")
+	void SetLockWall(bool bLock);
 
 	/** 오른쪽 벽 충돌 시 왼쪽으로 전환 */
 	UFUNCTION()

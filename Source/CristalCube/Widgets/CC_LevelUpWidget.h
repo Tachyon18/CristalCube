@@ -40,9 +40,9 @@ protected:
     UPROPERTY(meta = (BindWidget)) UTextBlock* Choice2Description;
     UPROPERTY(meta = (BindWidget)) UTextBlock* Choice3Description;
 
-    UPROPERTY(meta = (BindWidget)) class UCC_GlassWidget* CardPanel1;
-    UPROPERTY(meta = (BindWidget)) UCC_GlassWidget* CardPanel2;
-    UPROPERTY(meta = (BindWidget)) UCC_GlassWidget* CardPanel3;
+    UPROPERTY(BlueprintReadOnly , meta = (BindWidget)) class UCC_IntroGlassWidget* CardPanel1;
+    UPROPERTY(BlueprintReadOnly , meta = (BindWidget)) UCC_IntroGlassWidget* CardPanel2;
+    UPROPERTY(BlueprintReadOnly , meta = (BindWidget)) UCC_IntroGlassWidget* CardPanel3;
     UFUNCTION() void OnChoice1Clicked();
     UFUNCTION() void OnChoice2Clicked();
     UFUNCTION() void OnChoice3Clicked();

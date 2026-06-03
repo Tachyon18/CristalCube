@@ -2,7 +2,6 @@
 
 # Visual Studio 2015/2017/2019/2022 cache/options directory
 .vs/
-# Uncomment if you have tasks that create the project's static files in wwwroot
 #wwwroot/
 
 # MSTest test Results
@@ -140,15 +139,8 @@ publish/
 # Publish Web Output
 *.[Pp]ublish.xml
 *.azurePubxml
-# Note: Comment the next line if you want to checkin your web deploy settings,
-# but database connection strings (with potential passwords) will be unencrypted
 *.pubxml
 *.publishproj
-
-# Microsoft Azure Web App publish settings. Comment the next line if you want to
-# checkin your Azure Web App publish settings, but sensitive information contained
-# in these files may be visible to others.
-*.azurePubxml
 
 # Microsoft Azure Build Output
 csx/
@@ -168,9 +160,7 @@ _pkginfo.txt
 *.appxupload
 
 # Visual Studio cache files
-# files ending in .cache can be ignored
 *.[Cc]ache
-# but keep track of directories ending in .cache
 !?*.[Cc]ache/
 
 # Others
@@ -184,20 +174,10 @@ ClientBin/
 *.publishsettings
 orleans.codegen.cs
 
-# Including strong name files can present a security risk
-# (https://github.com/github/gitignore/pull/2483#issue-259490424)
-#*.snk
-
-# Since there are multiple workflows, uncomment next line to ignore bower_components
-# (https://github.com/github/gitignore/pull/1529#issuecomment-104372622)
-#bower_components/
-
 # RIA/Silverlight projects
 Generated_Code/
 
-# Backup & report files from converting an old project file
-# to a newer Visual Studio version. Backup files are not needed,
-# because we have git ;-)
+# Backup & report files
 _UpgradeReport_Files/
 Backup*/
 UpgradeLog*.XML
@@ -228,13 +208,9 @@ FakesAssemblies/
 .ntvs_analysis.dat
 node_modules/
 
-# Visual Studio 6 build log
+# Visual Studio 6
 *.plg
-
-# Visual Studio 6 workspace options file
 *.opt
-
-# Visual Studio 6 auto-generated workspace file (contains which files were open etc.)
 *.vbw
 
 # Visual Studio LightSwitch build output
@@ -258,10 +234,6 @@ paket-files/
 # Python Tools for Visual Studio (PTVS)
 __pycache__/
 *.pyc
-
-# Cake - Uncomment if you are using it
-# tools/**
-# !tools/packages.config
 
 # Tabs Studio
 *.tss
@@ -314,32 +286,19 @@ FodyWeavers.xsd
 [Bb]uild/
 [Ii]ntermediate/
 [Pp]ackaged/
-.vs/
 *.tmp
 *.VC.db
 *.VC.opendb
 
 # Unreal Engine User-specific files
-*.uasset
-*.umap
 [Ss]aved/
 DerivedDataCache/
-
-# Content/Develop 예외 — 머티리얼·위젯 에셋 추적
-!Content/Develop/
-!Content/Develop/**
-
 
 # Unreal Engine Plugin files
 [Pp]lugins/*/[Bb]inaries/
 [Pp]lugins/*/[Ii]ntermediate/
 
-# Unreal Engine Project files (commentable based on team preference)
-# Some teams prefer to include .uproject for easier setup
-# *.uproject
-
 # Unreal Engine Source Control files
-*.tmp
 *.autosave
 
 # Unreal Engine Crash Reports
@@ -356,10 +315,7 @@ ehthumbs.db
 *.swp
 *.swo
 
-# Unreal Engine Starter Content (huge file size - optional to exclude)
-# Content/StarterContent/
-
-# Large binary files that shouldn't be in git
+# Large binary files
 *.exe
 *.msi
 *.zip
@@ -372,18 +328,6 @@ ehthumbs.db
 *.log
 [Ll]og[Ff]iles/
 
-# Unreal Engine DDC
-DerivedDataCache/
-
-# Rider/IntelliJ
-.idea/
-
-# macOS
-.DS_Store
-
-# Windows thumbnail db
-Thumbs.db
-
 # Backup files
 *.backup
 *.bak
@@ -394,16 +338,22 @@ Thumbs.db
 # SOLO DEVELOPMENT SETUP
 ####################################################################################
 
-# For solo development, including:
-# - .uasset files (blueprints, materials, etc.)
-# - .umap files (levels/maps)
-# - .uproject file
-# 
-# Note: Consider using Git LFS for large binary files if repo size becomes an issue
-# Git LFS setup: git lfs track "*.uasset" && git lfs track "*.umap"
 필독.txt
 Documentation/
 
-Content/sA_PickupSet_1/
-Content/MSPresets/
+####################################################################################
+# CONTENT — 전체 제외
+####################################################################################
+
+Content/
+
+####################################################################################
+# CONTENT — 예외 (Content/Develop 직접 제작물만 추적)
+####################################################################################
+
+!Content/
+!Content/Develop/
+!Content/Develop/**
+
+# Animation 폴더는 용량 문제로 제외 유지
 Content/Develop/Animation/

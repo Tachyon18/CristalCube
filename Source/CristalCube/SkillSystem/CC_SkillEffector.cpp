@@ -113,6 +113,9 @@ void ACC_SkillEffector::Initialize(ESkillCoreType InCoreType, const FSkillDefini
 		case ESkillCoreType::Projectile:
 			SetupAsProjectile();
 			break;
+		case ESkillCoreType::Rainfall:
+			SetupAsRainfall();
+			break;
 		default:
 			break;
 	}
@@ -174,4 +177,20 @@ void ACC_SkillEffector::SetupAsProjectile()
 	ProjectileMovement->MaxSpeed = 1000.0f;
 
 	CC_LOG_SKILL(Log, "[SkillEffector] Setup as Projectile");
+}
+
+void ACC_SkillEffector::SetupAsRainfall()
+{
+	// 낙하체는 작게
+	CollisionSphere->SetSphereRadius(20.0f);
+
+	// 아래 방향으로 강한 초기 속도 + 중력 강화
+	ProjectileMovement->SetActive(true);
+	ProjectileMovement->InitialSpeed = 600.0f;
+	ProjectileMovement->MaxSpeed = 2000.0f;
+	ProjectileMovement->ProjectileGravityScale = 2.5f;
+	ProjectileMovement->bRotationFollowsVelocity = true;
+
+	CC_LOG_SKILL(Log, "[SkillEffector] Setup as Rainfall");
+
 }

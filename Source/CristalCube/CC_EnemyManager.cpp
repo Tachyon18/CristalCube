@@ -5,7 +5,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "EngineUtils.h"
 
-ACC_EnemyManager* ACC_EnemyManager::Instance = nullptr;
+TWeakObjectPtr<ACC_EnemyManager> ACC_EnemyManager::WeakInstance = nullptr;
 
 // Sets default values
 ACC_EnemyManager::ACC_EnemyManager()
@@ -20,7 +20,7 @@ void ACC_EnemyManager::BeginPlay()
 {
 	Super::BeginPlay();
 
-	Instance = this;
+	WeakInstance = this;
 
 	UE_LOG(LogTemp, Log, TEXT("[ENEMY MANAGER] Initialized"));
 	
@@ -29,9 +29,9 @@ void ACC_EnemyManager::BeginPlay()
 void ACC_EnemyManager::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 
-    if (Instance == this)
+    if (WeakInstance == this)
     {
-        Instance = nullptr;
+        WeakInstance = nullptr;
     }
 
     ActiveEnemies.Empty();
@@ -60,43 +60,35 @@ void ACC_EnemyManager::Tick(float DeltaTime)
 
 ACC_EnemyManager* ACC_EnemyManager::Get(const UObject* WorldContextObject)
 {
-    if (IsValid(Instance))
+    if (!WorldContextObject) return nullptr;
+
+    UWorld* CallerWorld = WorldContextObject->GetWorld();
+    if (!CallerWorld) return nullptr;
+
+    // WeakObjectPtr — GC·PIE 종료 시 자동 null, GetWorld() 호출 없이 안전
+    ACC_EnemyManager* Pinned = WeakInstance.Get();
+    if (Pinned && !CallerWorld->bIsTearingDown
+        && Pinned->GetWorld() == CallerWorld)
     {
-        return Instance;
+        return Pinned;
     }
 
-	Instance = nullptr; // Clear invalid instance
+    // 다른 세션의 오염된 포인터 제거
+    WeakInstance = nullptr;
 
-    if (!WorldContextObject)
+    // 레벨에 배치된 EnemyManager 탐색
+    for (TActorIterator<ACC_EnemyManager> It(CallerWorld); It; ++It)
     {
-        return nullptr;
+        WeakInstance = *It;
+        UE_LOG(LogTemp, Log, TEXT("[EnemyManager] Instance found via iterator."));
+        return WeakInstance.Get();
     }
 
-    UWorld* World = GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::LogAndReturnNull);
-
-    if (!World)
-    {
-        return nullptr;
-    }
-
-
-    // Try to find existing instance
-    for (TActorIterator<ACC_EnemyManager> It(World); It; ++It)
-    {
-        Instance = *It;
-        break;
-    }
-
-    // Create if not found
-    if (!Instance)
-    {
-        FActorSpawnParameters SpawnParams;
-        SpawnParams.Name = FName("EnemyManager");
-        Instance = World->SpawnActor<ACC_EnemyManager>(ACC_EnemyManager::StaticClass(), SpawnParams);
-        UE_LOG(LogTemp, Warning, TEXT("[ENEMY MANAGER] Auto-created instance"));
-     }
-
-    return Instance;
+    // 자동 생성 제거 — 레벨에 BP_EnemyManager가 없으면 null 반환
+    UE_LOG(LogTemp, Error,
+        TEXT("[EnemyManager] No instance in level! "
+            "Place BP_EnemyManager in the level before PIE."));
+    return nullptr;
 }
 
 void ACC_EnemyManager::RegisterEnemy(AActor* Enemy)

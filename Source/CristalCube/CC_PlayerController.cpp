@@ -56,6 +56,27 @@ void ACC_PlayerController::Tick(float DeltaSeconds)
 	Super::Tick(DeltaSeconds);
 }
 
+void ACC_PlayerController::OnPossess(APawn* InPawn)
+{
+    Super::OnPossess(InPawn);
+
+    ControlledCharacter = Cast<ACC_PlayerCharacter>(InPawn);
+
+    if (!ControlledCharacter)
+    {
+        CC_LOG_PLAYER(Warning, "OnPossess: Pawn is not ACC_PlayerCharacter (%s)", InPawn ? CC_ACTOR_NAME(InPawn) : TEXT("null"));
+        return;
+    }
+
+    CC_LOG_PLAYER(Log, "OnPossess: ControlledCharacter cached ? %s",
+        CC_ACTOR_NAME(ControlledCharacter));
+
+    SetInputMode(FInputModeGameAndUI());
+    bShowMouseCursor = true;
+
+    CC_LOG_PLAYER(Log, "OnPossess: InputMode reset to GameOnly");
+}
+
 void ACC_PlayerController::SetupInputComponent()
 {
 	Super::SetupInputComponent();
@@ -106,7 +127,8 @@ void ACC_PlayerController::SetupInputComponent()
 
 void ACC_PlayerController::HandleMove(const FInputActionValue& Value)
 {
-  
+    //UE_LOG(LogTemp, Warning, TEXT("[DEBUG] HandleMove called, CC: %s"), ControlledCharacter ? TEXT("VALID") : TEXT("NULL"));
+
 	CurrentMoveInput = Value.Get<FVector2D>();
 
 

@@ -69,6 +69,17 @@ protected:
     UPROPERTY(EditAnywhere, Category = "Glass|Materials")
     UMaterialInterface* BorderMaterial;
 
+    /**
+     * 서브클래스에서 빔 파라미터를 직접 구동할 수 있도록 노출.
+     * PanelMI에 BeamOffset / BeamWidth / BeamSoftness / BeamIntensity 파라미터를 전달.
+     * @param Offset    UV X 위치 (-0.2 = 화면 밖 왼쪽, 1.2 = 화면 밖 오른쪽)
+     * @param Width     빛 띠 너비 (UV 단위, 0.13 권장)
+     * @param Softness  가장자리 소프트니스 (0.04~0.10 권장)
+     * @param Intensity 빛 강도 배율 (0 = 꺼짐, 1 = 기본, >1 = 강조)
+     */
+    UFUNCTION(BlueprintCallable, Category = "Glass|Beam")
+    void SetBeamParams(float Offset, float Width, float Softness, float Intensity);
+
 private:
     UPROPERTY()
     UMaterialInstanceDynamic* PanelMI;

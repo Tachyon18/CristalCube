@@ -177,7 +177,7 @@ void UCC_CubeScatterComponent::UnfreezeScatter()
         if (HISM)
         {
             HISM->SetVisibility(true, true);
-            HISM->SetComponentTickEnabled(false);
+            HISM->SetComponentTickEnabled(true);
         }
     }
 }
@@ -262,4 +262,30 @@ UHierarchicalInstancedStaticMeshComponent* UCC_CubeScatterComponent::CreateHISM(
         FAttachmentTransformRules::KeepWorldTransform);
 
     return HISM;
+}
+
+void UCC_CubeScatterComponent::ApplyThemeData(const FCubeThemeData& ThemeData)
+{
+    if (bGenerated)
+    {
+        UE_LOG(LogTemp, Warning,
+            TEXT("[Scatter] ApplyThemeData — Generate Already Completed."));
+        return;
+    }
+
+    if (ThemeData.ScatterMeshes.Num() == 0)
+    {
+        UE_LOG(LogTemp, Warning,
+            TEXT("[Scatter] ApplyThemeData — ThemeData.ScatterMeshes is empty."));
+        return;
+    }
+
+    ScatterMeshes = ThemeData.ScatterMeshes;
+    MeshWeights = ThemeData.ScatterMeshWeights;
+    MinCount = ThemeData.ScatterMinCount;
+    MaxCount = ThemeData.ScatterMaxCount;
+
+    UE_LOG(LogTemp, Log,
+        TEXT("[Scatter] ThemeData applied — Meshes: %d, MinCount: %d, MaxCount: %d"),
+        ScatterMeshes.Num(), MinCount, MaxCount);
 }

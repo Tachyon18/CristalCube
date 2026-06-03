@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 #include "Components/HierarchicalInstancedStaticMeshComponent.h"
+#include "../CristalCubeStruct.h"
 #include "CC_CubeScatterComponent.generated.h"
 
 /**
@@ -129,5 +130,13 @@ public:
     
     UFUNCTION()
     void SetOwnerCube(ACC_Cube* InCube) { OwnerCube = InCube; }
+
+    /**
+     * 테마 데이터로부터 Scatter 설정 주입.
+     * 반드시 Generate() 전에 호출할 것.
+     * bGenerated == true 이면 경고 출력 후 무시.
+     */
+    UFUNCTION(BlueprintCallable, Category = "Scatter")
+    void ApplyThemeData(const FCubeThemeData& ThemeData);
 
 };

@@ -97,6 +97,10 @@ void UCC_SkillSystem::ExecuteSkill(const FSkillDefinition& Skill, FVector Target
 	case ESkillCoreType::Beam:
 		ExecuteBeam(Skill, Context);
 		break;
+	
+	case ESkillCoreType::Rainfall:
+		ExecuteRainfall(Skill, Context);
+		break;
 
 	default:
 		UE_LOG(LogTemp, Warning, TEXT("ExecuteSkill: Unknown Core Type: %d"), (int32)Skill.CoreType);
@@ -160,7 +164,7 @@ void UCC_SkillSystem::ExecuteProjectile(const FSkillDefinition& Skill, FSkillExe
 		SpawnTransform.SetRotation(SpawnDirection.ToOrientationQuat());
 
 		ACC_SkillEffector* SkillEffectorProjectile = World->SpawnActor<ACC_SkillEffector>(
-			SkillEffectorClass,
+			Skill.ProjectileClass,
 			SpawnTransform
 		);
 
@@ -223,9 +227,9 @@ void UCC_SkillSystem::ExecuteInstant(const FSkillDefinition& Skill, FSkillExecut
 
 	FVector HitLocation = Target->GetActorLocation(); // 간단히 타겟 위치로 히트 위치 설정 (향후 개선 가능)
 
-	if(Skill.HitEffect)
+	if(Skill.ImpactEffect)
 	{
-		SpawnEffect(Skill.HitEffect, HitLocation);
+		SpawnEffect(Skill.ImpactEffect, HitLocation);
 	}
 
 	if (bShowDebugShapes)
@@ -291,10 +295,10 @@ void UCC_SkillSystem::ExecuteArea(const FSkillDefinition& Skill, FSkillExecution
 		ApplyDamage(Enemy, Context.CurrentDamage, Context.Caster);
 		Context.HitActors.Add(Enemy);
 
-		// 개별 Hit VFX
-		if (Skill.HitEffect)
+		// 개별 Impact VFX
+		if (Skill.ImpactEffect)
 		{
-			SpawnEffect(Skill.HitEffect, Enemy->GetActorLocation());
+			SpawnEffect(Skill.ImpactEffect, Enemy->GetActorLocation());
 		}
 
 		// 개별 Addon 처리 (Area도 Chain/Explosion 조합 가능)
@@ -310,9 +314,9 @@ void UCC_SkillSystem::ExecuteArea(const FSkillDefinition& Skill, FSkillExecution
 	//==========================================================================
 	// 3. Area Cast VFX (시전자 위치 기준)
 	//==========================================================================
-	if (Skill.CastEffect)
+	if (Skill.SkillEffect)
 	{
-		SpawnEffect(Skill.CastEffect, Context.StartLocation);
+		SpawnEffect(Skill.SkillEffect, Context.StartLocation);
 	}
 
 	//==========================================================================
@@ -381,10 +385,10 @@ void UCC_SkillSystem::ExecuteBeam(const FSkillDefinition& Skill, FSkillExecution
 			ApplyDamage(HitActor, Context.CurrentDamage, Context.Caster);
 			DamagedActors.Add(HitActor);
 
-			// Hit VFX
-			if (Skill.HitEffect)
+			// Impact VFX
+			if (Skill.ImpactEffect)
 			{
-				SpawnEffect(Skill.HitEffect, Hit.ImpactPoint);
+				SpawnEffect(Skill.ImpactEffect, Hit.ImpactPoint);
 			}
 
 			// Addon 처리 (Explosion, Chain 등)
@@ -395,11 +399,11 @@ void UCC_SkillSystem::ExecuteBeam(const FSkillDefinition& Skill, FSkillExecution
 	}
 
 	// 4. Beam VFX 스폰 (Niagara Beam)
-	if (Skill.CastEffect)
+	if (Skill.SkillEffect)
 	{
 		UNiagaraComponent* BeamEffect = UNiagaraFunctionLibrary::SpawnSystemAtLocation(
 			World,
-			Skill.CastEffect,
+			Skill.SkillEffect,
 			Start,
 			FRotator::ZeroRotator,
 			FVector(1.0f),
@@ -446,6 +450,201 @@ void UCC_SkillSystem::ExecuteBeam(const FSkillDefinition& Skill, FSkillExecution
 
 	UE_LOG(LogTemp, Log, TEXT("Beam fired: %d enemies hit"), DamagedActors.Num());
 
+}
+
+void UCC_SkillSystem::ExecuteRainfall(const FSkillDefinition& Skill, FSkillExecutionContext& Context)
+{
+	UWorld* World = GetWorld();
+	if (!World) return;
+
+	const FRainfallCoreData& RainfallData = Skill.RainfallData;
+
+	// 1. 낙하 위치 배열 계산
+	TArray<FVector> DropLocations = CalculateDropLocations(
+		Context.TargetLocation,
+		RainfallData.AreaRadius,
+		RainfallData.DropCount,
+		RainfallData.DropPattern
+	);
+
+	UE_LOG(LogTemp, Log, TEXT("ExecuteRainfall [%s]: %d drops, radius %.0f, pattern %d"),
+		*Skill.SkillID.ToString(), DropLocations.Num(),
+		RainfallData.AreaRadius, (int32)RainfallData.DropPattern);
+
+	for (int32 i = 0; i < DropLocations.Num(); ++i)
+	{
+		FVector DropFloorLocation = DropLocations[i];
+
+		// 2. Warning VFX (즉시, 착지 예정 위치에 마커)
+		if (RainfallData.bShowWarningIndicator && RainfallData.WarningEffect)
+		{
+			SpawnEffect(RainfallData.WarningEffect, DropFloorLocation);
+		}
+
+		// 3. 시간차 투사체 스폰 (Warning이 끝날 때 첫 번째 스폰)
+		float Delay = RainfallData.WarningDuration + (i * RainfallData.DropInterval);
+
+		FTimerHandle TimerHandle;
+
+		// 값 캡처 (레퍼런스 금지 ? 함수 스택이 사라지므로)
+		FSkillDefinition SkillCopy = Skill;
+		FSkillExecutionContext ContextCopy = Context;
+
+		World->GetTimerManager().SetTimer(
+			TimerHandle,
+			FTimerDelegate::CreateLambda([this, SkillCopy, ContextCopy, DropFloorLocation]()
+				{
+					if (IsValid(this))
+					{
+						SpawnRainfallProjectile(SkillCopy, ContextCopy, DropFloorLocation);
+					}
+				}),
+			Delay,
+			false   // 반복 없음
+		);
+	}
+
+	// 4. 디버그
+	if (bShowDebugShapes)
+	{
+		DrawDebugCylinder(
+			World,
+			Context.TargetLocation,
+			Context.TargetLocation + FVector(0.0f, 0.0f, 50.0f),
+			RainfallData.AreaRadius,
+			24,
+			FColor::Purple,
+			false,
+			DebugDrawDuration
+		);
+	}
+}
+
+void UCC_SkillSystem::SpawnRainfallProjectile(const FSkillDefinition& Skill, const FSkillExecutionContext& Context, FVector TargetFloorLocation)
+{
+	if (!GetWorld()) return;
+
+	const FRainfallCoreData& RainfallData = Skill.RainfallData;
+
+	// 착지 목표 위치 위 SpawnHeight에서 스폰
+	FVector SpawnLocation = TargetFloorLocation + FVector(0.0f, 0.0f, RainfallData.SpawnHeight);
+
+	// 방향: 수직 낙하
+	FVector FallDirection = FVector(0.0f, 0.0f, -1.0f);
+	FRotator SpawnRotation = FallDirection.ToOrientationRotator();
+
+	FTransform SpawnTransform(SpawnRotation, SpawnLocation);
+	
+
+	ACC_SkillEffector* Effector = GetWorld()->SpawnActor<ACC_SkillEffector>(
+		Skill.ProjectileClass,
+		SpawnTransform
+	);
+
+	if (!Effector) return;
+
+	// Context 갱신 (낙하 개별 컨텍스트)
+	FSkillExecutionContext NewContext = Context;
+	NewContext.StartLocation = SpawnLocation;
+	NewContext.TargetLocation = TargetFloorLocation;
+	NewContext.Direction = FallDirection;
+
+	Effector->SetSkillOwner(Context.Caster);
+	Effector->SkillContext = NewContext;
+	Effector->Initialize(ESkillCoreType::Rainfall, Skill);
+	Effector->OnEffectorHit.AddDynamic(this, &UCC_SkillSystem::OnProjectileHit);
+
+	UE_LOG(LogTemp, Log, TEXT("SpawnRainfallProjectile: at Z=%.0f → floor Z=%.0f"),
+		SpawnLocation.Z, TargetFloorLocation.Z);
+}
+
+TArray<FVector> UCC_SkillSystem::CalculateDropLocations(FVector Center, float Radius, int32 Count, EDropPattern Pattern) const
+{
+	TArray<FVector> Locations;
+	Locations.Reserve(Count);
+
+	switch (Pattern)
+	{
+		//------------------------------------------------------------------
+		// Random: 반경 내 균일 랜덤 분포 (Sqrt로 중심 밀집 방지)
+		//------------------------------------------------------------------
+	case EDropPattern::Random:
+	default:
+		for (int32 i = 0; i < Count; ++i)
+		{
+			float Angle = FMath::RandRange(0.0f, 360.0f) * (PI / 180.0f);
+			float Dist = FMath::Sqrt(FMath::RandRange(0.0f, 1.0f)) * Radius;
+			Locations.Add(Center + FVector(
+				FMath::Cos(Angle) * Dist,
+				FMath::Sin(Angle) * Dist,
+				0.0f
+			));
+		}
+		break;
+
+		//------------------------------------------------------------------
+		// Ring: 원 둘레를 균등 분할
+		//------------------------------------------------------------------
+	case EDropPattern::Ring:
+		for (int32 i = 0; i < Count; ++i)
+		{
+			float Angle = (360.0f / Count * i) * (PI / 180.0f);
+			Locations.Add(Center + FVector(
+				FMath::Cos(Angle) * Radius,
+				FMath::Sin(Angle) * Radius,
+				0.0f
+			));
+		}
+		break;
+
+		//------------------------------------------------------------------
+		// Grid: 정사각 격자로 Count개 배치 (바운딩 박스 = Radius*2 정사각형)
+		//------------------------------------------------------------------
+	case EDropPattern::Grid:
+	{
+		int32 Side = FMath::CeilToInt(FMath::Sqrt((float)Count));
+		float Step = (Radius * 2.0f) / (float)Side;
+		int32 Placed = 0;
+
+		for (int32 Row = 0; Row < Side && Placed < Count; ++Row)
+		{
+			for (int32 Col = 0; Col < Side && Placed < Count; ++Col)
+			{
+				float X = -Radius + Step * 0.5f + Col * Step;
+				float Y = -Radius + Step * 0.5f + Row * Step;
+				Locations.Add(Center + FVector(X, Y, 0.0f));
+				Placed++;
+			}
+		}
+		break;
+	}
+
+	//------------------------------------------------------------------
+	// Wave: 안쪽에서 바깥으로 순서 보장 (거리 기반 정렬)
+	// → Random 생성 후 중심 거리 오름차순 정렬
+	//------------------------------------------------------------------
+	case EDropPattern::Wave:
+	{
+		for (int32 i = 0; i < Count; ++i)
+		{
+			float Angle = FMath::RandRange(0.0f, 360.0f) * (PI / 180.0f);
+			float Dist = FMath::Sqrt(FMath::RandRange(0.0f, 1.0f)) * Radius;
+			Locations.Add(Center + FVector(
+				FMath::Cos(Angle) * Dist,
+				FMath::Sin(Angle) * Dist,
+				0.0f
+			));
+		}
+		// 중심에서 가까운 순으로 정렬 → 안쪽부터 차례로 낙하
+		Locations.Sort([&Center](const FVector& A, const FVector& B)
+			{
+				return FVector::DistSquared(A, Center) < FVector::DistSquared(B, Center);
+			});
+		break;
+	}
+	}
+
+	return Locations;
 }
 
 //==============================================================================
@@ -516,9 +715,9 @@ void UCC_SkillSystem::ApplyExplosion(const FSkillDefinition& Skill, FSkillExecut
 			*Enemy->GetName(), Distance, ExplosionDamage, DamageMultiplier);
 	}
 
-	if (Skill.ExplosionEffect)
+	if (Skill.Passives.ExplosionData.ExplosionEffect)
 	{
-		SpawnEffect(Skill.ExplosionEffect, Location);
+		SpawnEffect(Skill.Passives.ExplosionData.ExplosionEffect, Location);
 	}
 
 	// 디버그 구체
@@ -568,18 +767,37 @@ void UCC_SkillSystem::ApplyChain(const FSkillDefinition& Skill, FSkillExecutionC
 
 	ApplyDamage(NextTarget, Context.CurrentDamage, Context.Caster);
 
+	FVector CurrentHitLocation = HitTarget ? HitTarget->GetActorLocation() : Context.StartLocation;
 	FVector NextHitLocation = NextTarget->GetActorLocation();
 
 	UE_LOG(LogTemp, Log, TEXT("ApplyChain [%s]: Chain %d → %s (%.1f dmg)"),
 		*Skill.SkillID.ToString(), Context.CurrentChainCount,
 		*NextTarget->GetName(), Context.CurrentDamage);
 
-
-
-	if (Skill.HitEffect)
+	if (Skill.Passives.ChainData.ChainEffect)
 	{
-		SpawnEffect(Skill.HitEffect, NextHitLocation);
+		SpawnChainEffect(Skill.Passives.ChainData.ChainEffect, CurrentHitLocation, NextHitLocation);
 	}
+
+	// 체인 이펙트 로직 확정 후 적용
+	//if (Skill.Passives.ChainData.ChainEffect)
+	//{
+	//	UNiagaraComponent* ChainEffect = UNiagaraFunctionLibrary::SpawnSystemAtLocation(
+	//		GetWorld(),
+	//		Skill.Passives.ChainData.ChainEffect,
+	//		SearchOrigin,
+	//		FRotator::ZeroRotator,
+	//		FVector(1.0f),
+	//		true,
+	//		true,
+	//		ENCPoolMethod::AutoRelease
+	//	);
+	//	if (ChainEffect)
+	//	{
+	//		ChainEffect->SetVectorParameter(FName("BeamEnd"), NextHitLocation);
+	//		ChainEffect->SetFloatParameter(FName("BeamWidth"), 5.0f);
+	//	}
+	//}
 
 	// 디버그
 	if (bShowDebugShapes && HitTarget)
@@ -634,6 +852,34 @@ int32 UCC_SkillSystem::GetProjectileCount(const FSkillDefinition& Skill) const
 	return FMath::Max(1, Count);
 }
 
+void UCC_SkillSystem::SpawnChainEffect(UNiagaraSystem* Effect, FVector StartLocation, FVector TargetLocation)
+{
+	if (!Effect || !GetWorld())
+	{
+		return;
+	}
+
+	UNiagaraComponent* ChainNiagara = UNiagaraFunctionLibrary::SpawnSystemAtLocation(
+		GetWorld(),
+		Effect,
+		StartLocation,
+		FRotator::ZeroRotator,
+		FVector(1.0f),
+		true,  // Auto Destroy
+		false,  // Auto Activate
+		ENCPoolMethod::AutoRelease  // 풀링!
+	);
+
+	if(ChainNiagara)
+	{
+		ChainNiagara->SetVectorParameter(FName("BeamEnd"), TargetLocation);
+		//ChainNiagara->SetFloatParameter(FName("BeamWidth"), 5.0f);
+
+		ChainNiagara->Activate();
+	}
+
+}
+
 //==============================================================================
 // UTILITY FUNCTIONS
 //==============================================================================
@@ -651,9 +897,9 @@ void UCC_SkillSystem::OnProjectileHit(ACC_SkillEffector* Effector, AActor* HitAc
 	ApplyDamage(HitActor, Context.CurrentDamage, Context.Caster);
 	Context.HitActors.Add(HitActor);
 	
-	if (Skill.HitEffect)
+	if (Skill.ImpactEffect)
 	{
-		SpawnEffect(Skill.HitEffect, HitActor->GetActorLocation());
+		SpawnEffect(Skill.ImpactEffect, HitActor->GetActorLocation());
 	}
 
 	FHitResult Hit;

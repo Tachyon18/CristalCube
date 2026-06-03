@@ -93,6 +93,24 @@ protected:
 	*/
 	void ExecuteBeam(const FSkillDefinition& Skill, FSkillExecutionContext& Context);
 
+	/**
+	 * Rainfall Core ? 공중에서 복수 투사체 낙하
+	 */
+	void ExecuteRainfall(const FSkillDefinition& Skill, FSkillExecutionContext& Context);
+
+	/**
+	 * Rainfall 개별 투사체 스폰 (타이머 콜백에서 호출)
+	 */
+	void SpawnRainfallProjectile(const FSkillDefinition& Skill,
+		const FSkillExecutionContext& Context,
+		FVector TargetFloorLocation);
+
+	/**
+	 * 낙하 위치 배열 계산 (패턴별)
+	 */
+	TArray<FVector> CalculateDropLocations(FVector Center, float Radius,
+		int32 Count, EDropPattern Pattern) const;
+
 public:
 
 	//==========================================================================
@@ -126,6 +144,12 @@ public:
 	 * MultiShot Addon - 다중 발사 (ExecuteProjectile에서 처리)
 	 */
 	int32 GetProjectileCount(const FSkillDefinition& Skill) const;
+
+	/**
+	* Chain Addon - 체인 이펙트에 목표 지점 User Parameter로 전달
+	*/
+
+	void SpawnChainEffect(UNiagaraSystem* Effect, FVector StartLocation, FVector TargetLocation);
 
 protected:
 

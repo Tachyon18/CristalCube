@@ -3,6 +3,7 @@
 
 #include "CC_LevelUpWidget.h"
 #include "CC_GlassWidget.h"
+#include "CC_IntroGlassWidget.h"
 #include "Kismet/GameplayStatics.h"
 #include "Components/Button.h"
 #include "Components/TextBlock.h"

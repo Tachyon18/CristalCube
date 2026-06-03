@@ -20,9 +20,18 @@ protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
 
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+
 public:	
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
+
+    static ACC_CubeWorldManager* Instance;
+
+    // Get() 추가
+    UFUNCTION(BlueprintPure, Category = "Cube World Manager",
+        meta = (WorldContext = "WorldContextObject"))
+    static ACC_CubeWorldManager* Get(const UObject* WorldContextObject);
 
     // ========================================
     // Grid Configuration
@@ -44,11 +53,15 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cube|Grid")
     TSubclassOf<class ACC_Cube> CubeClass;
 
+    /** 테마별 데이터 (BP에서 할당) */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cube|Theme")
+    TMap<ECubeTheme, FCubeThemeData> ThemeDataMap;
+
 	/** 현재 큐브 좌표 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Cube|Grid")
 	FIntPoint CurrentCubeCoord;
 
-	/** 큐브 전환 중 여부 */
+    	/** 큐브 전환 중 여부 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Cube|Grid")
 	bool bIsTransitioning = false;
 
@@ -84,6 +97,9 @@ public:
     /** WorldManager 레벨 관리 Persistent Enemy 목록 */
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Cube|Persistent")
     TArray<class ACC_EnemyCharacter*> PersistentEnemyList;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Cube|Persistent")
+    int32 PersistentEnemyCount = 0;
 
     UFUNCTION(BlueprintCallable, Category = "Cube|Persistent")
     void RegisterPersistentEnemy(ACC_EnemyCharacter* Enemy);
@@ -204,4 +220,9 @@ public:
     
     void OnEmenyUnregistered(AActor* Enemy);
 
+	UFUNCTION(BlueprintCallable, Category = "Cube|Theme")
+    ECubeTheme AssignThemeForCoord(FIntPoint Coord) const;
+
+    UFUNCTION(BlueprintCallable, Category = "Cube")
+    void LinkSpawnersToNearestCube();
 };

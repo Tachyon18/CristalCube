@@ -22,11 +22,12 @@ public:
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	virtual void Deinitialize() override;
 
+	// --- 등록/해제: AActor* 기반으로 통일 ---
 	UFUNCTION(BlueprintCallable, Category = "AI Manager")
-	void RegisterEnemy(class ACC_EnemyCharacter* Enemy);
+	void RegisterEnemy(AActor* Enemy);
 
 	UFUNCTION(BlueprintCallable, Category = "AI Manager")
-	void UnregisterEnemy(ACC_EnemyCharacter* Enemy);
+	void UnregisterEnemy(AActor* Enemy);
 
 	// AI Update Settings
 	UFUNCTION(BlueprintCallable, Category = "AI Manager")
@@ -37,7 +38,7 @@ public:
 	int32 GetActiveEnemyCount() const { return ActiveEnemies.Num(); }
 
 	UFUNCTION(BlueprintPure, Category = "AI Manager")
-	int32 GetActiveAICount() const { return ActiveAIEnemies.Num(); }
+	int32 GetActiveAICount() const { return ActiveAIEnemies.Num(); }	
 
 protected:
 	// Core AI Processing
@@ -46,20 +47,22 @@ protected:
 
 	// Helper Functions
 	class ACC_PlayerCharacter* GetPlayerCharacter() const;
-	void UpdateEnemyAIState(ACC_EnemyCharacter* Enemy, const FVector& PlayerLocation);
+
+	bool ImplementsEnemyAI(AActor* Enemy) const;
+
 	bool IsEnemyInAIRange(const FVector& EnemyLocation, const FVector& PlayerLocation) const;
 
 protected:
 
 	// Enemy Collections
 	UPROPERTY()
-	TArray<ACC_EnemyCharacter*> ActiveEnemies;
+	TArray<AActor*> ActiveEnemies;
 
 	UPROPERTY()
-	TArray<ACC_EnemyCharacter*> ActiveAIEnemies;  // Currently processing AI
+	TArray<AActor*> ActiveAIEnemies;
 
 	UPROPERTY()
-	TArray<ACC_EnemyCharacter*> SleepingEnemies;  // Too far, sleeping
+	TArray<AActor*> SleepingEnemies;
 
 	// Timer Management
 	UPROPERTY()
@@ -67,7 +70,7 @@ protected:
 
 	// Configuration
 	UPROPERTY(EditAnywhere, Category = "AI Settings", meta = (ClampMin = "0.05", ClampMax = "1.0"))
-	float AIUpdateFrequency = 0.1f;  // 10 updates per second
+	float AIUpdateFrequency = 0.16f;  // 10 updates per second
 
 	UPROPERTY(EditAnywhere, Category = "AI Settings")
 	float MaxAIRange = 3000.0f;  // 30m - beyond this, enemies sleep

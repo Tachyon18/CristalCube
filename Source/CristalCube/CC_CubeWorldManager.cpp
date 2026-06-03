@@ -8,6 +8,9 @@
 #include "Gameplay/CC_Cube.h"
 #include "Characters/CC_EnemyCharacter.h"
 #include "CC_EnemyManager.h"
+#include "CC_EnemySpawner.h"
+
+ACC_CubeWorldManager* ACC_CubeWorldManager::Instance = nullptr;
 
 // Sets default values
 ACC_CubeWorldManager::ACC_CubeWorldManager()
@@ -20,14 +23,34 @@ ACC_CubeWorldManager::ACC_CubeWorldManager()
 // Called when the game starts or when spawned
 void ACC_CubeWorldManager::BeginPlay()
 {
+	Instance = this;
+
 	Super::BeginPlay();
 	
 	InitializeSystem();
 
-	if (ACC_EnemyManager* EnemyMgr = ACC_EnemyManager::Get(this))
-	{
-		//EnemyMgr->OnEnemyUnregistered.AddDynamic(this,)
-	}
+	FTimerHandle BindTimer;
+	GetWorldTimerManager().SetTimer(BindTimer, [this]()
+		{
+			if (ACC_EnemyManager* EnemyMgr = ACC_EnemyManager::Get(this))
+			{
+				EnemyMgr->OnEnemyUnregistered.AddDynamic(
+					this, &ACC_CubeWorldManager::OnEmenyUnregistered);
+				UE_LOG(LogTemp, Log,
+					TEXT("[CubeWorldManager] OnEnemyUnregistered bound."));
+			}
+			else
+			{
+				UE_LOG(LogTemp, Warning,
+					TEXT("[CubeWorldManager] EnemyManager not found — bind skipped."));
+			}
+		}, 0.2f, false);
+}
+
+void ACC_CubeWorldManager::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	if (Instance == this) Instance = nullptr;
+	Super::EndPlay(EndPlayReason);
 }
 
 // Called every frame
@@ -42,6 +65,23 @@ void ACC_CubeWorldManager::Tick(float DeltaTime)
 
 }
 
+ACC_CubeWorldManager* ACC_CubeWorldManager::Get(const UObject* WorldContextObject)
+{
+	if (Instance) return Instance;
+
+	// fallback
+	if (UWorld* World = GEngine->GetWorldFromContextObject(
+		WorldContextObject, EGetWorldErrorMode::LogAndReturnNull))
+	{
+		TArray<AActor*> Found;
+		UGameplayStatics::GetAllActorsOfClass(
+			World, ACC_CubeWorldManager::StaticClass(), Found);
+		if (Found.Num() > 0)
+			Instance = Cast<ACC_CubeWorldManager>(Found[0]);
+	}
+	return Instance;
+}
+
 bool ACC_CubeWorldManager::IsValidCoordinate(FIntPoint Coord) const
 {
 	return CubeGrid.Contains(Coord);
@@ -49,11 +89,10 @@ bool ACC_CubeWorldManager::IsValidCoordinate(FIntPoint Coord) const
 
 void ACC_CubeWorldManager::RegisterPersistentEnemy(ACC_EnemyCharacter* Enemy)
 {
-	if (!Enemy || PersistentEnemyList.Contains(Enemy)) return;
-
-	PersistentEnemyList.Add(Enemy);
+	if (!Enemy) return;
+	PersistentEnemyCount++;
 	UE_LOG(LogTemp, Log, TEXT("[Manager] Persistent enemy registered. Total: %d"),
-		PersistentEnemyList.Num());
+		PersistentEnemyCount);
 
 	CheckLockCondition();
 }
@@ -61,29 +100,26 @@ void ACC_CubeWorldManager::RegisterPersistentEnemy(ACC_EnemyCharacter* Enemy)
 void ACC_CubeWorldManager::UnregisterPersistentEnemy(ACC_EnemyCharacter* Enemy)
 {
 	if (!Enemy) return;
-
-	PersistentEnemyList.Remove(Enemy);
+	PersistentEnemyCount = FMath::Max(0, PersistentEnemyCount - 1);
 	UE_LOG(LogTemp, Log, TEXT("[Manager] Persistent enemy unregistered. Total: %d"),
-		PersistentEnemyList.Num());
+		PersistentEnemyCount);
 
 	CheckLockCondition();
 }
 
 void ACC_CubeWorldManager::CheckLockCondition()
 {
-	if(!bCubeLocked && PersistentEnemyList.Num() >= LockThreshold)
+	if (!bCubeLocked && PersistentEnemyCount >= LockThreshold)
 	{
 		bCubeLocked = true;
-		if (ActiveCube) ActiveCube->SetBoundaryTriggersEnabled(false);
-
-		UE_LOG(LogTemp, Warning, TEXT("[Manager] Cube LOCKED! Persistent enemy count: %d"), PersistentEnemyList.Num());
+		if (ActiveCube)  ActiveCube->SetLockWall(true);
+		UE_LOG(LogTemp, Warning, TEXT("[Manager] Cube LOCKED! Count: %d"), PersistentEnemyCount);
 	}
-	else if (bCubeLocked && PersistentEnemyList.Num() < LockThreshold)
+	else if (bCubeLocked && PersistentEnemyCount < LockThreshold)
 	{
 		bCubeLocked = false;
-		if (ActiveCube) ActiveCube->SetBoundaryTriggersEnabled(true);
-
-		UE_LOG(LogTemp, Warning, TEXT("[Manager] Cube UNLOCKED! Persistent enemy count: %d"), PersistentEnemyList.Num());
+		if (ActiveCube) ActiveCube->SetLockWall(false);
+		UE_LOG(LogTemp, Warning, TEXT("[Manager] Cube UNLOCKED! Count: %d"), PersistentEnemyCount);
 	}
 }
 
@@ -126,6 +162,9 @@ void ACC_CubeWorldManager::InitializeSystem()
 	}
 
 	MovePlayerToCube(CurrentCubeCoord);
+
+	LinkSpawnersToNearestCube();
+
 
 	UE_LOG(LogTemp, Warning, TEXT("[Manager] System initialized successfully!"));
 	UE_LOG(LogTemp, Warning, TEXT("=============================================="));
@@ -205,13 +244,50 @@ ACC_Cube* ACC_CubeWorldManager::SpawnCube(FIntPoint Coordinate)
 	// BeginPlay 실행
 	UGameplayStatics::FinishSpawningActor(NewCube, SpawnTransform);
 
-	// 이후 초기화
+
+	// ① 테마 결정 — WorldManager 레벨 우선, 없으면 Cube Blueprint 디폴트 유지
+	ECubeTheme AssignedTheme = AssignThemeForCoord(Coordinate);
+	if (AssignedTheme == ECubeTheme::None)
+	{
+		AssignedTheme = NewCube->CubeTheme;  // Blueprint 설정 폴백
+	}
+	else
+	{
+		NewCube->CubeTheme = AssignedTheme;
+	}
+	
+	// ② ApplyTheme 먼저 — ScatterComponent에 메시 주입 (Generate 전!)
+	if (AssignedTheme != ECubeTheme::None)
+	{
+		if (const FCubeThemeData* ThemeData = ThemeDataMap.Find(AssignedTheme))
+		{
+			NewCube->ApplyTheme(*ThemeData);
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning,
+				TEXT("[Manager] 테마 %s 에 해당하는 ThemeDataMap 항목 없음. "
+					"BP_CubeWorldManager의 ThemeDataMap을 확인하세요."),
+				*UEnum::GetValueAsString(AssignedTheme));
+		}
+	}
+
+	UE_LOG(LogTemp, Error, TEXT("[SpawnCube] Calling InitializeCube with: (%d,%d)"),
+		Coordinate.X, Coordinate.Y);
 	NewCube->InitializeCube(Coordinate);
 	LoadedCubes.Add(NewCube);
 
 	if (CubeGrid.Contains(Coordinate))
 	{
 		CubeGrid[Coordinate].State = ECubeState::Active;
+	}
+
+	if (NewCube->CubeTheme != ECubeTheme::None)
+	{
+		if (const FCubeThemeData* ThemeData = ThemeDataMap.Find(NewCube->CubeTheme))
+		{
+			NewCube->ApplyTheme(*ThemeData);
+		}
 	}
 
 	UE_LOG(LogTemp, Log, TEXT("[Manager] Spawned cube at (%d,%d) - Location: %s"),
@@ -361,7 +437,7 @@ void ACC_CubeWorldManager::PerformTransition(FIntPoint NextCoord)
 	}
 
 	// 2. Persistent Enemy 이전 — Freeze 전에 처리해야 소속 문제 없음
-	TeleportPersistentEnemiesToCube(NextCube);
+	//TeleportPersistentEnemiesToCube(NextCube);
 
 	// 3. 이전 큐브 Freeze
 	if (ActiveCube)
@@ -477,6 +553,23 @@ void ACC_CubeWorldManager::DrawAllCubes()
 
 void ACC_CubeWorldManager::OnEmenyUnregistered(AActor* Enemy)
 {
+	if (!Enemy) return;
+
+	// ─── 모든 LoadedCubes에서 죽은 Enemy UnregisterActor ──────────────────
+	for (ACC_Cube* Cube : LoadedCubes)
+	{
+		if (!Cube) continue;
+		if (Cube->ManagedActors.Contains(Enemy))
+		{
+			Cube->UnregisterActor(Enemy);
+			UE_LOG(LogTemp, Log,
+				TEXT("[CubeWorldManager] Unregistered dead enemy [%s] from Cube (%d,%d)"),
+				*GetNameSafe(Enemy),
+				Cube->CubeCoordinate.X, Cube->CubeCoordinate.Y);
+			break; // 한 Cube에만 소속
+		}
+	}
+
 	if (ACC_EnemyCharacter* EnemyChar = Cast<ACC_EnemyCharacter>(Enemy))
 	{
 		if (EnemyChar->bPersistent)
@@ -484,4 +577,93 @@ void ACC_CubeWorldManager::OnEmenyUnregistered(AActor* Enemy)
 			UnregisterPersistentEnemy(EnemyChar);
 		}
 	}
+}
+
+ECubeTheme ACC_CubeWorldManager::AssignThemeForCoord(FIntPoint Coord) const
+{
+	// FCubeData에 CubeType이 설정된 경우 우선 사용
+	if (const FCubeData* Data = CubeGrid.Find(Coord))
+	{
+		if (Data->CubeType != ECubeTheme::None)
+		{
+			return Data->CubeType;
+		}
+	}
+
+	// 미설정 → None 반환 (SpawnCube에서 Cube Blueprint 디폴트로 폴백)
+	return ECubeTheme::None;
+}
+
+void ACC_CubeWorldManager::LinkSpawnersToNearestCube()
+{
+	TArray<AActor*> FoundSpawners;
+	UGameplayStatics::GetAllActorsOfClass(
+		GetWorld(), ACC_EnemySpawner::StaticClass(), FoundSpawners);
+
+	if (FoundSpawners.Num() == 0)
+	{
+		UE_LOG(LogTemp, Log, TEXT("[Manager] No EnemySpawners found in level."));
+		return;
+	}
+
+	int32 LinkedCount = 0;
+
+	for (AActor* SpawnerActor : FoundSpawners)
+	{
+		ACC_EnemySpawner* Spawner = Cast<ACC_EnemySpawner>(SpawnerActor);
+		if (!Spawner) continue;
+
+		// 이미 OwnerCube가 설정된 Spawner는 건너뜀
+		if (Spawner->GetOwnerCube()) continue;
+
+		// LoadedCubes 중 가장 가까운 Cube 탐색
+		ACC_Cube* NearestCube = nullptr;
+		float BestDist = FLT_MAX;
+
+		for (ACC_Cube* Cube : LoadedCubes)
+		{
+			if (!Cube) continue;
+			float Dist = FVector::Dist(
+				Spawner->GetActorLocation(), Cube->GetActorLocation());
+			if (Dist < BestDist)
+			{
+				BestDist = Dist;
+				NearestCube = Cube;
+			}
+		}
+
+		if (!NearestCube)
+		{
+			UE_LOG(LogTemp, Warning,
+				TEXT("[Manager] Could not find a Cube for Spawner: %s"),
+				*Spawner->GetName());
+			continue;
+		}
+
+		// 연결
+		Spawner->SetOwnerCube(NearestCube);
+		NearestCube->RegisterActor(Spawner);
+		++LinkedCount;
+
+		UE_LOG(LogTemp, Log,
+			TEXT("[Manager] Spawner [%s] linked to Cube (%d,%d) — dist: %.0f"),
+			*Spawner->GetName(),
+			NearestCube->CubeCoordinate.X,
+			NearestCube->CubeCoordinate.Y,
+			BestDist);
+
+		// Cube가 이미 Active면 즉시 스폰 시작
+		if (Spawner->GetIsAutoStart() && !NearestCube->IsFrozen())
+		{
+			Spawner->StartSpawning();
+
+			UE_LOG(LogTemp, Log,
+				TEXT("[Manager] Spawner [%s] StartSpawning called (Cube already Active)"),
+				*Spawner->GetName());
+		}
+	}
+
+	UE_LOG(LogTemp, Log,
+		TEXT("[Manager] LinkSpawnersToNearestCube complete — %d / %d spawners linked."),
+		LinkedCount, FoundSpawners.Num());
 }

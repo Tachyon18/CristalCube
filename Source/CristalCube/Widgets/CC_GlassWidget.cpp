@@ -40,6 +40,16 @@ void UCC_GlassWidget::SetBlurStrength(float Strength)
 		GlassBlur->SetBlurStrength(Strength);
 }
 
+void UCC_GlassWidget::SetBeamParams(float Offset, float Width, float Softness, float Intensity)
+{
+	if (!PanelMI) return;
+
+	PanelMI->SetScalarParameterValue(TEXT("BeamOffset"), Offset);
+	PanelMI->SetScalarParameterValue(TEXT("BeamWidth"), Width);
+	PanelMI->SetScalarParameterValue(TEXT("BeamSoftness"), Softness);
+	PanelMI->SetScalarParameterValue(TEXT("BeamIntensity"), Intensity);
+}
+
 void UCC_GlassWidget::InitMaterials()
 {
 	if (PanelMaterial && GlassTintLayer)
@@ -83,6 +93,11 @@ void UCC_GlassWidget::ApplyThemeData(const FGlassThemeData& Data)
 		PanelMI->SetScalarParameterValue(TEXT("Light3_Intensity"), Data.Light3_Intensity);
 
 		PanelMI->SetScalarParameterValue(TEXT("SceneLightsOpacityBoost"), Data.SceneLightsOpacityBoost);
+
+		PanelMI->SetScalarParameterValue(TEXT("BeamOffset"), -1.f);          // 화면 밖 (비활성)
+		PanelMI->SetScalarParameterValue(TEXT("BeamWidth"), Data.BeamWidth);
+		PanelMI->SetScalarParameterValue(TEXT("BeamSoftness"), Data.BeamSoftness);
+		PanelMI->SetScalarParameterValue(TEXT("BeamIntensity"), 0.f);           // 기본 꺼진 상태
 	}
 
 	if (BorderMI)

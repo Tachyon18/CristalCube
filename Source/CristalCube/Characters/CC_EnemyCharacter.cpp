@@ -16,11 +16,14 @@
 #include "../CC_EnemyManager.h"
 #include "../CC_AIManager.h"
 #include "../CC_EnemyAIController.h"
+#include "../CC_CubeWorldManager.h"
 #include "../Gameplay/CC_ExperienceGem.h"
+
 
 ACC_EnemyCharacter::ACC_EnemyCharacter()
 {
 	PrimaryActorTick.bCanEverTick = true;
+
 
 	// Enemy defaults
 	MaxHealth = 50.0f;
@@ -34,15 +37,24 @@ ACC_EnemyCharacter::ACC_EnemyCharacter()
 		Capsule->SetGenerateOverlapEvents(true);
 	}
 
+	// ─── RVO Avoidance: Enemy 간 소프트 분산 ──────────────────────────────
+	if (UCharacterMovementComponent* CMC = GetCharacterMovement())
+	{
+		CMC->bUseRVOAvoidance = true;
+		CMC->AvoidanceWeight = 0.5f;   // 0=회피 무시 / 1=완전 회피
+		CMC->AvoidanceConsiderationRadius =
+			GetCapsuleComponent()->GetScaledCapsuleRadius() * 3.0f;
+	}
+
 	AttackRangeSphere = CreateDefaultSubobject<USphereComponent>(TEXT("AttackRangeSphere"));
 	AttackRangeSphere->SetupAttachment(RootComponent);
 	AttackRangeSphere->InitSphereRadius(EnemyStats.AttackRange * 0.75f); // 75% of attack range
 
-	AttackRangeSphere->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+	AttackRangeSphere->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	AttackRangeSphere->SetCollisionObjectType(ECC_WorldDynamic);
 	AttackRangeSphere->SetCollisionResponseToAllChannels(ECR_Ignore);
 	AttackRangeSphere->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
-	AttackRangeSphere->SetGenerateOverlapEvents(true);
+	AttackRangeSphere->SetGenerateOverlapEvents(false);
 
 	AttackRangeSphere->SetHiddenInGame(false);
 	AttackRangeSphere->ShapeColor = FColor::Red;
@@ -86,6 +98,21 @@ void ACC_EnemyCharacter::BeginPlay()
 	// Find player
 	FindPlayer();
 
+	// ─── 목표 오프셋 초기화 (플레이어 주변 원형 배치) ────────────────────────
+	if (TargetOffsetRadius > 0.f)
+	{
+		const float Angle = FMath::FRandRange(0.f, 360.f);
+		const float Radius = FMath::FRandRange(TargetOffsetRadius * 0.5f, TargetOffsetRadius);
+		TargetOffset = FVector(
+			FMath::Cos(FMath::DegreesToRadians(Angle)) * Radius,
+			FMath::Sin(FMath::DegreesToRadians(Angle)) * Radius,
+			0.f
+		);
+		UE_LOG(LogTemp, VeryVerbose,
+			TEXT("[Enemy %s] TargetOffset = (%.0f, %.0f)  Radius=%.0f"),
+			*GetName(), TargetOffset.X, TargetOffset.Y, Radius);
+	}
+
 	// Setup overlap events for contact damage
 	if (UCapsuleComponent* Capsule = GetCapsuleComponent())
 	{
@@ -108,17 +135,6 @@ void ACC_EnemyCharacter::BeginPlay()
 		CC_LOG_ENEMY(Warning, TEXT("%s - Attack range sphere initialized (Radius: %.1f)"), *GetName(), AttackRangeSphere->GetScaledSphereRadius());
 	}
 
-	if (UCC_AIManager* AIManager = UCC_AIManager::Get(this))
-	{
-		AIManager->RegisterEnemy(this);
-		UE_LOG(LogTemp, Log, TEXT("Enemy registered with AI Manager: %s"), *GetName());
-	}
-	else
-	{
-		UE_LOG(LogTemp, Warning, TEXT("AI Manager not found, using fallback AI for: %s"), *GetName());
-		// Fallback: 기존 방식으로 동작 (AI Manager 없어도 게임 진행 가능)
-	}
-
 	if (USkeletalMeshComponent* SkeletalMesh = GetMesh())
 	{
 		if (UAnimInstance* AnimInstance = SkeletalMesh->GetAnimInstance())
@@ -136,12 +152,20 @@ void ACC_EnemyCharacter::BeginPlay()
 			UE_LOG(LogTemp, Error, TEXT("[ENEMY] %s - No AnimInstance found!"),
 				*GetName());
 		}
+
+		SkeletalMesh->bEnableUpdateRateOptimizations = true;
+		SkeletalMesh->VisibilityBasedAnimTickOption =
+			EVisibilityBasedAnimTickOption::OnlyTickPoseWhenRendered;
+
+		// URO 거리별 프레임 스킵 명시 (BP 설정 덮어쓰기 방지)
+		if (SkeletalMesh->AnimUpdateRateParams)
+		{
+			SkeletalMesh->AnimUpdateRateParams->bShouldUseLodMap = true;
+		}
 	}
 
-	if (ACC_EnemyManager* Manager = ACC_EnemyManager::Get(this))
-	{
-		Manager->RegisterEnemy(this);
-	}
+	GetWorldTimerManager().SetTimerForNextTick(this,
+		&ACC_EnemyCharacter::RegisterToManagers);
 }
 
 void ACC_EnemyCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
@@ -186,10 +210,25 @@ void ACC_EnemyCharacter::Tick(float DeltaTime)
 	Super::Tick(DeltaTime);
 
 	// Chase player if enabled and alive
-	if (bChasePlayer && IsAlive() && !bIsAttacking)
+	if (!IsAlive()|| EnemyState == EEnemyState::Attacking)
 	{
-		ChasePlayer(DeltaTime);
+		return;	
 	}
+
+	if (!bMovementEnabled)
+	{
+		return;
+	}
+
+	// AILogicInterval마다 MoveTarget 갱신
+	AILogicTimer += DeltaTime;
+	if (AILogicTimer >= AILogicInterval)
+	{
+		AILogicTimer = 0.f;
+		UpdateMoveTarget();
+	}
+	
+	PerformMove(DeltaTime);
 }
 
 void ACC_EnemyCharacter::ChasePlayer(float DeltaTime)
@@ -207,6 +246,10 @@ void ACC_EnemyCharacter::ChasePlayer(float DeltaTime)
 	if (DistanceToPlayer > DetectionRange)
 	{
 		// Player too far, don't chase
+		if (UCharacterMovementComponent* CMC = GetCharacterMovement())
+		{
+			CMC->StopMovementImmediately();
+		}
 		return;
 	}
 
@@ -214,7 +257,10 @@ void ACC_EnemyCharacter::ChasePlayer(float DeltaTime)
 	FVector DirectionToPlayer = (TargetPlayer->GetActorLocation() - GetActorLocation()).GetSafeNormal();
 
 	// Move towards player
-	AddMovementInput(DirectionToPlayer, 1.0f);
+	if (UCharacterMovementComponent* CMC = GetCharacterMovement())
+	{
+		CMC->RequestDirectMove(DirectionToPlayer * MoveSpeed, false);
+	}
 
 	// Rotate to face player
 	FRotator LookAtRotation = DirectionToPlayer.Rotation();
@@ -223,6 +269,76 @@ void ACC_EnemyCharacter::ChasePlayer(float DeltaTime)
 
 	SetActorRotation(FMath::RInterpTo(GetActorRotation(), LookAtRotation, DeltaTime, 5.0f));
 
+}
+
+void ACC_EnemyCharacter::PerformMove(float DeltaTime)
+{
+	switch (MovementBehavior)
+	{
+	case EMovementBehavior::Direct:
+		PerformMove_Direct(DeltaTime);
+		break;
+
+	case EMovementBehavior::Step:
+		// Phase 3 구현 예정
+		PerformMove_Direct(DeltaTime);
+		break;
+
+	case EMovementBehavior::Teleport:
+		// Phase 3 구현 예정
+		break;
+
+	case EMovementBehavior::Waypoint:
+		// 후순위 구현 예정
+		PerformMove_Direct(DeltaTime);
+		break;
+	}
+}
+
+void ACC_EnemyCharacter::PerformMove_Direct(float DeltaTime)
+{
+	if (CachedMoveDirection.IsNearlyZero()) return;
+
+	AddMovementInput(CachedMoveDirection, 1.0f);
+
+	FRotator LookAt = CachedMoveDirection.Rotation();
+	LookAt.Pitch = 0.f;
+	LookAt.Roll = 0.f;
+	SetActorRotation(FMath::RInterpTo(GetActorRotation(), LookAt, DeltaTime, 5.0f));
+}
+
+void ACC_EnemyCharacter::UpdateMoveTarget()
+{
+	if (!TargetPlayer) FindPlayer();
+	if (!TargetPlayer) return;
+
+	const float DistSq = FVector::DistSquared(GetActorLocation(), TargetPlayer->GetActorLocation());
+
+	if (DistSq <= DetectionRange * DetectionRange)
+	{
+		// TargetOffset 포함한 목적지 설정
+		MoveTarget = TargetPlayer->GetActorLocation() + TargetOffset;
+
+		// 이동 방향 캐시
+		CachedMoveDirection = (MoveTarget - GetActorLocation()).GetSafeNormal();
+
+		// 공격 범위 체크 (AttackRangeSphere Overlap이 없을 경우 폴백)
+		const float AttackRangeSq = EnemyStats.AttackRange * EnemyStats.AttackRange;
+		if (DistSq <= AttackRangeSq && !bPlayerInRange)
+		{
+			bPlayerInRange = true;
+			TryAttack(TargetPlayer);
+		}
+		else if (DistSq > AttackRangeSq && bPlayerInRange)
+		{
+			bPlayerInRange = false;
+		}
+	}
+	else
+	{
+		MoveTarget = FVector::ZeroVector;
+		CachedMoveDirection = FVector::ZeroVector;
+	}
 }
 
 void ACC_EnemyCharacter::FindPlayer()
@@ -529,6 +645,12 @@ void ACC_EnemyCharacter::Die()
 		AIManager->UnregisterEnemy(this);
 	}
 
+	if (bPersistent)
+	{
+		if (ACC_CubeWorldManager* CubeManager = ACC_CubeWorldManager::Get(this))
+			CubeManager->UnregisterPersistentEnemy(this);
+	}
+
 	ReportActualDeathToEnemyManager();
 
 	// Call base class Die() to handle death animation, etc.
@@ -568,6 +690,7 @@ void ACC_EnemyCharacter::OnOverlapBegin(UPrimitiveComponent* OverlappedComponent
 
 void ACC_EnemyCharacter::PerformAttack()
 {
+	EnemyState = EEnemyState::Attacking;
 	bIsAttacking = true;
 	bCanAttack = false;
 
@@ -594,6 +717,7 @@ void ACC_EnemyCharacter::PerformAttack()
 		// if no animation, immediately deal damage and reset
 		DealDamageToTarget();
 		bIsAttacking = false;
+		EnemyState = EEnemyState::Moving;
 		StartAttackCooldown();
 	}
 }
@@ -621,8 +745,9 @@ void ACC_EnemyCharacter::StartAttackCooldown()
 void ACC_EnemyCharacter::ResetAttackCooldown()
 {
 	bCanAttack = true;
+	EnemyState = EEnemyState::Moving;
 
-	UE_LOG(LogTemp, Log, TEXT("[ENEMY] %s attack ready!"), *GetName());
+	//UE_LOG(LogTemp, Log, TEXT("[ENEMY] %s attack ready!"), *GetName());
 
 	// if in range, try to attack again
 	if (TargetPlayer)
@@ -760,6 +885,7 @@ void ACC_EnemyCharacter::OnAttackMontageEnded(UAnimMontage* Montage, bool bInter
 	if (Montage == AttackMontage)
 	{
 		bIsAttacking = false;
+		EnemyState = EEnemyState::Moving;   // 애니메이션 종료 → 이동 재개
 
 		// Start cooldown Timer
 		GetWorld()->GetTimerManager().SetTimer(
@@ -842,6 +968,7 @@ void ACC_EnemyCharacter::DrawAttackDebug(const FAttackHitData& HitData, bool bHi
 
 void ACC_EnemyCharacter::Freeze_Implementation()
 {
+	if (bPersistent) return;
 	if (bIsFrozen) return;
 
 	bIsFrozen = true;
@@ -882,4 +1009,27 @@ void ACC_EnemyCharacter::Unfreeze_Implementation()
 	// SetChasePlayer 복원은 AIManager 다음 Tick에 자동 처리됨
 
 	UE_LOG(LogTemp, Log, TEXT("[Enemy %s] UNFROZEN"), *GetName());
+}
+
+void ACC_EnemyCharacter::RegisterToManagers()
+{
+	if (UCC_AIManager* AIManager = UCC_AIManager::Get(this))
+	{
+		AIManager->RegisterEnemy(this);
+	}
+
+	if (ACC_EnemyManager* Manager = ACC_EnemyManager::Get(this))
+	{
+		Manager->RegisterEnemy(this);
+	}
+
+	if (bPersistent)
+	{
+		if (ACC_CubeWorldManager* CubeManager = ACC_CubeWorldManager::Get(this))
+		{
+			CubeManager->RegisterPersistentEnemy(this);
+		}
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("[Enemy %s] Registered to managers."), *GetName());
 }

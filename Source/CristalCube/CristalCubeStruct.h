@@ -66,6 +66,26 @@ enum class ECubeState : uint8
 };
 
 //==============================================================================
+// ENEMY BEHAVIOR SYSTEM
+// ==============================================================================
+
+UENUM(BlueprintType)
+enum class EMovementBehavior : uint8
+{
+    Direct    UMETA(DisplayName = "Direct"),     // 직선 추적 (현재 방식)
+    Step      UMETA(DisplayName = "Step"),       // N거리 이동 후 정지 반복
+    Teleport  UMETA(DisplayName = "Teleport"),   // 타이머 기반 순간이동
+    Waypoint  UMETA(DisplayName = "Waypoint"),   // 경유점 순환 (후순위, stub)
+};
+
+UENUM(BlueprintType)
+enum class EEnemyState : uint8
+{
+    Moving    UMETA(DisplayName = "Moving"),
+    Attacking UMETA(DisplayName = "Attacking"),
+};
+
+//==============================================================================
 // STRUCTS
 //==============================================================================
 
@@ -133,20 +153,74 @@ enum class ETargetingMode : uint8
 class UNiagaraSystem;
 
 //------------------------------------------------------------------------------
-// Core Types - 스킬의 기본 형태 (3개만)
+// Core Types - 스킬의 기본 형태 (5개, 지속적 추가)
 //------------------------------------------------------------------------------
 UENUM(BlueprintType)
 enum class ESkillCoreType : uint8
 {
     None            UMETA(DisplayName = "None"),
-    Projectile      UMETA(DisplayName = "Projectile"),     // 투사체 (날아감)
-    Instant         UMETA(DisplayName = "Instant"),        // 즉발 (히트스캔)
-    Area            UMETA(DisplayName = "Area"),           // 범위 (바닥/공간)
-    Beam            UMETA(DisplayName = "Beam")            // 레이저 
+    Projectile      UMETA(DisplayName = "Projectile"),      // 투사체 (날아감)
+    Instant         UMETA(DisplayName = "Instant"),         // 즉발 (히트스캔)
+    Area            UMETA(DisplayName = "Area"),            // 범위 (바닥/공간)
+    Beam            UMETA(DisplayName = "Beam"),            // 레이저 
+	Rainfall 	    UMETA(DisplayName = "Rainfall")         // 낙하 (위에서 떨어짐)
+
+};
+
+UENUM(BlueprintType)
+enum class EDropPattern : uint8
+{
+    Random  UMETA(DisplayName = "Random"),   // 반경 내 랜덤 분포
+    Ring    UMETA(DisplayName = "Ring"),     // 원형 균등 분포
+    Grid    UMETA(DisplayName = "Grid"),     // 격자형 분포
+    Spiral  UMETA(DisplayName = "Spiral"),   // 나선형 (예약)
+    Wave    UMETA(DisplayName = "Wave")      // 안에서 밖으로 파도형 (예약)
+};
+
+USTRUCT(BlueprintType)
+struct FRainfallCoreData
+{
+    GENERATED_BODY()
+
+    // 스폰 높이: TargetLocation 기준 Z 오프셋
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rainfall")
+    float SpawnHeight = 800.0f;
+
+    // 낙하 투사체 수
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rainfall",
+        meta = (ClampMin = "1"))
+    int32 DropCount = 8;
+
+    // 투사체 간 스폰 간격 (초)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rainfall",
+        meta = (ClampMin = "0.0"))
+    float DropInterval = 0.08f;
+
+    // 목표 영역 반경
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rainfall",
+        meta = (ClampMin = "0.0"))
+    float AreaRadius = 350.0f;
+
+    // 낙하 패턴
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rainfall")
+    EDropPattern DropPattern = EDropPattern::Random;
+
+    // 착지 예정 위치 경고 마커 표시 여부
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rainfall")
+    bool bShowWarningIndicator = true;
+
+    // 경고 마커 표시 시간 (투사체 스폰 전 대기)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rainfall",
+        meta = (ClampMin = "0.0"))
+    float WarningDuration = 0.4f;
+
+    // 착지 경고 이펙트 (NS_Rainfall_Warning)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rainfall")
+    UNiagaraSystem* WarningEffect = nullptr;
 };
 
 //------------------------------------------------------------------------------
-// Addon Types - 추가 효과 (4개만)
+// Addon Types - 추가 효과 (4개, 지속적 추가)
 //------------------------------------------------------------------------------
 UENUM(BlueprintType)
 enum class ESkillAddonType : uint8
@@ -176,6 +250,10 @@ struct FExplosionAddonData
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|Explosion",
         meta = (ClampMin = "0.0", ClampMax = "1.0"))
     float MinDamageRatio = 0.5f;
+
+    // 폭발 전용 VFX — SkillDefinition에서 분리, 폭발 Addon이 책임짐
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|Explosion")
+    UNiagaraSystem* ExplosionEffect = nullptr;
 };
 
 USTRUCT(BlueprintType)
@@ -195,6 +273,10 @@ struct FChainAddonData
     // 다음 타겟 탐색 반경
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|Chain")
     float SearchRadius = 600.0f;
+
+    // 연쇄 연결선 VFX (번개줄기, 사슬 등) — 연쇄 Addon이 책임짐
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|Chain")
+    UNiagaraSystem* ChainEffect = nullptr;
 };
 
 USTRUCT(BlueprintType)
@@ -318,13 +400,21 @@ struct FSkillDefinition
 
     // === VFX ===
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Effects")
-    UNiagaraSystem* CastEffect = nullptr;
+    UNiagaraSystem* SkillEffect = nullptr;   // 스킬 주 비주얼 (Core가 운용)
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Effects")
-    UNiagaraSystem* HitEffect = nullptr;
+    UNiagaraSystem* ImpactEffect = nullptr;  // 타격 피드백 (속성 엔진 연동 대상)
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Effects")
-    UNiagaraSystem* ExplosionEffect = nullptr;
+    // Projectile Core 전용. VFX 포함 BP 서브클래스를 에디터에서 직접 지정.
+    // null이면 SkillSystem의 기본 SkillEffectorClass로 폴백.
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Core")
+    TSubclassOf<class ACC_SkillEffector> ProjectileClass;
+
+    // Rainfall Core 전용 데이터
+    // EditCondition으로 Rainfall일 때만 에디터에 노출
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Core",
+        meta = (EditCondition = "CoreType == ESkillCoreType::Rainfall", EditConditionHides))
+    FRainfallCoreData RainfallData;
 
     // === Audio ===
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Audio")
@@ -900,6 +990,67 @@ struct FActorSaveData
 // Cube Data
 //==============================================================================
 
+UENUM(BlueprintType)
+enum class ECubeTheme : uint8
+{
+    None        UMETA(DisplayName = "None"),
+    Grassland   UMETA(DisplayName = "Grassland"),   // 초원
+    Desert      UMETA(DisplayName = "Desert"),       // 사막
+    Volcano     UMETA(DisplayName = "Volcano"),      // 화산
+    Snowfield   UMETA(DisplayName = "Snowfield"),    // 설원
+    Swamp       UMETA(DisplayName = "Swamp"),        // 늪지
+    Cave        UMETA(DisplayName = "Cave"),         // 동굴
+    Ruin        UMETA(DisplayName = "Ruin")          // 폐허
+};
+
+USTRUCT(BlueprintType)
+struct FCubeThemeData
+{
+    GENERATED_BODY()
+
+    /** FloorMesh에 적용할 머티리얼 */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Theme|Material")
+    UMaterialInterface* FloorMaterial = nullptr;
+
+    /** World 공간 기준 텍스처 타일 크기 (cm) — 큐브 크기 무관 */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Theme|Material",
+        meta = (ClampMin = "50.0"))
+    float TextureTileSize = 200.0f;
+
+    /** 테마 주 색상 (머티리얼 파라미터: ThemeColor) */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Theme|Color")
+    FLinearColor ThemeColor = FLinearColor(0.70f, 0.80f, 1.00f, 1.f);
+
+    /** 테마 보조 색상 (머티리얼 파라미터: ThemeColorSecondary) */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Theme|Color")
+    FLinearColor ThemeColorSecondary = FLinearColor(1.00f, 1.00f, 1.00f, 1.f);
+
+    /** 이미시브 강도 (머티리얼 파라미터: EmissiveStrength) */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Theme|Color",
+        meta = (ClampMin = "0.0"))
+    float EmissiveStrength = 1.0f;
+
+    // ─── Scatter 설정 ───────────────────────────────────────
+
+    /** 이 테마에서 HISM으로 배치할 스태틱 메시 목록 */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Theme|Scatter")
+    TArray<UStaticMesh*> ScatterMeshes;
+
+    /** 메시별 가중치 (ScatterMeshes와 인덱스 일치, 비어있으면 균등 분배) */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Theme|Scatter")
+    TArray<int32> ScatterMeshWeights;
+
+    /** 스캐터 최소 개수 */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Theme|Scatter",
+        meta = (ClampMin = "0"))
+    int32 ScatterMinCount = 15;
+
+    /** 스캐터 최대 개수 */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Theme|Scatter",
+        meta = (ClampMin = "0"))
+    int32 ScatterMaxCount = 35;
+};
+
 USTRUCT(BlueprintType)
 struct FCubeData
 {
@@ -918,7 +1069,7 @@ struct FCubeData
     bool bCleared = false;
 
     UPROPERTY()
-    int32 CubeType = 0; // ���� Ȯ���
+    ECubeTheme CubeType = ECubeTheme::None; //
 };
 
 //==============================================================================

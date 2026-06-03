@@ -98,7 +98,7 @@ public:
 	void ApplyDamageToActor(AActor* TargetActor);
 
 	void SetupAsProjectile();
-
+	void SetupAsRainfall();
 protected:
 
 };

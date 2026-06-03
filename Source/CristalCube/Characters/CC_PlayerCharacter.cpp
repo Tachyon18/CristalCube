@@ -583,8 +583,8 @@ void ACC_PlayerCharacter::TestProjectileSkill()
 	TestSkill.Passives.PierceData.PierceCount = 3;
 
 	// VFX는 nullptr로 (안전)
-	TestSkill.CastEffect = nullptr;
-	TestSkill.HitEffect = nullptr;
+	TestSkill.SkillEffect = nullptr;
+	TestSkill.ImpactEffect = nullptr;
 
 	// 마우스 방향으로 발사
 	FVector TargetLocation = GetActorLocation() + GetActorForwardVector() * 1000.0f;
@@ -643,7 +643,7 @@ void ACC_PlayerCharacter::CastLightningBolt()
 
 	if (TestLightningEffect)
 	{
-		Lightning.HitEffect = TestLightningEffect;
+		Lightning.ImpactEffect = TestLightningEffect;
 	}
 
 	// 연쇄 효과 (최대 4번)
@@ -765,7 +765,7 @@ void ACC_PlayerCharacter::CastThunderStrike()
 
 	if (TestLightningEffect)
 	{
-		ThunderStrike.HitEffect = TestLightningEffect;
+		ThunderStrike.ImpactEffect = TestLightningEffect;
 	}
 
 	// Explosion Addon

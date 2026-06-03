@@ -4,6 +4,8 @@
 #include "CC_AIManager.h"
 #include "Characters/CC_PlayerCharacter.h"
 #include "Characters/CC_EnemyCharacter.h"
+#include "Gameplay/CC_EnemyAIInterface.h"
+#include "Gameplay/CC_EnemyBase.h"
 #include "Kismet/GameplayStatics.h"
 #include "Engine/World.h"
 #include "TimerManager.h"
@@ -30,19 +32,20 @@ void UCC_AIManager::Deinitialize()
 	ActiveAIEnemies.Empty();
 	SleepingEnemies.Empty();
 
-	UE_LOG(LogTemp, Log, TEXT("CristalCubeAIManager deinitialized"));
+	//UE_LOG(LogTemp, Log, TEXT("CristalCubeAIManager deinitialized"));
 
 	Super::Deinitialize();
 }
 
-void UCC_AIManager::RegisterEnemy(ACC_EnemyCharacter* Enemy)
+void UCC_AIManager::RegisterEnemy(AActor* Enemy)
 {
-	if (!Enemy)
+	if (!ImplementsEnemyAI(Enemy))
 	{
-		UE_LOG(LogTemp, Warning, TEXT("Attempted to register null enemy"));
+		UE_LOG(LogTemp, Warning,
+			TEXT("[AIManager] RegisterEnemy 실패: %s 가 ICC_EnemyAIInterface를 구현하지 않음"),
+			*GetNameSafe(Enemy));
 		return;
 	}
-
 	if (ActiveEnemies.Contains(Enemy))
 	{
 		UE_LOG(LogTemp, Warning, TEXT("Enemy already registered: %s"), *Enemy->GetName());
@@ -72,7 +75,7 @@ void UCC_AIManager::RegisterEnemy(ACC_EnemyCharacter* Enemy)
 
 }
 
-void UCC_AIManager::UnregisterEnemy(ACC_EnemyCharacter* Enemy)
+void UCC_AIManager::UnregisterEnemy(AActor* Enemy)
 {
 	if (!Enemy)
 	{
@@ -90,11 +93,11 @@ void UCC_AIManager::UnregisterEnemy(ACC_EnemyCharacter* Enemy)
 		if (UWorld* World = GetWorld())
 		{
 			World->GetTimerManager().ClearTimer(AIBatchUpdateTimer);
-			UE_LOG(LogTemp, Log, TEXT("AI Manager stopped - no enemies remaining"));
+			//UE_LOG(LogTemp, Log, TEXT("AI Manager stopped - no enemies remaining"));
 		}
 	}
 
-	UE_LOG(LogTemp, Log, TEXT("Enemy unregistered: %s (Remaining: %d)"), *Enemy->GetName(), ActiveEnemies.Num());
+	UE_LOG(LogTemp, Log, TEXT("Enemy unregistered: %s (Remaining: %d)"), *GetNameSafe(Enemy), ActiveEnemies.Num());
 
 }
 
@@ -126,42 +129,87 @@ void UCC_AIManager::BatchUpdateAI()
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UCristalCubeAIManager::BatchUpdateAI);
 
-	float StartTime = FPlatformTime::Seconds();
+	//float StartTime = FPlatformTime::Seconds();
 
 	// Get player reference once
 	ACC_PlayerCharacter* Player = GetPlayerCharacter();
-	if (!Player)
-	{
-		return;
-	}
+	if (!Player) return;
 
-	FVector PlayerLocation = Player->GetActorLocation();
+	const FVector PlayerLocation = Player->GetActorLocation();
+	const float MaxAIRangeSq = MaxAIRange * MaxAIRange;
 
 	// Clear previous frame's AI arrays
 	ActiveAIEnemies.Empty();
 	SleepingEnemies.Empty();
 
-	// Process all enemies in batch
-	int32 ProcessedCount = 0;
-	for (ACC_EnemyCharacter* Enemy : ActiveEnemies)
-	{
-		if (Enemy && Enemy->IsAlive())
+	//// Process all enemies in batch
+	//int32 ProcessedCount = 0;
+	//for (ACC_EnemyCharacter* Enemy : ActiveEnemies)
+	//{
+	//	if (Enemy && Enemy->IsAlive())
+	//	{
+	//		UpdateEnemyAIState(Enemy, PlayerLocation);
+	//		ProcessedCount++;
+	//	}
+	//}
+
+	//// Performance tracking
+	//LastUpdateTime = FPlatformTime::Seconds() - StartTime;
+	//LastProcessedCount = ProcessedCount;
+
+	//// Debug output (remove in shipping build)
+	//if (ProcessedCount > 0)
+	//{
+	//	UE_LOG(LogTemp, VeryVerbose, TEXT("AI Batch: %d enemies, %.4fms, Active: %d, Sleeping: %d"),
+	//		ProcessedCount, LastUpdateTime * 1000.0f, ActiveAIEnemies.Num(), SleepingEnemies.Num());
+	//}
+
+	// ─── 1패스: 유효하지 않은 적 먼저 제거 ──────────────────────────────
+	ActiveEnemies.RemoveAll([this](const AActor* E)
 		{
-			UpdateEnemyAIState(Enemy, PlayerLocation);
-			ProcessedCount++;
+			if (!IsValid(E)) return true;
+			return !ICC_EnemyAIInterface::Execute_IsEnemyAlive(E);
+		});
+
+	// ─── 2패스: 거리 기반 상태 분류 (DistSquared, sqrt 없음) ─────────────
+	for (AActor* Enemy : ActiveEnemies)
+	{
+		// 동결 상태면 스킵
+		if (ICC_EnemyAIInterface::Execute_GetIsFrozen(Enemy)) continue;
+
+		const float DistSq = FVector::DistSquared(Enemy->GetActorLocation(), PlayerLocation);
+		const float DetectRange = ICC_EnemyAIInterface::Execute_GetDetectionRange(Enemy);
+		const float DetectSq = DetectRange * DetectRange;
+
+		if (DistSq <= DetectSq)
+		{
+			ICC_EnemyAIInterface::Execute_SetChasePlayer(Enemy, true);
+			ActiveAIEnemies.Add(Enemy);
+		}
+		else
+		{
+			ICC_EnemyAIInterface::Execute_SetChasePlayer(Enemy, false);
+			if (DistSq > MaxAIRangeSq)
+				SleepingEnemies.Add(Enemy);
 		}
 	}
 
-	// Performance tracking
-	LastUpdateTime = FPlatformTime::Seconds() - StartTime;
-	LastProcessedCount = ProcessedCount;
-
-	// Debug output (remove in shipping build)
-	if (ProcessedCount > 0)
+	// 3패스: 이동 + 공격 체크 (Active 적만)
+	for (AActor* Enemy : ActiveAIEnemies)
 	{
-		UE_LOG(LogTemp, VeryVerbose, TEXT("AI Batch: %d enemies, %.4fms, Active: %d, Sleeping: %d"),
-			ProcessedCount, LastUpdateTime * 1000.0f, ActiveAIEnemies.Num(), SleepingEnemies.Num());
+		if (ICC_EnemyAIInterface::Execute_GetIsFrozen(Enemy)) continue;
+
+		// EnemyBase — 직접 호출
+		if (ACC_EnemyBase* Base = Cast<ACC_EnemyBase>(Enemy))
+		{
+			Base->PerformMove();
+			Base->CheckAndPerformAttack();
+		}
+		// EnemyCharacter — 기존 Tick이 이동 처리. 공격은 자체 Overlap 유지 (Phase 3에서 통일)
 	}
+
+	LastProcessedCount = ActiveAIEnemies.Num();
+
 }
 
 ACC_PlayerCharacter* UCC_AIManager::GetPlayerCharacter() const
@@ -173,40 +221,10 @@ ACC_PlayerCharacter* UCC_AIManager::GetPlayerCharacter() const
 	return nullptr;
 }
 
-void UCC_AIManager::UpdateEnemyAIState(ACC_EnemyCharacter* Enemy, const FVector& PlayerLocation)
+bool UCC_AIManager::ImplementsEnemyAI(AActor* Enemy) const
 {
-	if (!Enemy) return;
-
-	if (Enemy->GetIsFrozen()) return;
-
-	FVector EnemyLocation = Enemy->GetActorLocation();
-
-	// PERFORMANCE: Use DistSquared to avoid sqrt calculation
-	float DistanceSquared = FVector::DistSquared(EnemyLocation, PlayerLocation);
-
-	// Use individual enemy's DetectionRange (respects existing design)
-	float DetectionRange = Enemy->GetDetectionRange();
-	float DetectionRangeSquared = DetectionRange * DetectionRange;
-
-	// Check if enemy should chase based on its own detection range
-	if (DistanceSquared <= DetectionRangeSquared)
-	{
-		// Enemy should chase - set the existing bChasePlayer flag
-		Enemy->SetChasePlayer(true);
-		ActiveAIEnemies.Add(Enemy);
-	}
-	else
-	{
-		// Enemy too far or outside its detection range
-		Enemy->SetChasePlayer(false);
-
-		// Additional check: if way too far, put to sleep for performance
-		float MaxAIRangeSquared = MaxAIRange * MaxAIRange;
-		if (DistanceSquared > MaxAIRangeSquared)
-		{
-			SleepingEnemies.Add(Enemy);
-		}
-	}
+	return IsValid(Enemy) &&
+		Enemy->GetClass()->ImplementsInterface(UCC_EnemyAIInterface::StaticClass());
 }
 
 bool UCC_AIManager::IsEnemyInAIRange(const FVector& EnemyLocation, const FVector& PlayerLocation) const

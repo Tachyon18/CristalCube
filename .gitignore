@@ -357,3 +357,8 @@ Content/
 
 # Animation 폴더는 용량 문제로 제외 유지
 Content/Develop/Animation/
+Content/Vefects/
+Content/_SplineVFX/
+Content/animations_extracted/
+Content/Basic_VFX/
+Content/BlackAlder/

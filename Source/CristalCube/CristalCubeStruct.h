@@ -85,6 +85,18 @@ enum class EEnemyState : uint8
     Attacking UMETA(DisplayName = "Attacking"),
 };
 
+UENUM(BlueprintType)
+enum class EEnemyShapeType : uint8
+{
+    Cube        UMETA(DisplayName = "Cube"),
+    Sphere      UMETA(DisplayName = "Sphere"),
+    Cylinder    UMETA(DisplayName = "Cylinder"),
+    Cone        UMETA(DisplayName = "Cone"),
+    Tetrahedron UMETA(DisplayName = "Tetrahedron"),  // Blender 에셋 — 후순위
+    Octahedron  UMETA(DisplayName = "Octahedron"),   // Blender 에셋 — 후순위
+    Custom      UMETA(DisplayName = "Custom"),        // 직접 메시 지정
+};
+
 //==============================================================================
 // STRUCTS
 //==============================================================================

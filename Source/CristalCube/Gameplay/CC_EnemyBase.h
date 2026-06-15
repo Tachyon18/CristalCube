@@ -52,6 +52,21 @@ protected:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
     class UStaticMeshComponent* MeshComp;
 
+    /** 경량 이동 컴포넌트 — 매 틱 부드러운 이동 처리 */
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+    class UCC_EnemyMovementComponent* EnemyMovement;
+
+    /** 이 Enemy의 도형 타입 — BP 드롭다운으로 선택 */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Shape")
+    EEnemyShapeType ShapeType = EEnemyShapeType::Cube;
+
+    /** ShapeType == Custom일 때 직접 지정하는 메시 */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Shape",
+        meta = (EditCondition = "ShapeType == EEnemyShapeType::Custom"))
+    TSoftObjectPtr<UStaticMesh> CustomMesh;
+
+
+
     // Phase 4: HISM 교체 예정 자리
     // UPROPERTY() UHierarchicalInstancedStaticMeshComponent* HISM;
 
@@ -102,10 +117,6 @@ protected:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Movement")
     float MoveSpeed = 250.0f;
 
-    /** 타이머 틱 간격 — Direct 이동 갱신 주기 */
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Movement")
-    float MoveTickInterval = 0.05f;
-
     /** 플레이어 목표 오프셋 (RVO 보조 — BeginPlay에서 랜덤 결정) */
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Enemy|Movement")
     FVector TargetOffset = FVector::ZeroVector;
@@ -129,7 +140,6 @@ protected:
     float TeleportRadius = 200.0f;
 
     // --- 타이머 핸들 ---
-    FTimerHandle MoveTimerHandle;
     FTimerHandle TeleportTimerHandle;
 
     // --- 이동 내부 ---
@@ -149,9 +159,6 @@ public:
     void PerformMove_Teleport();
 
     void CheckAndPerformAttack();
-
-    void StartMoveTimer();
-    void StopMoveTimer();
 
 protected:
 
@@ -231,4 +238,16 @@ public:
 
     UFUNCTION(BlueprintPure, Category = "Enemy|Stats")
     bool IsAlive() const { return !bIsDead && CurrentHealth > 0.f; }
+
+    /** ShapeType에 따라 MeshComp 메시를 자동 할당 */
+    UFUNCTION(BlueprintCallable, Category = "Enemy|Shape")
+    void InitShape();
+
+    /** MeshComp 바운딩 박스 기반으로 CapsuleComp 크기 자동 조정 */
+    UFUNCTION(BlueprintCallable, Category = "Enemy|Collision")
+    void AutoFitCapsuleToMesh();
+
+    /** 현재 ShapeType 반환 (Phase 4 HISM 분류용) */
+    UFUNCTION(BlueprintPure, Category = "Enemy|Shape")
+    EEnemyShapeType GetShapeType() const { return ShapeType; }
 };

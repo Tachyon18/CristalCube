@@ -65,7 +65,6 @@ ACC_EnemyCharacter::ACC_EnemyCharacter()
 
 	// AI settings
 	DetectionRange = 2000.0f;  // 20 meters
-	bChasePlayer = true;
 	TargetPlayer = nullptr;
 
 	// Combat settings
@@ -229,46 +228,6 @@ void ACC_EnemyCharacter::Tick(float DeltaTime)
 	}
 	
 	PerformMove(DeltaTime);
-}
-
-void ACC_EnemyCharacter::ChasePlayer(float DeltaTime)
-{
-	if (!TargetPlayer)
-	{
-		// Try to find player again
-		FindPlayer();
-		return;
-	}
-
-	// Check if player is within detection range
-	float DistanceToPlayer = FVector::Dist(GetActorLocation(), TargetPlayer->GetActorLocation());
-
-	if (DistanceToPlayer > DetectionRange)
-	{
-		// Player too far, don't chase
-		if (UCharacterMovementComponent* CMC = GetCharacterMovement())
-		{
-			CMC->StopMovementImmediately();
-		}
-		return;
-	}
-
-	// Calculate direction to player
-	FVector DirectionToPlayer = (TargetPlayer->GetActorLocation() - GetActorLocation()).GetSafeNormal();
-
-	// Move towards player
-	if (UCharacterMovementComponent* CMC = GetCharacterMovement())
-	{
-		CMC->RequestDirectMove(DirectionToPlayer * MoveSpeed, false);
-	}
-
-	// Rotate to face player
-	FRotator LookAtRotation = DirectionToPlayer.Rotation();
-	LookAtRotation.Pitch = 0.0f;  // Keep on ground
-	LookAtRotation.Roll = 0.0f;
-
-	SetActorRotation(FMath::RInterpTo(GetActorRotation(), LookAtRotation, DeltaTime, 5.0f));
-
 }
 
 void ACC_EnemyCharacter::PerformMove(float DeltaTime)

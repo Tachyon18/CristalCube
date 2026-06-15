@@ -7,7 +7,6 @@
 #include "GamePlay/CC_Freezable.h"
 #include "CC_EnemySpawner.generated.h"
 
-class ACC_EnemyCharacter;
 class ACC_PlayerCharacter;
 
 UCLASS()
@@ -34,7 +33,7 @@ protected:
 
     /** Enemy class to spawn */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Spawner|Setup")
-    TSubclassOf<ACC_EnemyCharacter> EnemyClass;
+    TSubclassOf<APawn> EnemyClass;
 
     /** Time between spawns */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Spawner|Settings")
@@ -81,7 +80,7 @@ protected:
 
     /** Currently spawned enemies */
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Spawner|State")
-    TArray<ACC_EnemyCharacter*> SpawnedEnemies;
+    TArray<APawn*> SpawnedEnemies;
 
     /** Whether spawner is active */
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Spawner|State")
@@ -126,7 +125,7 @@ public:
 
     /** Spawn a single enemy at location */
     UFUNCTION(BlueprintCallable, Category = "Spawner")
-    ACC_EnemyCharacter* SpawnSingleEnemy(const FVector& Location);
+    APawn* SpawnSingleEnemy(const FVector& Location);
 
     /** Get random spawn location around player */
     UFUNCTION(BlueprintCallable, Category = "Spawner")

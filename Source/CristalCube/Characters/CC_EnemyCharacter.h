@@ -38,10 +38,6 @@ protected:
 
 	TArray<AActor*> HitActorsThisAttack;
 
-	// Should chase player?
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|AI")
-	bool bChasePlayer;
-
 	// Chase the target player
 	void ChasePlayer(float DeltaTime);
 
@@ -212,9 +208,6 @@ public:
 
 protected:
 	
-	/** 마지막으로 계산된 플레이어 방향 (매 프레임 재계산 없이 재사용) */
-	FVector CachedDirectionToPlayer = FVector::ZeroVector;
-
 protected:
 
 	//==========================================================================

@@ -5,6 +5,7 @@
 #include "Characters/CC_EnemyCharacter.h"
 #include "Characters/CC_PlayerCharacter.h"
 #include "Gameplay/CC_Cube.h"
+#include "Gameplay/CC_EnemyAIInterface.h"
 #include "CC_LogHelper.h"
 #include "TimerManager.h"
 #include "Kismet/GameplayStatics.h"
@@ -208,7 +209,7 @@ void ACC_EnemySpawner::SpawnEnemies()
     {
         FVector SpawnLocation = GetRandomSpawnLocation();
 
-        ACC_EnemyCharacter* NewEnemy = SpawnSingleEnemy(SpawnLocation);
+        APawn* NewEnemy = SpawnSingleEnemy(SpawnLocation);
 
         if (NewEnemy)
         {
@@ -224,22 +225,20 @@ void ACC_EnemySpawner::SpawnEnemies()
     }
 }
 
-ACC_EnemyCharacter* ACC_EnemySpawner::SpawnSingleEnemy(const FVector& Location)
+APawn* ACC_EnemySpawner::SpawnSingleEnemy(const FVector& Location)
 {
     if (!EnemyClass)
     {
         return nullptr;
     }
 
-    FRotator SpawnRotation = FRotator::ZeroRotator;
-
     FActorSpawnParameters SpawnParams;
     SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
 
-    ACC_EnemyCharacter* NewEnemy = GetWorld()->SpawnActor<ACC_EnemyCharacter>(
+    APawn* NewEnemy = GetWorld()->SpawnActor<APawn>(
         EnemyClass,
         Location,
-        SpawnRotation,
+        FRotator::ZeroRotator,
         SpawnParams
     );
 
@@ -253,7 +252,12 @@ ACC_EnemyCharacter* ACC_EnemySpawner::SpawnSingleEnemy(const FVector& Location)
             {
                 NewEnemy->SetActorHiddenInGame(true);
                 NewEnemy->SetActorTickEnabled(false);
-                ICC_Freezable::Execute_Freeze(NewEnemy);
+                
+                if(NewEnemy->Implements<UCC_Freezable>())
+                {
+                    ICC_Freezable::Execute_Freeze(NewEnemy);
+                }
+                
                 CC_LOG_SPAWNER(Log,
                     TEXT("[Spawner] NewEnemy Frozen immediately (Cube was already Frozen)"));
             }
@@ -330,7 +334,14 @@ void ACC_EnemySpawner::CleanupDeadEnemies()
     // Remove null and dead enemies from tracking array
     for (int32 i = SpawnedEnemies.Num() - 1; i >= 0; --i)
     {
-        if (!SpawnedEnemies[i] || !SpawnedEnemies[i]->IsAlive())
+        APawn* Enemy = SpawnedEnemies[i];
+        bool bDead = !IsValid(Enemy);
+        if (!bDead && Enemy->Implements<UCC_EnemyAIInterface>())
+        {
+            bDead = !ICC_EnemyAIInterface::Execute_IsEnemyAlive(Enemy);
+        }
+
+        if (bDead)
         {
             SpawnedEnemies.RemoveAt(i);
             RemovedCount++;
@@ -384,9 +395,15 @@ int32 ACC_EnemySpawner::GetAliveEnemyCount() const
 {
     int32 Count = 0;
 
-    for (ACC_EnemyCharacter* Enemy : SpawnedEnemies)
+    for (APawn* Enemy : SpawnedEnemies)
     {
-        if (Enemy && Enemy->IsAlive())
+        bool bAlive = IsValid(Enemy);
+        if (bAlive && Enemy->Implements<UCC_EnemyAIInterface>())
+        {
+            bAlive = ICC_EnemyAIInterface::Execute_IsEnemyAlive(Enemy);
+        }
+
+        if (bAlive)
         {
             Count++;
         }

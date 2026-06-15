@@ -4,6 +4,7 @@
 #include "CC_EnemyBase.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "CC_EnemyMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "TimerManager.h"
 #include "Engine/DamageEvents.h"
@@ -29,6 +30,9 @@ ACC_EnemyBase::ACC_EnemyBase()
     MeshComp->SetupAttachment(CapsuleComp);
     MeshComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 
+    EnemyMovement = CreateDefaultSubobject<UCC_EnemyMovementComponent>(TEXT("EnemyMovement"));
+    EnemyMovement->MaxSpeed = MoveSpeed;
+
     CurrentHealth = MaxHealth;
 
 }
@@ -42,6 +46,8 @@ void ACC_EnemyBase::BeginPlay()
     Tags.AddUnique(FName("Enemy"));
 
     FindPlayer();
+
+    InitShape();
 
     // TargetOffset 랜덤 초기화
     if (TargetOffsetRadius > 0.f)
@@ -141,20 +147,19 @@ void ACC_EnemyBase::PerformMove()
 
 void ACC_EnemyBase::PerformMove_Direct()
 {
-    if (MoveTarget.IsZero()) return;
+    if (MoveTarget.IsZero() || !EnemyMovement) return;
 
     const FVector CurrentLoc = GetActorLocation();
     const FVector Direction = (MoveTarget - CurrentLoc).GetSafeNormal2D();
 
-    if (Direction.IsNearlyZero()) return;
+    if (Direction.IsNearlyZero())
+    {
+        EnemyMovement->StopMovementImmediately();
+        return;
+    }
 
-    const FVector NewLocation = CurrentLoc + Direction * MoveSpeed * MoveTickInterval;
-
-    // Z 보존: 현재 높이 유지
-    FVector FinalLocation = NewLocation;
-    FinalLocation.Z = CurrentLoc.Z;
-
-    SetActorLocation(FinalLocation, true);   // bSweep=true: 충돌 감지 유지
+    // Controller 의존 없이 직접 속도 세팅
+    EnemyMovement->Velocity = Direction * MoveSpeed;
 
     // 이동 방향으로 회전
     FRotator LookAt = Direction.Rotation();
@@ -197,23 +202,6 @@ void ACC_EnemyBase::CheckAndPerformAttack()
         PerformAttack();
 }
 
-void ACC_EnemyBase::StartMoveTimer()
-{
-    if (MovementBehavior == EMovementBehavior::Teleport) return;
-
-    GetWorldTimerManager().SetTimer(
-        MoveTimerHandle,
-        this,
-        &ACC_EnemyBase::PerformMove,
-        MoveTickInterval,
-        true   // 반복
-    );
-}
-
-void ACC_EnemyBase::StopMoveTimer()
-{
-    GetWorldTimerManager().ClearTimer(MoveTimerHandle);
-}
 
 void ACC_EnemyBase::TryAttack(ACC_PlayerCharacter* Target)
 {
@@ -314,6 +302,10 @@ void ACC_EnemyBase::Freeze_Implementation()
     if (bIsFrozen) return;
     bIsFrozen = true;
     CustomTimeDilation = 0.0f;
+
+    if (EnemyMovement)
+        EnemyMovement->StopMovementImmediately();
+
     GetWorldTimerManager().PauseTimer(AttackCooldownTimer);
 }
 
@@ -331,19 +323,60 @@ void ACC_EnemyBase::SetChasePlayer_Implementation(bool bChase)
     bMovementEnabled = bChase;
 }
 
+void ACC_EnemyBase::InitShape()
+{
+    if (!MeshComp) return;
+
+    // UE5 기본 제공 4종 (MVP)
+    // Tetrahedron / Octahedron 은 Blender 에셋 임포트 후 경로 채울 것
+    static const TMap<EEnemyShapeType, FString> ShapeAssetPaths =
+    {
+        { EEnemyShapeType::Cube,     TEXT("/Engine/BasicShapes/Cube.Cube")           },
+        { EEnemyShapeType::Sphere,   TEXT("/Engine/BasicShapes/Sphere.Sphere")       },
+        { EEnemyShapeType::Cylinder, TEXT("/Engine/BasicShapes/Cylinder.Cylinder")   },
+        { EEnemyShapeType::Cone,     TEXT("/Engine/BasicShapes/Cone.Cone")           },
+    };
+
+    if (ShapeType == EEnemyShapeType::Custom)
+    {
+        if (UStaticMesh* Mesh = CustomMesh.LoadSynchronous())
+            MeshComp->SetStaticMesh(Mesh);
+        return;
+    }
+
+    if (const FString* PathPtr = ShapeAssetPaths.Find(ShapeType))
+    {
+        if (UStaticMesh* Mesh = LoadObject<UStaticMesh>(nullptr, **PathPtr))
+        {
+            MeshComp->SetStaticMesh(Mesh);
+            AutoFitCapsuleToMesh();
+        }
+    }
+}
+
+void ACC_EnemyBase::AutoFitCapsuleToMesh()
+{
+    if (!MeshComp || !CapsuleComp) return;
+
+    const FBoxSphereBounds Bounds = MeshComp->CalcBounds(MeshComp->GetComponentTransform());
+    const float Radius = FMath::Max(Bounds.BoxExtent.X, Bounds.BoxExtent.Y) * 0.75f;
+    const float HalfHeight = FMath::Max(Bounds.BoxExtent.Z, Radius);
+
+    CapsuleComp->SetCapsuleSize(Radius, HalfHeight);
+}
+
 void ACC_EnemyBase::SetMovementEnabled(bool bEnabled)
 {
     bMovementEnabled = bEnabled;
 
-    if (bEnabled)
+    if (EnemyMovement)
     {
-        // Teleport는 별도 타이머라 MoveTimer 재시작 불필요
-        if (MovementBehavior != EMovementBehavior::Teleport)
-            StartMoveTimer();
-    }
-    else
-    {
-        StopMoveTimer();
+        EnemyMovement->MaxSpeed = bEnabled ? MoveSpeed : 0.f;
+
+        if (!bEnabled)
+        {
+            EnemyMovement->StopMovementImmediately();
+        }
     }
 }
 

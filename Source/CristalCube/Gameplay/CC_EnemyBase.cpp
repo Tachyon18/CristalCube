@@ -24,7 +24,9 @@ ACC_EnemyBase::ACC_EnemyBase()
     SetRootComponent(CapsuleComp);
     CapsuleComp->InitCapsuleSize(34.f, 34.f);
     CapsuleComp->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
+
     CapsuleComp->SetCollisionResponseToChannel(ECC_GameTraceChannel1, ECR_Overlap);
+    CapsuleComp->SetGenerateOverlapEvents(true);
 
     MeshComp = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("MeshComp"));
     MeshComp->SetupAttachment(CapsuleComp);
@@ -59,6 +61,12 @@ void ACC_EnemyBase::BeginPlay()
             FMath::Sin(FMath::DegreesToRadians(Angle)) * Radius,
             0.f
         );
+    }
+
+    if (EnemyMovement)
+    {
+        EnemyMovement->SetMovementBehavior(MovementBehavior);
+        EnemyMovement->MaxSpeed = MoveSpeed;
     }
 
     GetWorldTimerManager().SetTimerForNextTick(this, &ACC_EnemyBase::RegisterToManagers);
@@ -123,70 +131,11 @@ void ACC_EnemyBase::PerformMove()
 
     UpdateMoveTarget();
 
-    switch (MovementBehavior)
-    {
-    case EMovementBehavior::Direct:
-        PerformMove_Direct();
-        break;
-
-    case EMovementBehavior::Step:
-        // Phase 3 구현 예정
-        PerformMove_Direct();
-        break;
-
-    case EMovementBehavior::Teleport:
-        // 별도 TeleportTimerHandle로 처리 — 여기선 아무것도 안 함
-        break;
-
-    case EMovementBehavior::Waypoint:
-        // 후순위
-        PerformMove_Direct();
-        break;
-    }
+    // Behavior 분기 책임은 EnemyMovement 컴포넌트로 이전됨.
+    // EnemyBase는 "어디로 갈지"만 전달.
+    EnemyMovement->SetMoveTarget(MoveTarget);
 }
 
-void ACC_EnemyBase::PerformMove_Direct()
-{
-    if (MoveTarget.IsZero() || !EnemyMovement) return;
-
-    const FVector CurrentLoc = GetActorLocation();
-    const FVector Direction = (MoveTarget - CurrentLoc).GetSafeNormal2D();
-
-    if (Direction.IsNearlyZero())
-    {
-        EnemyMovement->StopMovementImmediately();
-        return;
-    }
-
-    // Controller 의존 없이 직접 속도 세팅
-    EnemyMovement->Velocity = Direction * MoveSpeed;
-
-    // 이동 방향으로 회전
-    FRotator LookAt = Direction.Rotation();
-    LookAt.Pitch = 0.f;
-    LookAt.Roll = 0.f;
-    SetActorRotation(LookAt);
-}
-
-void ACC_EnemyBase::PerformMove_Teleport()
-{
-    if (!bMovementEnabled || !TargetPlayer) return;
-
-    UpdateMoveTarget();
-    if (MoveTarget.IsZero()) return;
-
-    // 플레이어 근방 랜덤 위치로 순간이동
-    const float Angle = FMath::FRandRange(0.f, 360.f);
-    const float Radius = FMath::FRandRange(TeleportRadius * 0.5f, TeleportRadius);
-
-    FVector TeleportDest = MoveTarget + FVector(
-        FMath::Cos(FMath::DegreesToRadians(Angle)) * Radius,
-        FMath::Sin(FMath::DegreesToRadians(Angle)) * Radius,
-        0.f
-    );
-
-    SetActorLocation(TeleportDest, false);
-}
 
 void ACC_EnemyBase::CheckAndPerformAttack()
 {
@@ -341,6 +290,8 @@ void ACC_EnemyBase::InitShape()
     {
         if (UStaticMesh* Mesh = CustomMesh.LoadSynchronous())
             MeshComp->SetStaticMesh(Mesh);
+
+        ApplyMeshZOffset();
         return;
     }
 
@@ -350,6 +301,7 @@ void ACC_EnemyBase::InitShape()
         {
             MeshComp->SetStaticMesh(Mesh);
             AutoFitCapsuleToMesh();
+            ApplyMeshZOffset();
         }
     }
 }
@@ -358,11 +310,20 @@ void ACC_EnemyBase::AutoFitCapsuleToMesh()
 {
     if (!MeshComp || !CapsuleComp) return;
 
+    // 캡슐 "크기"만 메시 바운드 기준으로 자동 계산.
+    // 위치(Z) 보정은 더 이상 여기서 하지 않음 — MeshZOffset으로 디자이너가 직접 지정.
     const FBoxSphereBounds Bounds = MeshComp->CalcBounds(MeshComp->GetComponentTransform());
     const float Radius = FMath::Max(Bounds.BoxExtent.X, Bounds.BoxExtent.Y) * 0.75f;
     const float HalfHeight = FMath::Max(Bounds.BoxExtent.Z, Radius);
 
     CapsuleComp->SetCapsuleSize(Radius, HalfHeight);
+}
+
+void ACC_EnemyBase::ApplyMeshZOffset()
+{
+    if (!MeshComp) return;
+
+    MeshComp->SetRelativeLocation(FVector(0.f, 0.f, MeshZOffset));
 }
 
 void ACC_EnemyBase::SetMovementEnabled(bool bEnabled)
@@ -377,6 +338,16 @@ void ACC_EnemyBase::SetMovementEnabled(bool bEnabled)
         {
             EnemyMovement->StopMovementImmediately();
         }
+    }
+}
+
+void ACC_EnemyBase::SetMovementBehavior(EMovementBehavior NewBehavior)
+{
+    MovementBehavior = NewBehavior;
+
+    if (EnemyMovement)
+    {
+        EnemyMovement->SetMovementBehavior(MovementBehavior);
     }
 }
 

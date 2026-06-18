@@ -79,6 +79,13 @@ enum class EMovementBehavior : uint8
 };
 
 UENUM(BlueprintType)
+enum class EStepPattern : uint8
+{
+    TrackPlayer UMETA(DisplayName = "Track Player"),  // Step마다 플레이어 위치 재조준
+    Orbit       UMETA(DisplayName = "Orbit"),         // 적 위치 기준 회전 이동 (후순위, stub)
+};
+
+UENUM(BlueprintType)
 enum class EEnemyState : uint8
 {
     Moving    UMETA(DisplayName = "Moving"),
@@ -1181,6 +1188,8 @@ struct FGlassThemeData
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Glass|Lights")
     float SceneLightsOpacityBoost = 0.35f;
 };
+
+
 
 UCLASS()
 class CRISTALCUBE_API ACristalCubeStruct : public AActor

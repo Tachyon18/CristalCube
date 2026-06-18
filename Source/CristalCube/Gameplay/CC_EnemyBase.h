@@ -65,7 +65,9 @@ protected:
         meta = (EditCondition = "ShapeType == EEnemyShapeType::Custom"))
     TSoftObjectPtr<UStaticMesh> CustomMesh;
 
-
+    /** 메시를 캡슐 기준으로 얼마나 띄울지 — 도형별 개성에 맞게 디자이너가 직접 입력 */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Shape")
+    float MeshZOffset = 0.f;
 
     // Phase 4: HISM 교체 예정 자리
     // UPROPERTY() UHierarchicalInstancedStaticMeshComponent* HISM;
@@ -124,23 +126,6 @@ protected:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Movement")
     float TargetOffsetRadius = 150.0f;
 
-    // Step 파라미터 (Phase 3)
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Movement|Step")
-    float StepDistance = 300.0f;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Movement|Step")
-    float StepWaitDuration = 0.8f;
-
-
-    // --- Teleport 파라미터 ---
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Movement|Teleport")
-    float TeleportInterval = 2.0f;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Movement|Teleport")
-    float TeleportRadius = 200.0f;
-
-    // --- 타이머 핸들 ---
-    FTimerHandle TeleportTimerHandle;
 
     // --- 이동 내부 ---
     UPROPERTY()
@@ -151,12 +136,6 @@ public:
     void FindPlayer();
     void UpdateMoveTarget();
     void PerformMove();
-
-    /** Direct 이동 — MoveTarget 방향으로 SetActorLocation */
-    void PerformMove_Direct();
-
-    /** Teleport 이동 — TeleportInterval마다 플레이어 근방으로 순간이동 */
-    void PerformMove_Teleport();
 
     void CheckAndPerformAttack();
 
@@ -208,6 +187,10 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Enemy|Movement")
     void SetMovementEnabled(bool bEnabled);
 
+    /** 이동 방식 변경 — EnemyMovement 컴포넌트에 동기화 */
+    UFUNCTION(BlueprintCallable, Category = "Enemy|Movement")
+    void SetMovementBehavior(EMovementBehavior NewBehavior);
+
 protected:
     UFUNCTION()
     void RegisterToManagers();
@@ -246,6 +229,10 @@ public:
     /** MeshComp 바운딩 박스 기반으로 CapsuleComp 크기 자동 조정 */
     UFUNCTION(BlueprintCallable, Category = "Enemy|Collision")
     void AutoFitCapsuleToMesh();
+
+    /** MeshZOffset 값으로 MeshComp의 상대 위치 적용 (디자이너가 직접 세팅한 값 사용) */
+    UFUNCTION(BlueprintCallable, Category = "Enemy|Shape")
+    void ApplyMeshZOffset();
 
     /** 현재 ShapeType 반환 (Phase 4 HISM 분류용) */
     UFUNCTION(BlueprintPure, Category = "Enemy|Shape")

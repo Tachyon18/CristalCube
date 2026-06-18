@@ -5,6 +5,7 @@
 #include "GameFramework/SpringArmComponent.h"
 #include "Camera/CameraComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "Components/CapsuleComponent.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "InputMappingContext.h"
@@ -36,6 +37,11 @@ ACC_PlayerCharacter::ACC_PlayerCharacter()
 	GetCharacterMovement()->bConstrainToPlane = true;
 	GetCharacterMovement()->bSnapToPlaneAtStart = true;
 
+	if (UCapsuleComponent* Capsule = GetCapsuleComponent())
+	{
+		Capsule->SetCollisionResponseToChannel(ECC_GameTraceChannel1, ECR_Overlap);
+		Capsule->SetGenerateOverlapEvents(true);
+	}
 
 	// Initialize player stats (all start at 1.0 = no bonus)
 	PlayerStats = FCristalCubePlayerStats();

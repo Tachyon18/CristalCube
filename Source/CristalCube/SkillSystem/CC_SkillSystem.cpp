@@ -984,11 +984,12 @@ void UCC_SkillSystem::ApplyDamage(AActor* Target, float Damage, AActor* DamageCa
 	}
 
 	// Character 타입이면 직접 피해 적용
-	if (ACC_Character* Character = Cast<ACC_Character>(Target))
-	{
-		Character->TakeDamage(Damage, FDamageEvent(), nullptr, DamageCauser);
+	//if (ACC_Character* Character = Cast<ACC_Character>(Target))
+	//{
+	//	Character->TakeDamage(Damage, FDamageEvent(), nullptr, DamageCauser);
+		Target->TakeDamage(Damage, FDamageEvent(), nullptr, DamageCauser);
 		UE_LOG(LogTemp, Log, TEXT("Applied %.1f damage to %s"), Damage, *Target->GetName());
-	}
+	//}
 }
 
 void UCC_SkillSystem::SpawnEffect(UNiagaraSystem* Effect, FVector Location, FRotator Rotation)

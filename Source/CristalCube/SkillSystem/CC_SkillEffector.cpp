@@ -20,7 +20,7 @@ ACC_SkillEffector::ACC_SkillEffector()
 	CollisionSphere->SetSphereRadius(50.0f);
 	CollisionSphere->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 	CollisionSphere->SetCollisionResponseToAllChannels(ECR_Ignore);
-	CollisionSphere->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
+	CollisionSphere->SetCollisionResponseToChannel(ECC_GameTraceChannel1, ECR_Overlap);
 	CollisionSphere->SetNotifyRigidBodyCollision(true);
 	CollisionSphere->SetGenerateOverlapEvents(true);
 

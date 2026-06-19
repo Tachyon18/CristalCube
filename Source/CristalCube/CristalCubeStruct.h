@@ -82,7 +82,9 @@ UENUM(BlueprintType)
 enum class EStepPattern : uint8
 {
     TrackPlayer UMETA(DisplayName = "Track Player"),  // Step마다 플레이어 위치 재조준
-    Orbit       UMETA(DisplayName = "Orbit"),         // 적 위치 기준 회전 이동 (후순위, stub)
+    Orbit       UMETA(DisplayName = "Orbit"),         // 명칭 재검토 대상 — 목표 지점은 원 위에 찍히지만
+                                                      // 지점 간 실제 이동은 직선(Step 구조 특성상 매끄러운 호 불가).
+                                                      // "회전"보다는 "원주 위 산발 이동"에 가까움. 이름/분류 재논의 예정.
 };
 
 UENUM(BlueprintType)

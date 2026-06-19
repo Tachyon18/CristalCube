@@ -71,6 +71,19 @@ public:
 	float StepAngleVariance = 15.f;
 
 	//==========================================================================
+	// SETTINGS - ORBIT
+	//==========================================================================
+
+	/** Orbit 패턴 — 회전 중심(MoveTarget)으로부터 유지할 고정 반경 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement|Step",
+		meta = (ClampMin = "50.0"))
+	float OrbitRadius = 400.f;
+
+	//--- Orbit 내부 상태 ---
+	bool bOrbitDirectionInitialized = false;
+	float OrbitDirectionSign = 1.f;   // +1 = 시계, -1 = 반시계. Orbit 진입 시 1회만 랜덤 결정 후 유지.
+
+	//==========================================================================
 	// SETTINGS — Teleport
 	//==========================================================================
 
@@ -142,7 +155,7 @@ protected:
 	void TickTeleport(float DeltaTime);
 
 	/** Step 새 목표 계산 (StepPattern 분기 + 랜덤 편차) */
-	FVector ComputeNextStepTarget() const;
+	FVector ComputeNextStepTarget();
 
 	/** 현재 Velocity/위치를 이용해 충돌 슬라이딩까지 포함한 실제 위치 이동 적용 */
 	void ApplyVelocityMove(float DeltaTime);

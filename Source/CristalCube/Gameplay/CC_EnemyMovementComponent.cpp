@@ -51,6 +51,10 @@ void UCC_EnemyMovementComponent::SetMovementBehavior(EMovementBehavior NewBehavi
 	StepWaitElapsed = 0.f;
 	TeleportElapsed = 0.f;
 	DesiredVelocity = FVector::ZeroVector;
+
+	// Orbit 회전 방향도 초기화 — 다음 진입 시 새로 랜덤 결정
+	bOrbitDirectionInitialized = false;
+	OrbitDirectionSign = 1.f;
 }
 
 void UCC_EnemyMovementComponent::SetMoveTarget(const FVector& NewTarget)
@@ -195,16 +199,65 @@ void UCC_EnemyMovementComponent::TickTeleport(float DeltaTime)
 	OnTeleportPerformed(PreviousLoc, UpdatedComponent->GetComponentLocation());
 }
 
-FVector UCC_EnemyMovementComponent::ComputeNextStepTarget() const
+FVector UCC_EnemyMovementComponent::ComputeNextStepTarget()
 {
 	const FVector CurrentLoc = UpdatedComponent->GetComponentLocation();
 
 	switch (StepPattern)
 	{
 	case EStepPattern::Orbit:
-		// 후순위 stub — 현재는 TrackPlayer와 동일하게 동작
-		// (적 위치 기준 일정 반경 회전 이동은 추후 구현)
-		// fallthrough
+	{
+		// "Orbit"이라는 이름과 달리 매끄러운 회전이 아님 — 목표점은 원 위에 찍히지만
+		// TickStep의 이동 자체는 직선(chord)이라 점-직선-정지가 반복되는 산발적 패턴이 됨.
+		// 명칭/분류 재검토 시 참고.
+		if (MoveTarget.IsZero())
+			return CurrentLoc;
+
+		// 회전 방향은 Orbit 진입 후 최초 1회만 랜덤 결정, 이후 SetMovementBehavior 전까지 유지
+		if (!bOrbitDirectionInitialized)
+		{
+			OrbitDirectionSign = FMath::RandBool() ? 1.f : -1.f;
+			bOrbitDirectionInitialized = true;
+		}
+
+		FVector RadiusVec = CurrentLoc - MoveTarget;
+		RadiusVec.Z = 0.f;
+
+		float CurrentAngleRad;
+		if (RadiusVec.IsNearlyZero())
+		{
+			// 중심과 완전히 겹치는 경우 — 임의 각도에서 시작
+			CurrentAngleRad = FMath::DegreesToRadians(FMath::FRandRange(0.f, 360.f));
+		}
+		else
+		{
+			CurrentAngleRad = FMath::Atan2(RadiusVec.Y, RadiusVec.X);
+		}
+
+		// 거리 랜덤 편차를 적용한 이번 Step의 호(arc) 길이
+		const float VariedStepDistance = StepDistance * FMath::FRandRange(
+			1.f - StepDistanceVariance, 1.f + StepDistanceVariance);
+
+		const float SafeOrbitRadius = FMath::Max(OrbitRadius, 1.f);
+
+		// 호 길이 → 각도 변화량 (s = rθ)
+		const float AngleDeltaRad = (VariedStepDistance / SafeOrbitRadius) * OrbitDirectionSign;
+
+		// 추가 각도 흔들림
+		const float JitterRad = FMath::DegreesToRadians(
+			FMath::FRandRange(-StepAngleVariance, StepAngleVariance));
+
+		const float NewAngleRad = CurrentAngleRad + AngleDeltaRad + JitterRad;
+
+		const FVector NewRadiusVec(
+			FMath::Cos(NewAngleRad) * SafeOrbitRadius,
+			FMath::Sin(NewAngleRad) * SafeOrbitRadius,
+			0.f
+		);
+
+		// MoveTarget이 매 Step 최신 위치로 갱신되므로 회전 중심도 같이 따라움직임
+		return MoveTarget + NewRadiusVec;
+	}
 
 	case EStepPattern::TrackPlayer:
 	default:

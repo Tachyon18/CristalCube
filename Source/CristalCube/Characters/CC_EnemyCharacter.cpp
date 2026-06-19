@@ -6,7 +6,6 @@
 #include "Engine/OverlapResult.h"
 #include "Kismet/GameplayStatics.h"
 #include "Components/CapsuleComponent.h"
-#include "Components/SphereComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Animation/AnimInstance.h"
 #include "Animation/AnimMontage.h"
@@ -46,19 +45,6 @@ ACC_EnemyCharacter::ACC_EnemyCharacter()
 			GetCapsuleComponent()->GetScaledCapsuleRadius() * 3.0f;
 	}
 
-	AttackRangeSphere = CreateDefaultSubobject<USphereComponent>(TEXT("AttackRangeSphere"));
-	AttackRangeSphere->SetupAttachment(RootComponent);
-	AttackRangeSphere->InitSphereRadius(EnemyStats.AttackRange * 0.75f); // 75% of attack range
-
-	AttackRangeSphere->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	AttackRangeSphere->SetCollisionObjectType(ECC_WorldDynamic);
-	AttackRangeSphere->SetCollisionResponseToAllChannels(ECR_Ignore);
-	AttackRangeSphere->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
-	AttackRangeSphere->SetGenerateOverlapEvents(false);
-
-	AttackRangeSphere->SetHiddenInGame(false);
-	AttackRangeSphere->ShapeColor = FColor::Red;
-
 	AttackHitData.HitType = EAttackHitType::Line;
 	AttackHitData.Range = 200.0f;
 	AttackHitData.bPenetrate = false;
@@ -66,11 +52,6 @@ ACC_EnemyCharacter::ACC_EnemyCharacter()
 	// AI settings
 	DetectionRange = 2000.0f;  // 20 meters
 	TargetPlayer = nullptr;
-
-	// Combat settings
-	ContactDamage = 10.0f;     // 10 damage per hit
-	DamageCooldown = 1.0f;     // 1 second between hits
-	LastDamageTime = 0.0f;
 
 	// Reward settings
 	ExperienceDrop = 10.0f;    // Give 10 XP when killed
@@ -110,28 +91,6 @@ void ACC_EnemyCharacter::BeginPlay()
 		UE_LOG(LogTemp, VeryVerbose,
 			TEXT("[Enemy %s] TargetOffset = (%.0f, %.0f)  Radius=%.0f"),
 			*GetName(), TargetOffset.X, TargetOffset.Y, Radius);
-	}
-
-	// Setup overlap events for contact damage
-	if (UCapsuleComponent* Capsule = GetCapsuleComponent())
-	{
-		Capsule->OnComponentBeginOverlap.AddDynamic(this, &ACC_EnemyCharacter::OnOverlapBegin);
-	}
-
-	CC_LOG_ENEMY(Warning, TEXT("Spawned enemy: %s (HP: %.0f, Damage: %.0f)"),
-		*EnemyType, MaxHealth, ContactDamage);
-
-	if (AttackRangeSphere)
-	{
-		AttackRangeSphere->OnComponentBeginOverlap.AddDynamic(
-			this, &ACC_EnemyCharacter::OnAttackRangeBeginOverlap
-		);
-
-		AttackRangeSphere->OnComponentEndOverlap.AddDynamic(
-			this, &ACC_EnemyCharacter::OnAttackRangeEndOverlap
-		);
-
-		CC_LOG_ENEMY(Warning, TEXT("%s - Attack range sphere initialized (Radius: %.1f)"), *GetName(), AttackRangeSphere->GetScaledSphereRadius());
 	}
 
 	if (USkeletalMeshComponent* SkeletalMesh = GetMesh())
@@ -314,12 +273,6 @@ void ACC_EnemyCharacter::FindPlayer()
 	{
 		UE_LOG(LogTemp, Warning, TEXT("Enemy could not find player"));
 	}
-}
-
-bool ACC_EnemyCharacter::CanDealDamage() const
-{
-	float CurrentTime = GetWorld()->GetTimeSeconds();
-	return (CurrentTime - LastDamageTime) >= DamageCooldown;
 }
 
 bool ACC_EnemyCharacter::PerformAttackHit(const FAttackHitData& HitData, TArray<AActor*>& OutHitTargets)
@@ -525,36 +478,6 @@ bool ACC_EnemyCharacter::PerformAttackHit(const FAttackHitData& HitData, TArray<
 	return OutHitTargets.Num() > 0;
 }
 
-void ACC_EnemyCharacter::DealContactDamage(AActor* OtherActor)
-{
-	if (!OtherActor || !CanDealDamage())
-	{
-		return;
-	}
-
-	// Check if it's the player
-	ACC_PlayerCharacter* Player = Cast<ACC_PlayerCharacter>(OtherActor);
-	if (!Player)
-	{
-		return;
-	}
-
-	// Deal damage to player
-	UGameplayStatics::ApplyDamage(
-		Player,
-		ContactDamage,
-		GetController(),
-		this,
-		UDamageType::StaticClass()
-	);
-
-	// Update cooldown
-	LastDamageTime = GetWorld()->GetTimeSeconds();
-
-	UE_LOG(LogTemp, Log, TEXT("Enemy dealt %.0f contact damage to player"), ContactDamage);
-
-}
-
 void ACC_EnemyCharacter::Die()
 {
 
@@ -619,32 +542,6 @@ void ACC_EnemyCharacter::Die()
 
 	// Destroy enemy after short delay
 	SetLifeSpan(1.0f);
-}
-
-void ACC_EnemyCharacter::OnOverlapBegin(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
-{
-	//DealContactDamage(OtherActor);
-
-	//UE_LOG(LogTemp, Warning, TEXT("[ENEMY] %s - OnOverlapBegin with: %s") *GetName(), *OtherActor->GetName());
-
-	if(ACC_PlayerCharacter* Player = Cast<ACC_PlayerCharacter>(OtherActor))
-	{
-		//UE_LOG(LogTemp, Warning, TEXT("[ENEMY] %s - Detected PLAYER overlap!"), *GetName());
-
-		TargetPlayer = Player;
-
-
-		//UE_LOG(LogTemp, Warning, TEXT("[ENEMY] %s - Calling TryAttack..."), *GetName());
-
-
-		TryAttack(Player);
-
-
-	}
-	else
-	{
-		//UE_LOG(LogTemp, Log, TEXT("[ENEMY] %s - Overlap with non-player: %s"), *GetName(), *OtherActor->GetClass()->GetName());
-	}
 }
 
 void ACC_EnemyCharacter::PerformAttack()
@@ -716,37 +613,6 @@ void ACC_EnemyCharacter::ResetAttackCooldown()
 		{
 			TryAttack(TargetPlayer);
 		}
-	}
-}
-
-void ACC_EnemyCharacter::OnAttackRangeBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
-{
-	//CC_LOG_ENEMY(Warning, TEXT("%s - OnAttackRangeBeginOverlap with: %s"), *GetName(), *OtherActor->GetName());
-
-	if(ACC_PlayerCharacter* Player = Cast<ACC_PlayerCharacter>(OtherActor))
-	{
-		if (!bPlayerInRange)
-		{
-			bPlayerInRange = true;
-			TargetPlayer = Player;
-
-			CC_LOG_ENEMY(Warning, TEXT("%s - Player entered ATTACK RANGE"),
-				*GetName());
-
-			TryAttack(Player);
-		}
-	}
-
-}
-
-void ACC_EnemyCharacter::OnAttackRangeEndOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex)
-{
-	if (OtherActor == TargetPlayer)
-	{
-		bPlayerInRange = false;
-		TargetPlayer = nullptr;
-
-		//CC_LOG_ENEMY(Log, TEXT("%s - Player left ATTACK RANGE"), *GetName());
 	}
 }
 
@@ -933,7 +799,8 @@ void ACC_EnemyCharacter::Freeze_Implementation()
 	bIsFrozen = true;
 
 	// 추적 즉시 중단 ? AIManager가 다음 Tick에 덮어쓰지 못하도록 먼저 끊음
-	SetChasePlayer(false);
+	// BlueprintNativeEvent는 직접 호출 금지 ? Execute 함수 경유 필수
+	ICC_EnemyAIInterface::Execute_SetChasePlayer(this, false);
 
 	// 시간 정지 (이동/물리/애니 모두 영향)
 	CustomTimeDilation = 0.0f;

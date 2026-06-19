@@ -122,29 +122,11 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Combat")
 	FAttackHitData AttackHitData;
 
-	// Contact damage dealt to player on collision
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Combat")
-	float ContactDamage;
-
-	// Cooldown between damage ticks
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Combat")
-	float DamageCooldown;
-
-	// Last time damage was dealt
-	UPROPERTY()
-	float LastDamageTime;
-
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Combat|Debug")
 	bool bShowAttackDebug = true;
 
-	// Can deal damage right now?
-	bool CanDealDamage() const;
-
 	UFUNCTION(BlueprintCallable, Category = "Enemy|Combat")
 	bool PerformAttackHit(const FAttackHitData& HitData, TArray<AActor*>& OutHitTargets);
-
-	// Deal contact damage to player
-	void DealContactDamage(AActor* OtherActor);
 
 	
 protected:
@@ -174,14 +156,6 @@ protected:
 	//==========================================================================
 	// COLLISION
 	//==========================================================================
-
-
-	// Called when enemy overlaps with something
-	UFUNCTION()
-	void OnOverlapBegin(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
-		UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep,
-		const FHitResult& SweepResult);
-
 
 protected:
 
@@ -230,9 +204,6 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats")
 	FCristalCubeEnemyStats EnemyStats;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
-	class USphereComponent* AttackRangeSphere;
-
 	// Attack cooldown timer
 	FTimerHandle AttackCooldownTimer;
 
@@ -245,15 +216,6 @@ protected:
 	void PerformAttack();
 	void StartAttackCooldown();
 	void ResetAttackCooldown();
-
-	UFUNCTION()
-	void OnAttackRangeBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
-		UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep,
-		const FHitResult& SweepResult);
-
-	UFUNCTION()
-	void OnAttackRangeEndOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
-		UPrimitiveComponent* OtherComp, int32 OtherBodyIndex);
 
 public:
 

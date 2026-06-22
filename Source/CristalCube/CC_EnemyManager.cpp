@@ -3,6 +3,7 @@
 
 #include "CC_EnemyManager.h"
 #include "Kismet/GameplayStatics.h"
+#include "Gameplay/CC_EnemyAIInterface.h"
 #include "EngineUtils.h"
 
 TWeakObjectPtr<ACC_EnemyManager> ACC_EnemyManager::WeakInstance = nullptr;
@@ -156,6 +157,8 @@ AActor* ACC_EnemyManager::GetNearestEnemy(const FVector& Location, float MaxRadi
             continue;
         }
 
+        if (ICC_EnemyAIInterface::Execute_GetIsFrozen(Enemy)) continue;
+
         float DistSq = FVector::DistSquared(Location, Enemy->GetActorLocation());
 
         if (DistSq < NearestDistSq)
@@ -179,6 +182,8 @@ TArray<AActor*> ACC_EnemyManager::GetEnemiesInRadius(const FVector& Location, fl
         {
             continue;
         }
+
+        if (ICC_EnemyAIInterface::Execute_GetIsFrozen(Enemy)) continue;
 
         float DistSq = FVector::DistSquared(Location, Enemy->GetActorLocation());
 

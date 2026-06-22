@@ -10,6 +10,13 @@
 #include "Engine/World.h"
 #include "TimerManager.h"
 #include "CC_EnemyManager.h"
+#include "DrawDebugHelpers.h"
+
+static TAutoConsoleVariable<bool> CVarDrawAIDebug(
+	TEXT("CC.AI.DrawDebug"),
+	false,
+	TEXT("모든 적의 위치와 Frozen 상태를 디버그로 표시 (Hidden 상태에서도 표시됨)"),
+	ECVF_Cheat);
 
 
 void UCC_AIManager::Initialize(FSubsystemCollectionBase& Collection)
@@ -210,6 +217,22 @@ void UCC_AIManager::BatchUpdateAI()
 
 	LastProcessedCount = ActiveAIEnemies.Num();
 
+#if !UE_BUILD_SHIPPING
+	if (CVarDrawAIDebug.GetValueOnGameThread())
+	{
+		for (AActor* Enemy : ActiveEnemies)
+		{
+			if (!IsValid(Enemy)) continue;
+
+			const bool bFrozen = ICC_EnemyAIInterface::Execute_GetIsFrozen(Enemy);
+			const FColor DebugColor = bFrozen ? FColor::Blue : FColor::Green;
+
+			DrawDebugSphere(GetWorld(), Enemy->GetActorLocation(), 50.f, 8, DebugColor, false, AIUpdateFrequency * 1.2f);
+			DrawDebugString(GetWorld(), Enemy->GetActorLocation() + FVector(0, 0, 100),
+				bFrozen ? TEXT("FROZEN") : TEXT("ACTIVE"), nullptr, DebugColor, AIUpdateFrequency * 1.2f, false, 1.2f);
+		}
+	}
+#endif
 }
 
 ACC_PlayerCharacter* UCC_AIManager::GetPlayerCharacter() const

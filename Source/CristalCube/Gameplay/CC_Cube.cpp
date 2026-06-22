@@ -48,6 +48,26 @@ void ACC_Cube::BeginPlay()
 void ACC_Cube::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
+
+	// ManagedActors 방어적 정화 — 정상 경로는 OnEnemyUnregistered 체인이
+	// 처리하지만, 누락되는 경우를 대비해 EnemyManager/Spawner와 동일하게
+	// 주기적으로 무효 포인터를 걸러냄
+	ManagedActorsCleanupTimer += DeltaTime;
+	if (ManagedActorsCleanupTimer >= 3.0f)
+	{
+		ManagedActorsCleanupTimer = 0.0f;
+
+		int32 Before = ManagedActors.Num();
+		ManagedActors.RemoveAll([](AActor* A) { return !IsValid(A); });
+		int32 Removed = Before - ManagedActors.Num();
+
+		if (Removed > 0)
+		{
+			UE_LOG(LogTemp, Warning,
+				TEXT("[Cube %d,%d] Defensive cleanup removed %d stale ManagedActors entries"),
+				CubeCoordinate.X, CubeCoordinate.Y, Removed);
+		}
+	}
 }
 
 void ACC_Cube::GenerateCube()

@@ -217,7 +217,7 @@ protected:
     EBoundaryDirection LastTransitionDirection;
 
 public:
-    
+    UFUNCTION()
     void OnEmenyUnregistered(AActor* Enemy);
 
 	UFUNCTION(BlueprintCallable, Category = "Cube|Theme")
@@ -225,4 +225,8 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "Cube")
     void LinkSpawnersToNearestCube();
+
+protected:
+
+    float DebugLogTimer = 0.f;
 };

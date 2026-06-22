@@ -234,4 +234,9 @@ protected:
 	TMap<UBoxComponent*, EBoundaryDirection> BoundaryDirectionMap;
 
 public:
+
+protected:
+
+	float ManagedActorsCleanupTimer = 0.f;
+
 };

@@ -12,6 +12,12 @@
 
 ACC_CubeWorldManager* ACC_CubeWorldManager::Instance = nullptr;
 
+static TAutoConsoleVariable<float> CVarCubeDebugLogInterval(
+	TEXT("CC.Cube.DebugLogInterval"),
+	0.0f,
+	TEXT("0보다 크면 그 주기(초)마다 PrintDebugInfo()를 자동 출력. 0이면 비활성."),
+	ECVF_Cheat);
+
 // Sets default values
 ACC_CubeWorldManager::ACC_CubeWorldManager()
 {
@@ -63,6 +69,17 @@ void ACC_CubeWorldManager::Tick(float DeltaTime)
 		DrawAllCubes();
 	}
 
+	// D-05 소크 테스트: 설정된 주기마다 자동으로 디버그 정보 로그
+	const float LogInterval = CVarCubeDebugLogInterval.GetValueOnGameThread();
+	if (LogInterval > 0.f)
+	{
+		DebugLogTimer += DeltaTime;
+		if (DebugLogTimer >= LogInterval)
+		{
+			DebugLogTimer = 0.f;
+			PrintDebugInfo();
+		}
+	}
 }
 
 ACC_CubeWorldManager* ACC_CubeWorldManager::Get(const UObject* WorldContextObject)
@@ -453,8 +470,23 @@ void ACC_CubeWorldManager::PerformTransition(FIntPoint NextCoord)
 	ACharacter* Player = GetPlayerCharacter();
 	if (Player)
 	{
+		// 텔레포트 위치에 Enemy 등이 겹쳐 있으면 엔진이 즉시 밀어내면서
+		// 방금 들어온 경계로 도로 튕겨나가는 문제 방지 — 텔레포트 순간만 충돌 끔
+		Player->SetActorEnableCollision(false);
+
 		Player->SetActorLocation(NewPlayerPos);
 		UE_LOG(LogTemp, Log, TEXT("[Manager] Player moved to: %s"), *NewPlayerPos.ToString());
+
+		// 한 틱 쉬고 충돌 복구 — 같은 프레임에 바로 켜면 그 자리에서
+		// 곧바로 다시 밀려날 수 있어서 한 틱 정도 여유를 줌
+		TWeakObjectPtr<ACharacter> WeakPlayer = Player;
+		GetWorldTimerManager().SetTimerForNextTick([WeakPlayer]()
+			{
+				if (WeakPlayer.IsValid())
+				{
+					WeakPlayer->SetActorEnableCollision(true);
+				}
+			});
 	}
 
 	ActiveCube = NextCube;
@@ -471,22 +503,24 @@ FVector ACC_CubeWorldManager::CalculatePlayerPositionInCube(ACC_Cube* TargetCube
 		return FVector::ZeroVector;
 
 	FVector CubeCenter = TargetCube->GetCubeCenter();
-	float Offset = (CubeSize / 2.0f) - 500.0f; // ��迡�� �ణ ����
+	float Offset = (CubeSize / 2.0f) - 500.0f; // 경계에서 약간 안쪽
 
-	// �ݴ������� ����
+	// FromDirection = 이전 큐브에서 "나간" 방향
+	// → 새 큐브에서는 그 반대쪽(=이전 큐브와 맞닿은 면) 근처에 배치해야
+	//   다음 경계까지 큐브 폭만큼 제대로 이동하게 됨
 	switch (FromDirection)
 	{
 	case EBoundaryDirection::Right:
-		return CubeCenter + FVector(0, Offset, 200); // ���ʿ��� ����
+		return CubeCenter + FVector(0, -Offset, 200); // Right로 나감 → 새 큐브 Left쪽에 배치
 
 	case EBoundaryDirection::Left:
-		return CubeCenter + FVector(0, -Offset, 200); // �����ʿ��� ����
+		return CubeCenter + FVector(0, Offset, 200); // Left로 나감 → 새 큐브 Right쪽에 배치
 
 	case EBoundaryDirection::Up:
-		return CubeCenter + FVector(Offset, 0, 200); // �Ʒ����� ����
+		return CubeCenter + FVector(-Offset, 0, 200); // Up로 나감 → 새 큐브 Down쪽에 배치
 
 	case EBoundaryDirection::Down:
-		return CubeCenter + FVector(-Offset, 0, 200); // ������ ����
+		return CubeCenter + FVector(Offset, 0, 200); // Down로 나감 → 새 큐브 Up쪽에 배치
 	}
 
 	return CubeCenter;
@@ -529,12 +563,25 @@ void ACC_CubeWorldManager::PrintDebugInfo()
 	UE_LOG(LogTemp, Warning, TEXT("Loaded Cubes: %d"), LoadedCubes.Num());
 	UE_LOG(LogTemp, Warning, TEXT("Transitioning: %s"), bIsTransitioning ? TEXT("Yes") : TEXT("No"));
 
-	if (ActiveCube)
+	int32 TotalManagedActors = 0;
+	for (ACC_Cube* Cube : LoadedCubes)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("Active Cube Actors: %d"), ActiveCube->ManagedActors.Num());
+		if (!Cube) continue;
+		TotalManagedActors += Cube->ManagedActors.Num();
+		UE_LOG(LogTemp, Warning, TEXT("  - Cube (%d,%d) [%s]: %d actors"),
+			Cube->CubeCoordinate.X, Cube->CubeCoordinate.Y,
+			Cube->IsFrozen() ? TEXT("Frozen") : TEXT("Active"),
+			Cube->ManagedActors.Num());
+	}
+	UE_LOG(LogTemp, Warning, TEXT("Total ManagedActors (all cubes): %d"), TotalManagedActors);
+
+	if (ACC_EnemyManager* Manager = ACC_EnemyManager::Get(this))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("EnemyManager ActiveEnemies: %d"), Manager->GetEnemyCount());
 	}
 
 	UE_LOG(LogTemp, Warning, TEXT("=============================================="));
+
 }
 
 void ACC_CubeWorldManager::DrawAllCubes()
@@ -555,12 +602,17 @@ void ACC_CubeWorldManager::OnEmenyUnregistered(AActor* Enemy)
 {
 	if (!Enemy) return;
 
+	UE_LOG(LogTemp, Warning, TEXT("[CubeWorldManager] OnEmenyUnregistered called for: %s"),
+		*GetNameSafe(Enemy));
+
+	bool bFound = false;
 	// ─── 모든 LoadedCubes에서 죽은 Enemy UnregisterActor ──────────────────
 	for (ACC_Cube* Cube : LoadedCubes)
 	{
 		if (!Cube) continue;
 		if (Cube->ManagedActors.Contains(Enemy))
 		{
+			bFound = true;
 			Cube->UnregisterActor(Enemy);
 			UE_LOG(LogTemp, Log,
 				TEXT("[CubeWorldManager] Unregistered dead enemy [%s] from Cube (%d,%d)"),
@@ -568,6 +620,14 @@ void ACC_CubeWorldManager::OnEmenyUnregistered(AActor* Enemy)
 				Cube->CubeCoordinate.X, Cube->CubeCoordinate.Y);
 			break; // 한 Cube에만 소속
 		}
+	}
+
+	// ← 추가: 못 찾은 경우를 명시적으로 로그
+	if (!bFound)
+	{
+		UE_LOG(LogTemp, Error,
+			TEXT("[CubeWorldManager] %s was NOT found in any Cube's ManagedActors! "),
+			*GetNameSafe(Enemy));
 	}
 
 	if (ACC_EnemyCharacter* EnemyChar = Cast<ACC_EnemyCharacter>(Enemy))

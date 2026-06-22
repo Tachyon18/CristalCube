@@ -6,6 +6,7 @@
 #include "CC_SkillEffector.h"
 #include "../WeaponSystems/CC_Projectile.h"
 #include "../Characters/CC_Character.h"
+#include "../Gameplay/CC_EnemyAIInterface.h"
 #include "Kismet/GameplayStatics.h"
 #include "Engine/DamageEvents.h"
 #include "NiagaraFunctionLibrary.h"
@@ -942,6 +943,8 @@ AActor* UCC_SkillSystem::FindNearestEnemy(FVector Origin, float Radius, const TA
 			continue;
 		}
 
+		if (ICC_EnemyAIInterface::Execute_GetIsFrozen(Enemy)) continue;
+
 		float Distance = FVector::Dist(Origin, Enemy->GetActorLocation());
 		if (Distance < NearestDistance)
 		{
@@ -965,6 +968,8 @@ TArray<AActor*> UCC_SkillSystem::FindEnemiesInRadius(FVector Origin, float Radiu
 		{
 			continue;
 		}
+
+		if (ICC_EnemyAIInterface::Execute_GetIsFrozen(Enemy)) continue;
 
 		float Distance = FVector::Dist(Origin, Enemy->GetActorLocation());
 		if (Distance <= Radius)

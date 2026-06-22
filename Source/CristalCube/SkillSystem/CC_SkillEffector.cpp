@@ -5,7 +5,8 @@
 #include "Kismet/GameplayStatics.h"
 #include "../CC_LogHelper.h"
 #include "Components/SphereComponent.h"
-#include "NiagaraComponent.h"
+#include "../Gameplay/CC_EnemyAIInterface.h"
+#include "NiagaraComponent.h"	
 #include "NiagaraFunctionLibrary.h"
 #include "GameFramework/ProjectileMovementComponent.h"
 
@@ -134,6 +135,13 @@ void ACC_SkillEffector::OnOverlapBegin(UPrimitiveComponent* OverlappedComp, AAct
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[SkillEffector] Not an enemy, ignoring: %s"),
 			*OtherActor->GetName());
+		return;
+	}
+
+	// Frozen 상태(다른 Cube에 있어 숨겨진 적)는 타겟에서 제외
+	if (OtherActor->GetClass()->ImplementsInterface(UCC_EnemyAIInterface::StaticClass())
+		&& ICC_EnemyAIInterface::Execute_GetIsFrozen(OtherActor))
+	{
 		return;
 	}
 

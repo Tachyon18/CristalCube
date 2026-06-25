@@ -118,9 +118,17 @@ public:
     UPROPERTY()
     TMap<FIntPoint, FCubeData> CubeGrid;
 
-    /** ���� Active ť�� */
+    /** 종전 Active 큐브 */
     UPROPERTY()
     ACC_Cube* ActiveCube;
+
+    /** 현재 Active Cube 조회 — TestRoom HUD/Console 용 */
+    UFUNCTION(BlueprintPure, Category = "Cube")
+    ACC_Cube* GetActiveCube() const { return ActiveCube; }
+
+    /** 로드된 모든 Cube의 ManagedActors 합계 — 누수 감시용 (PrintDebugInfo의 동일 계산을 BP에서도 즉시 조회) */
+    UFUNCTION(BlueprintPure, Category = "Cube|Debug")
+    int32 GetTotalManagedActorsCount() const;
 
     /** Spawn�� ť��� */
     UPROPERTY()

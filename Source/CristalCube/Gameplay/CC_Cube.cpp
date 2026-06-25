@@ -538,6 +538,7 @@ void ACC_Cube::Freeze()
 		// Basic deactivation
 		Actor->SetActorHiddenInGame(true);
 		Actor->SetActorTickEnabled(false);
+		Actor->SetActorEnableCollision(false);
 
 		// Actor implementing Freezable interface
 		if (Actor->GetClass()->ImplementsInterface(UCC_Freezable::StaticClass()))
@@ -615,6 +616,7 @@ void ACC_Cube::Unfreeze()
 		// Basic reactivation
 		Actor->SetActorHiddenInGame(false);
 		Actor->SetActorTickEnabled(true);
+		Actor->SetActorEnableCollision(true);
 
 		// Actor implementing Freezable interface
 		if (Actor->GetClass()->ImplementsInterface(UCC_Freezable::StaticClass()))

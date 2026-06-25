@@ -17,6 +17,7 @@
 #include "../CC_EnemyAIController.h"
 #include "../CC_CubeWorldManager.h"
 #include "../Gameplay/CC_ExperienceGem.h"
+#include "../Gameplay/CC_Cube.h"
 
 
 ACC_EnemyCharacter::ACC_EnemyCharacter()
@@ -514,6 +515,17 @@ void ACC_EnemyCharacter::Die()
 		if (Gem)
 		{
 			Gem->SetExpAmount(ExpGemAmount);
+
+			// 현재 Active Cube에 등록 (Freeze와 함께 멈추도록)
+			if (ACC_CubeWorldManager* CubeManager = ACC_CubeWorldManager::Get(this))
+			{
+				if (ACC_Cube* ActiveCubeRef = CubeManager->GetActiveCube())
+				{
+					ActiveCubeRef->RegisterActor(Gem);
+					Gem->SetOwnerCube(ActiveCubeRef);
+				}
+			}
+
 			CC_LOG_ENEMY(Log, TEXT("[Enemy] Spawned EXP Gem (%f EXP)"), ExpGemAmount);
 		}
 	}

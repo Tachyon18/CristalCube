@@ -150,12 +150,12 @@ public:
     UFUNCTION(BlueprintPure, Category = "Spawner")
     bool CanSpawnMore() const;
 
-    UFUNCTION(BlueprintPure, Category = "Spawner")
-    ACC_PlayerCharacter* GetPlayer() const { return CachedPlayer; }
-
     /** Set owner cube for spawn location */
     UFUNCTION(BlueprintCallable, Category = "Spawner")
-    void SetOwnerCube(class ACC_Cube* Cube) { OwnerCube = Cube; }
+    void SetOwnerCube(class ACC_Cube* Cube);
+
+    UFUNCTION(BlueprintPure, Category = "Spawner")
+    ACC_PlayerCharacter* GetPlayer() const { return CachedPlayer; }
 
     /** Get owner cube */
     UFUNCTION(BlueprintPure, Category = "Spawner")

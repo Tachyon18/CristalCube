@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 #include "../CristalCubeStruct.h"
+#include "CC_SkillInstance.h"
 #include "CC_SkillSystem.generated.h"
 
 
@@ -160,6 +161,18 @@ protected:
 	UFUNCTION()
 	void OnProjectileHit(class ACC_SkillEffector* Effector, AActor* HitActor);
 
+	UFUNCTION()
+	void OnCubeTransitioned(FIntPoint NewCoordinate);
+
+	/**
+	 * 지속되는 스킬 인스턴스 액터를 추적 목록에 등록.
+	 * Projectile/Rainfall Effector뿐 아니라, 향후 ICC_SkillInstance를 구현한
+	 * 어떤 스킬 인스턴스 액터든(Channeling 등) 스폰 시 이 함수만 호출하면
+	 * 별도 코드 수정 없이 큐브 전환 정리 대상에 포함됨.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Skill System")
+	void RegisterActiveSkillInstance(AActor* Instance);
+
 	/**
 	 * 가장 가까운 적 찾기
 	 */
@@ -217,4 +230,9 @@ protected:
 	// 현재 실행 중인 스킬들 (Phase 2+ 확장용)
 	UPROPERTY()
 	TArray<FSkillExecutionContext> ActiveSkills;
+
+	/** 현재 진행 중인 스킬 인스턴스 액터들. 큐브 전환 시 ICC_SkillInstance 기준으로 정리됨. */
+	UPROPERTY()
+	TArray<AActor*> ActiveSkillInstances;
+
 };

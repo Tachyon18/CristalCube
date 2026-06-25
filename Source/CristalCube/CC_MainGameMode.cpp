@@ -74,6 +74,8 @@ void ACC_MainGameMode::ShowCubeClearUI(int32 ClearedCycle)
     CurrentCubeClearWidget = CreateWidget<UUserWidget>(PC, CubeClearWidgetClass);
     if (CurrentCubeClearWidget)
     {
+        UGameplayStatics::SetGamePaused(GetWorld(), true);
+
         CurrentCubeClearWidget->AddToViewport();
         PC->SetInputMode(FInputModeUIOnly());
         PC->SetShowMouseCursor(true);

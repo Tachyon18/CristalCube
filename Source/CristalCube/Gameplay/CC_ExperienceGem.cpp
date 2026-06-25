@@ -4,6 +4,7 @@
 #include "CC_ExperienceGem.h"
 #include "Components/SphereComponent.h"
 #include "../Characters/CC_PlayerCharacter.h"
+#include "CC_Cube.h"
 #include "Kismet/GameplayStatics.h"
 
 // Sets default values
@@ -106,6 +107,16 @@ void ACC_ExperienceGem::BeginPlay()
 
 }
 
+void ACC_ExperienceGem::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	if (OwnerCube.IsValid())
+	{
+		OwnerCube->UnregisterActor(this);
+	}
+
+	Super::EndPlay(EndPlayReason);
+}
+
 // Called every frame
 void ACC_ExperienceGem::Tick(float DeltaTime)
 {
@@ -116,6 +127,35 @@ void ACC_ExperienceGem::Tick(float DeltaTime)
 	{
 		MoveTowardsPlayer(DeltaTime);
 	}
+}
+
+void ACC_ExperienceGem::SetOwnerCube(ACC_Cube* Cube)
+{
+	OwnerCube = Cube;
+}
+
+void ACC_ExperienceGem::Freeze_Implementation()
+{
+	if (bIsFrozen) return;
+	bIsFrozen = true;
+
+	// Tick 기반 흡수 이동(MoveTowardsPlayer)은 Cube::Freeze()의
+	// SetActorTickEnabled(false)가 이미 멈춰줌 — 여기선 타이머만 일시정지
+	GetWorldTimerManager().PauseTimer(LifetimeTimer);
+	GetWorldTimerManager().PauseTimer(DistanceCheckTimer);
+
+	UE_LOG(LogTemp, Log, TEXT("[ExpGem] Frozen with cube"));
+}
+
+void ACC_ExperienceGem::Unfreeze_Implementation()
+{
+	if (!bIsFrozen) return;
+	bIsFrozen = false;
+
+	GetWorldTimerManager().UnPauseTimer(LifetimeTimer);
+	GetWorldTimerManager().UnPauseTimer(DistanceCheckTimer);
+
+	UE_LOG(LogTemp, Log, TEXT("[ExpGem] Unfrozen with cube"));
 }
 
 void ACC_ExperienceGem::CheckDistanceToPlayer()

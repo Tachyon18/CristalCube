@@ -4,14 +4,17 @@
 #include "CC_SkillSystem.h"
 #include "../CC_LogHelper.h"
 #include "CC_SkillEffector.h"
+#include "CC_SkillInstance.h"
 #include "../WeaponSystems/CC_Projectile.h"
 #include "../Characters/CC_Character.h"
 #include "../Gameplay/CC_EnemyAIInterface.h"
+#include "../CC_CubeWorldManager.h"
 #include "Kismet/GameplayStatics.h"
 #include "Engine/DamageEvents.h"
 #include "NiagaraFunctionLibrary.h"
 #include "NiagaraComponent.h"
 #include "DrawDebugHelpers.h"
+#include "TimerManager.h"
 
 
 // Sets default values for this component's properties
@@ -33,6 +36,18 @@ void UCC_SkillSystem::BeginPlay()
 
 	// ...
 	UE_LOG(LogTemp, Log, TEXT("SkillSystem initialized for %s"), *GetOwner()->GetName());
+
+	// CubeWorldManager가 아직 준비 안 됐을 수 있어 한 틱 늦게 바인딩
+	FTimerHandle BindTimer;
+	GetWorld()->GetTimerManager().SetTimer(BindTimer, [this]()
+		{
+			if (ACC_CubeWorldManager* CubeManager = ACC_CubeWorldManager::Get(this))
+			{
+				CubeManager->OnCubeTransition.AddDynamic(this, &UCC_SkillSystem::OnCubeTransitioned);
+				UE_LOG(LogTemp, Log, TEXT("[SkillSystem] Bound to OnCubeTransition."));
+			}
+		}, 0.2f, false);
+
 }
 
 
@@ -175,6 +190,8 @@ void UCC_SkillSystem::ExecuteProjectile(const FSkillDefinition& Skill, FSkillExe
 			SkillEffectorProjectile->SetSkillOwner(Context.Caster);
 			SkillEffectorProjectile->SkillContext = Context;
 			SkillEffectorProjectile->Initialize(Skill.CoreType, Skill);
+
+			RegisterActiveSkillInstance(SkillEffectorProjectile);
 
 			SkillEffectorProjectile->OnEffectorHit.AddDynamic(this, &UCC_SkillSystem::OnProjectileHit);
 
@@ -553,6 +570,9 @@ void UCC_SkillSystem::SpawnRainfallProjectile(const FSkillDefinition& Skill, con
 	Effector->SetSkillOwner(Context.Caster);
 	Effector->SkillContext = NewContext;
 	Effector->Initialize(ESkillCoreType::Rainfall, Skill);
+
+	RegisterActiveSkillInstance(Effector);
+
 	Effector->OnEffectorHit.AddDynamic(this, &UCC_SkillSystem::OnProjectileHit);
 
 	UE_LOG(LogTemp, Log, TEXT("SpawnRainfallProjectile: at Z=%.0f → floor Z=%.0f"),
@@ -926,6 +946,48 @@ void UCC_SkillSystem::OnProjectileHit(ACC_SkillEffector* Effector, AActor* HitAc
 		Effector->Destroy();
 	}
 
+}
+
+void UCC_SkillSystem::OnCubeTransitioned(FIntPoint NewCoordinate)
+{
+	for (AActor* Instance : ActiveSkillInstances)
+	{
+		if (!IsValid(Instance)) continue;
+
+		if (Instance->GetClass()->ImplementsInterface(UCC_SkillInstance::StaticClass()))
+		{
+			if (!ICC_SkillInstance::Execute_ShouldPersistThroughCubeTransition(Instance))
+			{
+				UE_LOG(LogTemp, Log,
+					TEXT("[SkillSystem] Cube transition ? removing skill instance: %s"),
+					*Instance->GetName());
+				ICC_SkillInstance::Execute_OnRemovedByCubeTransition(Instance);
+			}
+			else
+			{
+				UE_LOG(LogTemp, Log,
+					TEXT("[SkillSystem] Cube transition ? persisting skill instance: %s"),
+					*Instance->GetName());
+			}
+			// true(유지)면 아무것도 안 함 , 손대지 않고 그대로 계속 동작
+		}
+		else
+		{
+			// ICC_SkillInstance 미구현 인스턴스가 섞여 들어온 경우엔 안전하게 기본값(소멸) 처리
+			UE_LOG(LogTemp, Warning,
+				TEXT("[SkillSystem] %s in ActiveSkillInstances doesn't implement ICC_SkillInstance ? destroying as fallback"),
+				*Instance->GetName());
+			Instance->Destroy();
+		}
+	}
+
+	ActiveSkillInstances.RemoveAll([](AActor* A) { return !IsValid(A); });
+}
+
+void UCC_SkillSystem::RegisterActiveSkillInstance(AActor* Instance)
+{
+	if (!Instance) return;
+	ActiveSkillInstances.AddUnique(Instance);
 }
 
 AActor* UCC_SkillSystem::FindNearestEnemy(FVector Origin, float Radius, const TArray<AActor*>& ExcludeActors) const

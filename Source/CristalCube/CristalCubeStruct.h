@@ -403,6 +403,15 @@ struct FSkillDefinition
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Basic")
     float Range = 1000.0f;
 
+    // ↓ 추가
+    /**
+     * 스킬의 추가적인 특징 — true면 큐브 전환(Freeze) 시에도 소멸하지 않고 유지됨.
+     * 기본값 false: 일반적인 스킬은 사용한 큐브를 벗어나면(Freeze) 즉시 소멸.
+     * 외부 지원형 스킬 등 예외적인 경우에만 true로 설정.
+     */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Advanced")
+    bool bPersistsThroughCubeTransition = false;
+
     // === Core (필수, 하나만) ===
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Core")
     ESkillCoreType CoreType = ESkillCoreType::Projectile;

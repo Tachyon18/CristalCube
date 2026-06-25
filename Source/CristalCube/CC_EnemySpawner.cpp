@@ -417,6 +417,25 @@ bool ACC_EnemySpawner::CanSpawnMore() const
     return GetAliveEnemyCount() < MaxEnemies;
 }
 
+void ACC_EnemySpawner::SetOwnerCube(ACC_Cube* Cube)
+{
+    OwnerCube = Cube;
+
+    // [버그 수정] OwnerCube가 늦게(스폰 시작 이후) 연결되는 경우,
+    // 그 사이에 이미 태어난 미등록 Enemy들을 지금 한꺼번에 등록.
+    // 안 그러면 이 Enemy들은 영원히 Freeze 대상에서 빠짐.
+    if (OwnerCube)
+    {
+        for (APawn* Enemy : SpawnedEnemies)
+        {
+            if (IsValid(Enemy))
+            {
+                OwnerCube->RegisterActor(Enemy);
+            }
+        }
+    }
+}
+
 void ACC_EnemySpawner::Freeze_Implementation()
 {
     if (bIsFrozen)

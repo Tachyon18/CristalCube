@@ -160,6 +160,16 @@ void ACC_CubeWorldManager::TeleportPersistentEnemiesToCube(ACC_Cube* TargetCube)
 	}
 }
 
+int32 ACC_CubeWorldManager::GetTotalManagedActorsCount() const
+{
+	int32 Total = 0;
+	for (const ACC_Cube* Cube : LoadedCubes)
+	{
+		if (Cube) Total += Cube->ManagedActors.Num();
+	}
+	return Total;
+}
+
 void ACC_CubeWorldManager::InitializeSystem()
 {
 	UE_LOG(LogTemp, Warning, TEXT("=============================================="));
@@ -630,13 +640,18 @@ void ACC_CubeWorldManager::OnEmenyUnregistered(AActor* Enemy)
 			*GetNameSafe(Enemy));
 	}
 
-	if (ACC_EnemyCharacter* EnemyChar = Cast<ACC_EnemyCharacter>(Enemy))
-	{
-		if (EnemyChar->bPersistent)
-		{
-			UnregisterPersistentEnemy(EnemyChar);
-		}
-	}
+	// [버그.5 수정] Persistent 카운트 차감은 ACC_EnemyCharacter::Die()에서 즉시 처리됨.
+	// 여기서 다시 차감하면 이중 차감 발생 (Die() → EndPlay() → 본 함수 순으로 같은 적에 대해 두 번 호출됨).
+	// 주의: 만약 향후 Persistent 적이 Die()를 거치지 않고 파괴되는 경로가 생기면
+	// (예: DespawnCube의 강제 정리 등) 그 경로에서 Persistent 카운트 차감을 별도로 챙겨야 함.
+
+	//if (ACC_EnemyCharacter* EnemyChar = Cast<ACC_EnemyCharacter>(Enemy))
+	//{
+	//	if (EnemyChar->bPersistent)
+	//	{
+	//		UnregisterPersistentEnemy(EnemyChar);
+	//	}
+	//}
 }
 
 ECubeTheme ACC_CubeWorldManager::AssignThemeForCoord(FIntPoint Coord) const

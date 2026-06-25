@@ -13,6 +13,7 @@
 #include "../CC_CubeWorldManager.h"
 #include "../Characters/CC_PlayerCharacter.h"
 #include "../Gameplay/CC_ExperienceGem.h"
+#include "../Gameplay/CC_Cube.h"
 
 // Sets default values
 ACC_EnemyBase::ACC_EnemyBase()
@@ -234,6 +235,15 @@ void ACC_EnemyBase::Die()
             ExpGemClass, SpawnLoc, FRotator::ZeroRotator))
         {
             Gem->SetExpAmount(ExpGemAmount);
+        
+            if (ACC_CubeWorldManager* CubeManager = ACC_CubeWorldManager::Get(this))
+            {
+                if (ACC_Cube* ActiveCubeRef = CubeManager->GetActiveCube())
+                {
+                    ActiveCubeRef->RegisterActor(Gem);
+                    Gem->SetOwnerCube(ActiveCubeRef);
+                }
+            }
         }
     }
 

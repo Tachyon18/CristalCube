@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "../CristalCubeStruct.h"
+#include "CC_SkillInstance.h"
 #include "CC_SkillEffector.generated.h"
 
 // SkillSystem으로 충돌 이벤트를 위임하는 델리게이트
@@ -16,8 +17,9 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(
 );
 
 UCLASS()
-class CRISTALCUBE_API ACC_SkillEffector : public AActor
+class CRISTALCUBE_API ACC_SkillEffector : public AActor, public ICC_SkillInstance
 {
+
 	GENERATED_BODY()
 	
 public:	
@@ -99,6 +101,17 @@ public:
 
 	void SetupAsProjectile();
 	void SetupAsRainfall();
+
+	// ICC_SkillInstance 구현
+	virtual bool ShouldPersistThroughCubeTransition_Implementation() const override
+	{
+		return SkillDef.bPersistsThroughCubeTransition;
+	}
+
+	virtual void OnRemovedByCubeTransition_Implementation() override
+	{
+		Destroy();
+	}
 protected:
 
 };

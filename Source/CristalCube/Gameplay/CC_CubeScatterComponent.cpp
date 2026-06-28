@@ -53,9 +53,9 @@ void UCC_CubeScatterComponent::Generate(FIntPoint CubeCoordinate)
         return;
     }
 
-    if (ScatterMeshes.Num() == 0)
+    if (MeshEntries.Num() == 0)
     {
-        UE_LOG(LogTemp, Warning, TEXT("[Scatter (%d,%d)] ScatterMeshes is empty! Assign meshes in Blueprint."),
+        UE_LOG(LogTemp, Warning, TEXT("[Scatter (%d,%d)] MeshEntries is empty! Assign meshes in Blueprint."),
             CubeCoordinate.X, CubeCoordinate.Y);
         return;
     }
@@ -69,16 +69,16 @@ void UCC_CubeScatterComponent::Generate(FIntPoint CubeCoordinate)
     // 2. 메시별 HISM 컴포넌트 준비
     if (HISMComponents.Num() == 0)
     {
-        for (UStaticMesh* Mesh : ScatterMeshes)
+        for (const FScatterMeshEntry& Entry : MeshEntries)
         {
-            if (Mesh)
+            if (Entry.Mesh)
             {
-                HISMComponents.Add(CreateHISM(Mesh));
+                HISMComponents.Add(CreateHISM(Entry.Mesh, Entry.bBlocksMovement));
             }
             else
             {
                 HISMComponents.Add(nullptr);
-                UE_LOG(LogTemp, Warning, TEXT("[Scatter] Null mesh entry in ScatterMeshes, skipping."));
+                UE_LOG(LogTemp, Warning, TEXT("[Scatter] Null mesh entry, skipping."));
             }
         }
     }
@@ -88,7 +88,7 @@ void UCC_CubeScatterComponent::Generate(FIntPoint CubeCoordinate)
 
     // 4. 메시별 트랜스폼 배열 준비
     TArray<TArray<FTransform>> TransformsByMesh;
-    TransformsByMesh.SetNum(ScatterMeshes.Num());
+    TransformsByMesh.SetNum(MeshEntries.Num());
 
     PlacedLocations.Empty();
     PlacedLocations.Reserve(Count);
@@ -144,7 +144,6 @@ void UCC_CubeScatterComponent::Generate(FIntPoint CubeCoordinate)
         if (!HISMComponents[i] || TransformsByMesh[i].Num() == 0)
             continue;
 
-        HISMComponents[i]->SetCollisionEnabled(ECollisionEnabled::NoCollision);
         HISMComponents[i]->AddInstances(TransformsByMesh[i], false);
     }
 
@@ -208,26 +207,23 @@ void UCC_CubeScatterComponent::ClearScatter()
 
 int32 UCC_CubeScatterComponent::PickMeshIndex(FRandomStream& RNG) const
 {
-    int32 MeshCount = ScatterMeshes.Num();
+    int32 MeshCount = MeshEntries.Num();
     if (MeshCount == 0) return 0;
 
-    // 가중치 기반 선택
-    if (MeshWeights.Num() == MeshCount)
+    int32 TotalWeight = 0;
+    for (const FScatterMeshEntry& Entry : MeshEntries)
     {
-        int32 TotalWeight = 0;
-        for (int32 W : MeshWeights) TotalWeight += FMath::Max(W, 1);
-
-        int32 Roll = RNG.RandRange(0, TotalWeight - 1);
-        int32 Cumulative = 0;
-        for (int32 i = 0; i < MeshCount; ++i)
-        {
-            Cumulative += FMath::Max(MeshWeights[i], 1);
-            if (Roll < Cumulative) return i;
-        }
+        TotalWeight += FMath::Max(Entry.Weight, 1);
     }
 
-    // 가중치 없으면 균등 분배
-    return RNG.RandRange(0, MeshCount - 1);
+    int32 Roll = RNG.RandRange(0, TotalWeight - 1);
+    int32 Cumulative = 0;
+    for (int32 i = 0; i < MeshCount; ++i)
+    {
+        Cumulative += FMath::Max(MeshEntries[i].Weight, 1);
+        if (Roll < Cumulative) return i;
+    }
+    return MeshCount - 1;
 }
 
 bool UCC_CubeScatterComponent::IsLocationValid(const FVector& Candidate) const
@@ -242,7 +238,7 @@ bool UCC_CubeScatterComponent::IsLocationValid(const FVector& Candidate) const
     return true;
 }
 
-UHierarchicalInstancedStaticMeshComponent* UCC_CubeScatterComponent::CreateHISM(UStaticMesh* Mesh)
+UHierarchicalInstancedStaticMeshComponent* UCC_CubeScatterComponent::CreateHISM(UStaticMesh* Mesh, bool bBlocksMovement)
 {
     AActor* Owner = GetOwner();
     if (!Owner || !Mesh) return nullptr;
@@ -251,7 +247,17 @@ UHierarchicalInstancedStaticMeshComponent* UCC_CubeScatterComponent::CreateHISM(
         NewObject<UHierarchicalInstancedStaticMeshComponent>(Owner);
 
     HISM->SetStaticMesh(Mesh);
-    HISM->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
+    if (bBlocksMovement)
+    {
+        HISM->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+        HISM->SetCollisionResponseToAllChannels(ECollisionResponse::ECR_Block);
+    }
+    else
+    {
+        HISM->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    }
+
     HISM->SetMobility(EComponentMobility::Movable);
     HISM->SetCastShadow(true);
     HISM->PrimaryComponentTick.bCanEverTick = false;
@@ -273,19 +279,19 @@ void UCC_CubeScatterComponent::ApplyThemeData(const FCubeThemeData& ThemeData)
         return;
     }
 
-    if (ThemeData.ScatterMeshes.Num() == 0)
+    if (ThemeData.ScatterMeshEntries.Num() == 0)
     {
         UE_LOG(LogTemp, Warning,
             TEXT("[Scatter] ApplyThemeData — ThemeData.ScatterMeshes is empty."));
         return;
     }
 
-    ScatterMeshes = ThemeData.ScatterMeshes;
-    MeshWeights = ThemeData.ScatterMeshWeights;
+	MeshEntries = ThemeData.ScatterMeshEntries;
     MinCount = ThemeData.ScatterMinCount;
     MaxCount = ThemeData.ScatterMaxCount;
+	MinDistance = ThemeData.ScatterMinDistance;
 
     UE_LOG(LogTemp, Log,
         TEXT("[Scatter] ThemeData applied — Meshes: %d, MinCount: %d, MaxCount: %d"),
-        ScatterMeshes.Num(), MinCount, MaxCount);
+        MeshEntries.Num(), MinCount, MaxCount);
 }

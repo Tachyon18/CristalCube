@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "CC_CubeScatterComponent.h"
+#include "CC_CubeMoodComponent.h"
 #include "../CristalCubeStruct.h"
 #include "CC_Cube.generated.h"
 
@@ -162,6 +163,9 @@ public:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Environment")
 	UCC_CubeScatterComponent* ScatterComponent;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Environment")
+	UCC_CubeMoodComponent* MoodComponent;
 
 	/** 현재 상태 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Cube")

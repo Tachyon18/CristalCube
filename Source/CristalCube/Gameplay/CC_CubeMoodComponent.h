@@ -4,47 +4,9 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
+#include "../CristalCubeStruct.h"
 #include "CC_CubeMoodComponent.generated.h"
 
-// 무드별 설정값 구조체
-USTRUCT(BlueprintType)
-struct FCubeMoodSettings
-{
-    GENERATED_BODY()
-
-    // Directional Light
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Light")
-    FLinearColor SunColor = FLinearColor::White;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Light")
-    float SunIntensity = 80000.f;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Light")
-    FRotator SunRotation = FRotator(-50.f, 0.f, 0.f);
-
-    // Post Process
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PostProcess")
-    float BloomIntensity = 0.675f;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PostProcess")
-    float ColorSaturation = 1.0f;     // 1.0=기본, 0.8=채도낮춤, 1.1=채도높임
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PostProcess")
-    float Contrast = 1.0f;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PostProcess")
-    float Gamma = 1.0f;
-
-    // Exponential Height Fog
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Fog")
-    float FogDensity = 0.01f;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Fog")
-    FLinearColor FogColor = FLinearColor(0.5f, 0.6f, 0.7f, 1.f);
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Fog")
-    bool bVolumetricFog = false;
-};
 
 /**
  * CC_CubeMoodComponent

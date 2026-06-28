@@ -39,13 +39,9 @@ public:
 
     // ========== 에디터 설정 ==========
 
-    /** 배치할 스태틱 메시 목록 (블루프린트에서 할당) */
+    /* 스캐터에 사용할 메시 및 가중치 설정 */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Scatter|Meshes")
-    TArray<UStaticMesh*> ScatterMeshes;
-
-    /** 메시별 가중치 (ScatterMeshes와 인덱스 일치, 비어있으면 균등 분배) */
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Scatter|Meshes")
-    TArray<int32> MeshWeights;
+    TArray<FScatterMeshEntry> MeshEntries;
 
     /** 큐브 반경 (ACC_Cube::CubeSize / 2.0f 와 맞출 것) */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Scatter|Area")
@@ -119,7 +115,7 @@ private:
     bool IsLocationValid(const FVector& Candidate) const;
 
     /** HISM 컴포넌트 생성 및 등록 */
-    UHierarchicalInstancedStaticMeshComponent* CreateHISM(UStaticMesh* Mesh);
+    UHierarchicalInstancedStaticMeshComponent* CreateHISM(UStaticMesh* Mesh, bool bBlocksMovement);
 
 protected:
 

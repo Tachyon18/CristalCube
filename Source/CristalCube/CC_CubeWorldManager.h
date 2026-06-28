@@ -7,6 +7,7 @@
 #include "CristalCubeStruct.h"
 #include "CC_CubeWorldManager.generated.h"
 
+
 UCLASS()
 class CRISTALCUBE_API ACC_CubeWorldManager : public AActor
 {
@@ -53,9 +54,17 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cube|Grid")
     TSubclassOf<class ACC_Cube> CubeClass;
 
+    /** 좌표별 테마 할당 DataTable (행 구조: FCubeThemeAssignmentRow) */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cube|Theme")
+    UDataTable* ThemeAssignmentTable = nullptr;
+
     /** 테마별 데이터 (BP에서 할당) */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cube|Theme")
     TMap<ECubeTheme, FCubeThemeData> ThemeDataMap;
+
+    /** 테마별 무드 프리셋 — Cube 생성 시 해당 테마 값만 그 Cube에 주입 */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cube|Theme")
+    TMap<ECubeTheme, FCubeMoodSettings> MoodSettingsMap;
 
 	/** 현재 큐브 좌표 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Cube|Grid")
@@ -220,9 +229,12 @@ public:
     bool bAutoTest = false;
 
 protected:
-
+    
     /** ���� ��ȯ ���� (�׽�Ʈ��) */
     EBoundaryDirection LastTransitionDirection;
+
+    TMap<FIntPoint, ECubeTheme> CoordinateThemeCache;
+    void BuildCoordinateThemeCache();
 
 public:
     UFUNCTION()

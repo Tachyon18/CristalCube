@@ -30,6 +30,8 @@ ACC_Cube::ACC_Cube()
 
 	ScatterComponent = CreateDefaultSubobject<UCC_CubeScatterComponent>(TEXT("ScatterComponent"));
 	ScatterComponent->SetOwnerCube(this);
+	
+	MoodComponent = CreateDefaultSubobject<UCC_CubeMoodComponent>(TEXT("MoodComponent"));
 
 }
 
@@ -224,7 +226,7 @@ void ACC_Cube::ApplyTheme(const FCubeThemeData& ThemeData)
 		TEXT("[Cube %d,%d] ApplyTheme Completed — FloorMat: %s, ScatterMeshes: %d"),
 		CubeCoordinate.X, CubeCoordinate.Y,
 		ThemeData.FloorMaterial ? *ThemeData.FloorMaterial->GetName() : TEXT("No Material"),
-		ThemeData.ScatterMeshes.Num());
+		ThemeData.ScatterMeshEntries.Num());
 }
 
 void ACC_Cube::SetLockWall(bool bLock)
@@ -414,6 +416,10 @@ void ACC_Cube::InitializeCube(FIntPoint Coordinate)
 		ScatterComponent->Generate(CubeCoordinate);
 	}
 
+	if (MoodComponent)
+	{
+		MoodComponent->ApplyMood(0);
+	}
 }
 
 void ACC_Cube::CreateBoundaryTriggers()
@@ -659,6 +665,11 @@ void ACC_Cube::Unfreeze()
 		{
 			ScatterComponent->UnfreezeScatter();
 		}
+	}
+
+	if (MoodComponent)
+	{
+		MoodComponent->ApplyMood(0);
 	}
 
 	UE_LOG(LogTemp, Warning, TEXT("[Cube %d,%d] UNFROZEN (%d actors)"),

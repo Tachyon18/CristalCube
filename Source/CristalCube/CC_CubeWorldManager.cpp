@@ -6,6 +6,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "DrawDebugHelpers.h"
 #include "Gameplay/CC_Cube.h"
+#include "Gameplay/CC_CubeMoodComponent.h"
 #include "Characters/CC_EnemyCharacter.h"
 #include "CC_EnemyManager.h"
 #include "CC_EnemySpawner.h"
@@ -176,6 +177,7 @@ void ACC_CubeWorldManager::InitializeSystem()
 	UE_LOG(LogTemp, Warning, TEXT("   CUBE WORLD MANAGER - INITIALIZATION"));
 	UE_LOG(LogTemp, Warning, TEXT("=============================================="));
 
+	BuildCoordinateThemeCache();
 	InitializeCubeGrid();
 	
 	CurrentCubeCoord = StartCoordinate;
@@ -295,6 +297,22 @@ ACC_Cube* ACC_CubeWorldManager::SpawnCube(FIntPoint Coordinate)
 			UE_LOG(LogTemp, Warning,
 				TEXT("[Manager] 테마 %s 에 해당하는 ThemeDataMap 항목 없음. "
 					"BP_CubeWorldManager의 ThemeDataMap을 확인하세요."),
+				*UEnum::GetValueAsString(AssignedTheme));
+		}
+	}
+
+	// ③ Mood 데이터 주입 — Cube 자신의 MoodComponent엔 "내 테마 하나"만 들어가면 됨
+	if (AssignedTheme != ECubeTheme::None && NewCube->MoodComponent)
+	{
+		if (const FCubeMoodSettings* MoodData = MoodSettingsMap.Find(AssignedTheme))
+		{
+			NewCube->MoodComponent->MoodSettings.SetNum(1);
+			NewCube->MoodComponent->MoodSettings[0] = *MoodData;
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning,
+				TEXT("[Manager] 테마 %s 에 해당하는 MoodSettingsMap 항목 없음. BP_CubeWorldManager를 확인하세요."),
 				*UEnum::GetValueAsString(AssignedTheme));
 		}
 	}
@@ -608,6 +626,32 @@ void ACC_CubeWorldManager::DrawAllCubes()
 	}
 }
 
+void ACC_CubeWorldManager::BuildCoordinateThemeCache()
+{
+	CoordinateThemeCache.Empty();
+
+	if (!ThemeAssignmentTable)
+	{
+		UE_LOG(LogTemp, Warning,
+			TEXT("[Manager] ThemeAssignmentTable 미설정 — 모든 큐브가 Blueprint 디폴트 테마 사용."));
+		return;
+	}
+
+	TArray<FCubeThemeAssignmentRow*> Rows;
+	ThemeAssignmentTable->GetAllRows<FCubeThemeAssignmentRow>(TEXT("BuildCoordinateThemeCache"), Rows);
+
+	for (const FCubeThemeAssignmentRow* Row : Rows)
+	{
+		if (Row)
+		{
+			CoordinateThemeCache.Add(Row->Coordinate, Row->Theme);
+		}
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("[Manager] Loaded %d coordinate-theme assignments"), CoordinateThemeCache.Num());
+
+}
+
 void ACC_CubeWorldManager::OnEmenyUnregistered(AActor* Enemy)
 {
 	if (!Enemy) return;
@@ -656,16 +700,13 @@ void ACC_CubeWorldManager::OnEmenyUnregistered(AActor* Enemy)
 
 ECubeTheme ACC_CubeWorldManager::AssignThemeForCoord(FIntPoint Coord) const
 {
-	// FCubeData에 CubeType이 설정된 경우 우선 사용
-	if (const FCubeData* Data = CubeGrid.Find(Coord))
+	if (const ECubeTheme* Found = CoordinateThemeCache.Find(Coord))
 	{
-		if (Data->CubeType != ECubeTheme::None)
+		if (*Found != ECubeTheme::None)
 		{
-			return Data->CubeType;
+			return *Found;
 		}
 	}
-
-	// 미설정 → None 반환 (SpawnCube에서 Cube Blueprint 디폴트로 폴백)
 	return ECubeTheme::None;
 }
 

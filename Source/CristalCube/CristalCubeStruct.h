@@ -1034,6 +1034,22 @@ enum class ECubeTheme : uint8
 };
 
 USTRUCT(BlueprintType)
+struct FScatterMeshEntry
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Scatter")
+    UStaticMesh* Mesh = nullptr;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Scatter")
+    int32 Weight = 1;
+
+    /** 켜면 이동을 막는 콜리전이 붙음 — 풀/작은 장식물은 꺼둘 것 */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Scatter")
+    bool bBlocksMovement = false;
+};
+
+USTRUCT(BlueprintType)
 struct FCubeThemeData
 {
     GENERATED_BODY()
@@ -1061,14 +1077,14 @@ struct FCubeThemeData
     float EmissiveStrength = 1.0f;
 
     // ─── Scatter 설정 ───────────────────────────────────────
+    
+	/** Scatter에 사용할 StaticMesh 목록 (구조체 형태로 통합*/
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Theme")
+    TArray<FScatterMeshEntry> ScatterMeshEntries;
 
-    /** 이 테마에서 HISM으로 배치할 스태틱 메시 목록 */
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Theme|Scatter")
-    TArray<UStaticMesh*> ScatterMeshes;
-
-    /** 메시별 가중치 (ScatterMeshes와 인덱스 일치, 비어있으면 균등 분배) */
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Theme|Scatter")
-    TArray<int32> ScatterMeshWeights;
+    /** 이 테마의 Scatter 메시 평균 크기에 맞는 최소 간격 (메시가 클수록 크게) */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Theme")
+    float ScatterMinDistance = 200.0f;
 
     /** 스캐터 최소 개수 */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Theme|Scatter",
@@ -1081,6 +1097,58 @@ struct FCubeThemeData
     int32 ScatterMaxCount = 35;
 };
 
+// 좌표별 테마 할당용 DataTable 행
+USTRUCT(BlueprintType)
+struct FCubeThemeAssignmentRow : public FTableRowBase
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cube|Theme")
+    FIntPoint Coordinate = FIntPoint(0, 0);
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cube|Theme")
+    ECubeTheme Theme = ECubeTheme::None;
+};
+
+// 무드별 설정값 구조체
+USTRUCT(BlueprintType)
+struct FCubeMoodSettings
+{
+    GENERATED_BODY()
+
+    // Directional Light
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Light")
+    FLinearColor SunColor = FLinearColor::White;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Light")
+    float SunIntensity = 80000.f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Light")
+    FRotator SunRotation = FRotator(-50.f, 0.f, 0.f);
+
+    // Post Process
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PostProcess")
+    float BloomIntensity = 0.675f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PostProcess")
+    float ColorSaturation = 1.0f;     // 1.0=기본, 0.8=채도낮춤, 1.1=채도높임
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PostProcess")
+    float Contrast = 1.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PostProcess")
+    float Gamma = 1.0f;
+
+    // Exponential Height Fog
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Fog")
+    float FogDensity = 0.01f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Fog")
+    FLinearColor FogColor = FLinearColor(0.5f, 0.6f, 0.7f, 1.f);
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Fog")
+    bool bVolumetricFog = false;
+};
 USTRUCT(BlueprintType)
 struct FCubeData
 {

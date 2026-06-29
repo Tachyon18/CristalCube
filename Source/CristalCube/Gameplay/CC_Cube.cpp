@@ -411,15 +411,13 @@ void ACC_Cube::InitializeCube(FIntPoint Coordinate)
 	if (ScatterComponent && !ScatterComponent->bGenerated)
 	{
 		ScatterComponent->ScatterRadius = CubeSize / 2.0f;
-		UE_LOG(LogTemp, Warning, TEXT("[Cube %d,%d] ScatterRadius before Generate: %.1f"),
-			Coordinate.X, Coordinate.Y, ScatterComponent->ScatterRadius);
-		ScatterComponent->Generate(CubeCoordinate);
+
 	}
 
-	if (MoodComponent)
-	{
-		MoodComponent->ApplyMood(0);
-	}
+	//if (MoodComponent)
+	//{
+	//	MoodComponent->ApplyMood(0);
+	//}
 }
 
 void ACC_Cube::CreateBoundaryTriggers()
@@ -537,7 +535,8 @@ void ACC_Cube::Freeze()
 	//if (PCGComponent) PCGComponent->CleanupLocalGeneration(false, false);
 
 	// Freeze all managed actors
-	for (AActor* Actor : ManagedActors)
+	TArray<AActor*> ActorsToFreeze = ManagedActors;
+	for (AActor* Actor : ActorsToFreeze)
 	{
 		if (!IsValid(Actor)) continue;
 
@@ -615,7 +614,8 @@ void ACC_Cube::Unfreeze()
 	//if (PCGComponent) PCGComponent->GenerateLocal(false);
 
 	// Unfreeze all managed actors
-	for (AActor* Actor : ManagedActors)
+TArray<AActor*> ActorsToUnfreeze = ManagedActors;
+	for (AActor* Actor : ActorsToUnfreeze)
 	{
 		if (!IsValid(Actor)) continue;
 

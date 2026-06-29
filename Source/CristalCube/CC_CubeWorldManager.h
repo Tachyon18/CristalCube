@@ -174,6 +174,8 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Cube")
     ACC_Cube* FindCube(FIntPoint Coordinate) const;
 
+    void SetupCubeContent(ACC_Cube* NewCube);
+
     // ========================================
     // Transition System
     // ========================================
@@ -212,6 +214,15 @@ public:
     UPROPERTY(BlueprintAssignable, Category = "Cube|Events")
     FOnCubeTransition OnCubeTransition;
 
+    /** 큐브 시스템(InitializeSystem) 준비 완료 신호 — GameModeBase가 이 신호를 받은 뒤 Playing으로 전환 */
+    UPROPERTY(BlueprintAssignable, Category = "Cube|Events")
+    FOnCubeSystemReady OnCubeSystemReady;
+
+    /** OnCubeSystemReady가 이미 Broadcast됐는지 — BeginPlay 순서가 안 보장되는 상황에서
+    리스너가 늦게 바인딩되어 신호를 놓치는 경우를 외부(GameModeBase)가 즉시 감지할 수 있게 함 */
+    UFUNCTION(BlueprintPure, Category = "Cube")
+    bool IsCubeSystemReady() const { return bSystemReady; }
+
     // ========================================
     // Debug
     // ========================================
@@ -244,9 +255,11 @@ public:
     ECubeTheme AssignThemeForCoord(FIntPoint Coord) const;
 
     UFUNCTION(BlueprintCallable, Category = "Cube")
-    void LinkSpawnersToNearestCube();
+    void LinkSpawnersToNearestCube(ACC_Cube* TargetCube = nullptr);
 
 protected:
 
     float DebugLogTimer = 0.f;
+
+    bool bSystemReady = false;
 };

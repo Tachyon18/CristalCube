@@ -60,9 +60,15 @@ public:
     UFUNCTION(BlueprintPure, Category = "Game State")
     bool IsPlaying() const { return CurrentGameState == EGameState::Playing; }
 
+    /** CubeWorldManager의 "시스템 준비 완료" 신호를 못 받았을 때의 타임아웃 폴백 (초).
+    CubeWorldManager가 없는 레벨(L_TestRoom 등)이나 BeginPlay 순서 경합으로
+    신호를 놓친 경우를 위한 안전장치. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Game State")
+    float WaitingToStartTimeout = 3.0f;
+
     // ========== 레벨 전환 ==========
 
-/** 메인 게임 레벨 이름 */
+    /** 메인 게임 레벨 이름 */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Levels")
     FName GameLevelName = FName("L_GameMode");
 
@@ -98,4 +104,24 @@ public:
 
     UFUNCTION(BlueprintPure, Category = "References")
     class ACC_PlayerController* GetPlayerControllerRef() const;
+
+protected:
+
+    /** CubeWorldManager::OnCubeSystemReady 수신 콜백 */
+    UFUNCTION()
+    void OnCubeSystemReadyHandler();
+
+    /** WaitingToStart 타임아웃 폴백 콜백 */
+    void OnWaitingToStartTimeout();
+
+    FTimerHandle WaitingToStartTimeoutHandle;
+
+    /** Cube 시스템 준비 신호를 받은 뒤에도, 로딩 체감(페이드/로딩 화면 등)을 위해
+    최소 이만큼(초) 더 대기하고서 Playing으로 전환한다. 0이면 즉시 전환. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Game State")
+    float MinimumStartDelay = 2.0f;
+
+    void StartMinimumDelayThenPlaying();
+    void OnMinimumStartDelayElapsed();
+    FTimerHandle MinimumStartDelayHandle;
 };

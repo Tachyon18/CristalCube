@@ -8,6 +8,7 @@
 #include "CC_EnemySpawner.generated.h"
 
 class ACC_PlayerCharacter;
+class ACC_GameModeBase;
 
 UCLASS()
 class CRISTALCUBE_API ACC_EnemySpawner : public AActor, public ICC_Freezable
@@ -59,6 +60,10 @@ protected:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Spawner|Settings")
     bool bAutoStart = true;
 
+    /** OwnerCube가 이 시간(초) 안에 연결되지 않으면 경고 로그 후 fallback 스폰 (Freeze 연동 없이) */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Spawner|Settings")
+    float OwnerCubeWaitTimeout = 4.0f;
+
     /** Should increase spawn rate over time? */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Spawner|Difficulty")
     bool bIncreaseSpawnRate = true;
@@ -77,6 +82,9 @@ protected:
 
     /** Timer handle for spawning */
     FTimerHandle SpawnTimerHandle;
+
+    /** OwnerCube 연결 대기 타임아웃 안전장치 핸들 */
+    FTimerHandle OwnerCubeTimeoutHandle;
 
     /** Currently spawned enemies */
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Spawner|State")
@@ -104,6 +112,14 @@ protected:
 
     UPROPERTY()
     bool bIsFrozen = false;
+
+    /** 게임이 진짜 시작(Playing)될 때까지 스폰 개시를 미루고 있는 중인지 */
+    UPROPERTY()
+    bool bPendingAutoStart = false;
+
+    /** GameState 신호 조회/구독용 캐시 */
+    UPROPERTY()
+    class ACC_GameModeBase* CachedGameMode = nullptr;
 
 public:
 
@@ -179,4 +195,15 @@ protected:
 
     /** Find and cache player reference */
     void FindPlayer();
+
+    /** OwnerCube 대기 타임아웃 콜백 — 그 시점에도 OwnerCube가 없으면 fallback 스폰 */
+    void OnOwnerCubeTimeout();
+
+    /** 실제 스폰 개시 요청 — GameState가 Playing이 아니면 지금 시작하지 않고
+    Playing 전환 신호를 받을 때까지 미룬다. */
+    void RequestSpawningStart();
+
+    /** GameModeBase::OnGameStateChanged 수신 콜백 */
+    UFUNCTION()
+    void OnGameStateChangedHandler(EGameState NewState);
 };

@@ -180,8 +180,19 @@ void ACC_CubeWorldManager::InitializeSystem()
 	BuildCoordinateThemeCache();
 	InitializeCubeGrid();
 	
+	int32 PreSpawnedCount = 0;
+	for (const auto& GridEntry : CubeGrid)
+	{
+		if (SpawnCube(GridEntry.Key))
+		{
+			++PreSpawnedCount;
+		}
+	}
+	UE_LOG(LogTemp, Log, TEXT("[Manager] Pre-spawned %d / %d cubes"),
+		PreSpawnedCount, CubeGrid.Num());
+
 	CurrentCubeCoord = StartCoordinate;
-	ActiveCube = FindOrSpawnCube(CurrentCubeCoord);
+	ActiveCube = FindCube(CurrentCubeCoord);
 
 	if (ActiveCube)
 	{
@@ -189,14 +200,20 @@ void ACC_CubeWorldManager::InitializeSystem()
 		UE_LOG(LogTemp, Log, TEXT("[Manager] Active cube set to: %d, %d"),
 			CurrentCubeCoord.X, CurrentCubeCoord.Y);
 	}
-
+	else
+	{
+		UE_LOG(LogTemp, Error,
+			TEXT("[Manager] StartCoordinate (%d,%d)에 해당하는 Cube가 없습니다 — "
+				"CubeGrid/CustomValidCells 설정을 확인하세요."),
+			CurrentCubeCoord.X, CurrentCubeCoord.Y);
+	}
 	MovePlayerToCube(CurrentCubeCoord);
 
-	LinkSpawnersToNearestCube();
-
-
+	bSystemReady = true;
 	UE_LOG(LogTemp, Warning, TEXT("[Manager] System initialized successfully!"));
 	UE_LOG(LogTemp, Warning, TEXT("=============================================="));
+
+	OnCubeSystemReady.Broadcast();
 }
 
 void ACC_CubeWorldManager::InitializeCubeGrid()
@@ -327,16 +344,20 @@ ACC_Cube* ACC_CubeWorldManager::SpawnCube(FIntPoint Coordinate)
 		CubeGrid[Coordinate].State = ECubeState::Active;
 	}
 
-	if (NewCube->CubeTheme != ECubeTheme::None)
-	{
-		if (const FCubeThemeData* ThemeData = ThemeDataMap.Find(NewCube->CubeTheme))
-		{
-			NewCube->ApplyTheme(*ThemeData);
-		}
-	}
+	//if (NewCube->CubeTheme != ECubeTheme::None)
+	//{
+	//	if (const FCubeThemeData* ThemeData = ThemeDataMap.Find(NewCube->CubeTheme))
+	//	{
+	//		NewCube->ApplyTheme(*ThemeData);
+	//	}
+	//}
 
 	UE_LOG(LogTemp, Log, TEXT("[Manager] Spawned cube at (%d,%d) - Location: %s"),
 		Coordinate.X, Coordinate.Y, *SpawnLocation.ToString());
+
+	SetupCubeContent(NewCube);
+
+	NewCube->Freeze();
 
 	return NewCube;
 }
@@ -377,6 +398,19 @@ ACC_Cube* ACC_CubeWorldManager::FindCube(FIntPoint CubeCoord) const
 		}
 	}
 	return nullptr;
+}
+
+void ACC_CubeWorldManager::SetupCubeContent(ACC_Cube* NewCube)
+{
+	if (!NewCube)
+	{
+		return;
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("[Manager] SetupCubeContent — Cube (%d,%d)"),
+		NewCube->CubeCoordinate.X, NewCube->CubeCoordinate.Y);
+
+	LinkSpawnersToNearestCube(NewCube);
 }
 
 void ACC_CubeWorldManager::RequestTransition(EBoundaryDirection Direction)
@@ -710,7 +744,7 @@ ECubeTheme ACC_CubeWorldManager::AssignThemeForCoord(FIntPoint Coord) const
 	return ECubeTheme::None;
 }
 
-void ACC_CubeWorldManager::LinkSpawnersToNearestCube()
+void ACC_CubeWorldManager::LinkSpawnersToNearestCube(ACC_Cube* TargetCube)
 {
 	TArray<AActor*> FoundSpawners;
 	UGameplayStatics::GetAllActorsOfClass(
@@ -722,6 +756,8 @@ void ACC_CubeWorldManager::LinkSpawnersToNearestCube()
 		return;
 	}
 
+	const float LinkRadius = CubeSize * 0.5f;
+
 	int32 LinkedCount = 0;
 
 	for (AActor* SpawnerActor : FoundSpawners)
@@ -729,57 +765,66 @@ void ACC_CubeWorldManager::LinkSpawnersToNearestCube()
 		ACC_EnemySpawner* Spawner = Cast<ACC_EnemySpawner>(SpawnerActor);
 		if (!Spawner) continue;
 
-		// 이미 OwnerCube가 설정된 Spawner는 건너뜀
+		// 이미 OwnerCube가 설정된 Spawner는 건너뜀 (중복 연결 방지)
 		if (Spawner->GetOwnerCube()) continue;
 
-		// LoadedCubes 중 가장 가까운 Cube 탐색
-		ACC_Cube* NearestCube = nullptr;
-		float BestDist = FLT_MAX;
+		ACC_Cube* MatchedCube = nullptr;
+		float MatchedDist = 0.f;
 
-		for (ACC_Cube* Cube : LoadedCubes)
+		if (TargetCube)
 		{
-			if (!Cube) continue;
-			float Dist = FVector::Dist(
-				Spawner->GetActorLocation(), Cube->GetActorLocation());
-			if (Dist < BestDist)
+			// [신규] 특정 Cube 대상 — Cube 생성 이벤트마다 호출되는 지역 패스.
+			// 거리가 LinkRadius 이내일 때만 연결 (먼 Spawner를 잘못 묶지 않도록).
+			const float Dist = FVector::Dist(
+				Spawner->GetActorLocation(), TargetCube->GetActorLocation());
+
+			if (Dist <= LinkRadius)
 			{
-				BestDist = Dist;
-				NearestCube = Cube;
+				MatchedCube = TargetCube;
+				MatchedDist = Dist;
 			}
 		}
-
-		if (!NearestCube)
+		else
 		{
-			UE_LOG(LogTemp, Warning,
-				TEXT("[Manager] Could not find a Cube for Spawner: %s"),
-				*Spawner->GetName());
+			// [레거시] 전역 모드 — LoadedCubes 전체에서 최근접 Cube 탐색 (하위 호환/디버그용)
+			float BestDist = FLT_MAX;
+			for (ACC_Cube* Cube : LoadedCubes)
+			{
+				if (!Cube) continue;
+				const float Dist = FVector::Dist(
+					Spawner->GetActorLocation(), Cube->GetActorLocation());
+				if (Dist < BestDist)
+				{
+					BestDist = Dist;
+					MatchedCube = Cube;
+				}
+			}
+			MatchedDist = BestDist;
+		}
+
+		if (!MatchedCube)
+		{
+			// TargetCube 모드라면 "이번엔 매칭 안 됨"이 정상 동작 — 다른 Cube가 생길 때 다시 시도됨.
 			continue;
 		}
 
-		// 연결
-		Spawner->SetOwnerCube(NearestCube);
-		NearestCube->RegisterActor(Spawner);
+		// 연결 — SetOwnerCube() 내부에서 SpawnedEnemies 재등록 + (조건 충족 시) StartSpawning까지 처리
+		Spawner->SetOwnerCube(MatchedCube);
+		MatchedCube->RegisterActor(Spawner);
 		++LinkedCount;
 
 		UE_LOG(LogTemp, Log,
 			TEXT("[Manager] Spawner [%s] linked to Cube (%d,%d) — dist: %.0f"),
 			*Spawner->GetName(),
-			NearestCube->CubeCoordinate.X,
-			NearestCube->CubeCoordinate.Y,
-			BestDist);
-
-		// Cube가 이미 Active면 즉시 스폰 시작
-		if (Spawner->GetIsAutoStart() && !NearestCube->IsFrozen())
-		{
-			Spawner->StartSpawning();
-
-			UE_LOG(LogTemp, Log,
-				TEXT("[Manager] Spawner [%s] StartSpawning called (Cube already Active)"),
-				*Spawner->GetName());
-		}
+			MatchedCube->CubeCoordinate.X,
+			MatchedCube->CubeCoordinate.Y,
+			MatchedDist);
 	}
 
 	UE_LOG(LogTemp, Log,
-		TEXT("[Manager] LinkSpawnersToNearestCube complete — %d / %d spawners linked."),
+		TEXT("[Manager] LinkSpawnersToNearestCube(%s) complete — %d / %d spawners linked."),
+		TargetCube
+		? *FString::Printf(TEXT("Cube %d,%d"), TargetCube->CubeCoordinate.X, TargetCube->CubeCoordinate.Y)
+		: TEXT("Global"),
 		LinkedCount, FoundSpawners.Num());
 }

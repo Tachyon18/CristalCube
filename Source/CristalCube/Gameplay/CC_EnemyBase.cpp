@@ -266,6 +266,11 @@ void ACC_EnemyBase::Freeze_Implementation()
         EnemyMovement->StopMovementImmediately();
 
     GetWorldTimerManager().PauseTimer(AttackCooldownTimer);
+
+    if (UCC_AIManager* AIManager = UCC_AIManager::Get(this))
+    {
+        AIManager->UnregisterEnemy(this);
+    }
 }
 
 void ACC_EnemyBase::Unfreeze_Implementation()
@@ -275,6 +280,11 @@ void ACC_EnemyBase::Unfreeze_Implementation()
     CustomTimeDilation = 1.0f;
     GetWorldTimerManager().UnPauseTimer(AttackCooldownTimer);
     // SetMovementEnabled는 AIManager가 SetChasePlayer로 제어
+
+    if (UCC_AIManager* AIManager = UCC_AIManager::Get(this))
+    {
+        AIManager->RegisterEnemy(this);
+    }
 }
 
 void ACC_EnemyBase::SetChasePlayer_Implementation(bool bChase)
@@ -363,6 +373,11 @@ void ACC_EnemyBase::SetMovementBehavior(EMovementBehavior NewBehavior)
 
 void ACC_EnemyBase::RegisterToManagers()
 {
+    if (bIsFrozen)
+    {
+        return;
+    }
+
     if (UCC_AIManager* AIManager = UCC_AIManager::Get(this))
     {
         AIManager->RegisterEnemy(this);

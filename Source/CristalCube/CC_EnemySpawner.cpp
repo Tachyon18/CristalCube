@@ -6,6 +6,7 @@
 #include "Characters/CC_PlayerCharacter.h"
 #include "Gameplay/CC_Cube.h"
 #include "Gameplay/CC_EnemyAIInterface.h"
+#include "CC_GameModeBase.h"
 #include "CC_LogHelper.h"
 #include "TimerManager.h"
 #include "Kismet/GameplayStatics.h"
@@ -52,43 +53,19 @@ void ACC_EnemySpawner::BeginPlay()
         return;
     }
 
-    if (!OwnerCube)
-    {
-        TArray<AActor*> FoundCubes;
-        UGameplayStatics::GetAllActorsOfClass(
-            GetWorld(), ACC_Cube::StaticClass(), FoundCubes);
-
-        float BestDist = FLT_MAX;
-        for (AActor* A : FoundCubes)
-        {
-            if (!A) continue;
-            float Dist = FVector::Dist(GetActorLocation(), A->GetActorLocation());
-            if (Dist < BestDist)
-            {
-                BestDist = Dist;
-                OwnerCube = Cast<ACC_Cube>(A);
-            }
-        }
-
-        if (OwnerCube)
-        {
-            CC_LOG_SPAWNER(Log, TEXT("OwnerCube auto-assigned: Cube (%d,%d)"),
-                OwnerCube->CubeCoordinate.X, OwnerCube->CubeCoordinate.Y);
-        }
-    }
-
-    // ─── Cube에 자신을 등록 (Freeze/Unfreeze 수신 경로 확보) ──────────────
+    // 더 이상 "내가 먼저 Cube를 찾는" 쪽이 아니라 "CubeWorldManager::SetupCubeContent()가
+    // Cube 생성 시점에 SetOwnerCube()를 호출해 나를 찾아와주는" 쪽으로 역할이 바뀜 (3.3절 참고).
     if (OwnerCube)
     {
+        // Cube가 이미 BeginPlay되어 SetOwnerCube()를 먼저 호출해둔 경우
+        // (엔진 BeginPlay 순서상 Cube 쪽이 먼저 실행됐을 때 — 흔하게 일어날 수 있음)
         OwnerCube->RegisterActor(this);
         CC_LOG_SPAWNER(Log, TEXT("[Spawner] Registered with Cube (%d,%d)"),
             OwnerCube->CubeCoordinate.X, OwnerCube->CubeCoordinate.Y);
 
-        // 이미 Active 상태면 지금 바로 스폰 시작
-        // Frozen 상태면 Unfreeze_Implementation에서 StartSpawning 호출
         if (bAutoStart && !OwnerCube->IsFrozen())
-        {
-            StartSpawning();
+        {  
+            RequestSpawningStart();
         }
         else
         {
@@ -97,19 +74,24 @@ void ACC_EnemySpawner::BeginPlay()
     }
     else
     {
-        // OwnerCube를 끝내 못 찾은 경우 — Freeze 연동 없이 fallback 스폰
-        CC_LOG_SPAWNER(Warning, TEXT("[Spawner] No OwnerCube found. "
-            "Freeze integration disabled. Falling back to auto-start."));
-        if (bAutoStart)
-        {
-            StartSpawning();
-        }
+        // [신규] OwnerCube 연결 대기 — SetOwnerCube()가 외부(CubeWorldManager)에서 호출되면
+        // 그 안에서 자동으로 스폰이 시작됨 (아래 SetOwnerCube() 참고).
+        // 안전장치: 일정 시간 안에 연결이 안 되면 경고를 남기고 Freeze 연동 없이 fallback 스폰.
+        GetWorld()->GetTimerManager().SetTimer(
+            OwnerCubeTimeoutHandle,
+            this,
+            &ACC_EnemySpawner::OnOwnerCubeTimeout,
+            OwnerCubeWaitTimeout,
+            false);
+
+        CC_LOG_SPAWNER(Log,
+            TEXT("[Spawner] Waiting for OwnerCube link (timeout: %.1fs)"),
+            OwnerCubeWaitTimeout);
     }
 
     CC_LOG_SPAWNER(Warning,
         TEXT("EnemySpawner initialized (Interval: %.1fs, Enemies/Spawn: %d, Max: %d)"),
         SpawnInterval, EnemiesPerSpawn, MaxEnemies);
-	
 }
 
 // Called every frame
@@ -421,9 +403,14 @@ void ACC_EnemySpawner::SetOwnerCube(ACC_Cube* Cube)
 {
     OwnerCube = Cube;
 
-    // [버그 수정] OwnerCube가 늦게(스폰 시작 이후) 연결되는 경우,
-    // 그 사이에 이미 태어난 미등록 Enemy들을 지금 한꺼번에 등록.
-    // 안 그러면 이 Enemy들은 영원히 Freeze 대상에서 빠짐.
+    // [신규] 연결되었으니 대기 타임아웃은 더 이상 필요 없음
+    if (GetWorld())
+    {
+        GetWorld()->GetTimerManager().ClearTimer(OwnerCubeTimeoutHandle);
+    }
+
+    // [버그 수정 — 기존 유지] OwnerCube가 늦게 연결되는 경우, 그 사이 태어난
+    // 미등록 Enemy들을 한꺼번에 등록.
     if (OwnerCube)
     {
         for (APawn* Enemy : SpawnedEnemies)
@@ -432,6 +419,15 @@ void ACC_EnemySpawner::SetOwnerCube(ACC_Cube* Cube)
             {
                 OwnerCube->RegisterActor(Enemy);
             }
+        }
+
+        // (CubeWorldManager::LinkSpawnersToNearestCube()에서 중복 호출하던 StartSpawning()은
+        //  제거하고 이 경로 하나로 단일화)
+        if (bAutoStart && !bIsSpawning && EnemyClass && !OwnerCube->IsFrozen())
+        {
+            RequestSpawningStart();
+            CC_LOG_SPAWNER(Log, TEXT("[Spawner] OwnerCube linked — spawn requested (Cube (%d,%d))"),
+                OwnerCube->CubeCoordinate.X, OwnerCube->CubeCoordinate.Y);
         }
     }
 }
@@ -466,7 +462,7 @@ void ACC_EnemySpawner::Unfreeze_Implementation()
     // Resume spawning
     if (EnemyClass)
     {
-        StartSpawning();
+        RequestSpawningStart();
         CC_LOG_SPAWNER(Log, TEXT("Spawner UNFROZEN (Resuming spawning)"));
     }
     else
@@ -487,5 +483,74 @@ void ACC_EnemySpawner::FindPlayer()
     else
     {
         CC_LOG_SPAWNER(Warning, TEXT("Could not find player"));
+    }
+}
+
+void ACC_EnemySpawner::OnOwnerCubeTimeout()
+{
+    if (OwnerCube)
+    {
+        // 타임아웃 전에 이미 정상 연결됨 — SetOwnerCube()에서 타이머가 Clear됐어야 하지만
+        // 혹시 모를 경합에 대한 방어적 처리
+        return;
+    }
+
+    CC_LOG_SPAWNER(Warning,
+        TEXT("[Spawner] OwnerCube link timed out after %.1fs — "
+            "Freeze integration disabled. Falling back to auto-start."),
+        OwnerCubeWaitTimeout);
+
+    if (bAutoStart && EnemyClass)
+    {
+        RequestSpawningStart();
+    }
+}
+
+void ACC_EnemySpawner::RequestSpawningStart()
+{
+    if (bIsSpawning)
+    {
+        return;
+    }
+
+    if (!CachedGameMode)
+    {
+        CachedGameMode = Cast<ACC_GameModeBase>(UGameplayStatics::GetGameMode(this));
+    }
+
+    if (CachedGameMode && !CachedGameMode->IsPlaying())
+    {
+        if (!bPendingAutoStart)
+        {
+            bPendingAutoStart = true;
+            CachedGameMode->OnGameStateChanged.AddDynamic(this, &ACC_EnemySpawner::OnGameStateChangedHandler);
+            CC_LOG_SPAWNER(Log,
+                TEXT("[Spawner] Spawn condition met, but game hasn't truly started yet — "
+                    "deferring until GameState -> Playing."));
+        }
+        return;
+    }
+
+    StartSpawning();
+}
+
+void ACC_EnemySpawner::OnGameStateChangedHandler(EGameState NewState)
+{
+    if (NewState != EGameState::Playing)
+    {
+        return;
+    }
+
+    if (CachedGameMode)
+    {
+        CachedGameMode->OnGameStateChanged.RemoveDynamic(this, &ACC_EnemySpawner::OnGameStateChangedHandler);
+    }
+    bPendingAutoStart = false;
+
+    // Playing 전환까지 기다리는 동안 조건이 바뀌었을 수 있음
+    // (예: 그 사이 다시 Frozen) — 실제 시작 전에 한 번 더 확인.
+    if (!bIsSpawning && EnemyClass && (!OwnerCube || !OwnerCube->IsFrozen()))
+    {
+        StartSpawning();
     }
 }

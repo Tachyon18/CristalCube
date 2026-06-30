@@ -73,9 +73,14 @@ protected:
 	/** Direct 이동 구현 (Phase 1) */
 	void PerformMove_Direct(float DeltaTime);
 
-	// Phase 3에서 추가될 것들 (선언만)
-	// void PerformMove_Step(float DeltaTime);
-	// void PerformMove_Teleport();
+	/** Step 이동 구현 (Phase 3) */
+	void PerformMove_Step(float DeltaTime);
+
+	/** Teleport 이동 구현 (Phase 3) */
+	void PerformMove_Teleport(float DeltaTime);
+
+	/** Step 패턴의 다음 목표 지점 계산 (TrackPlayer 방식, EnemyMovementComponent와 동일 설계) */
+	FVector ComputeNextStepTarget();
 
 	/** MoveTarget 갱신 (매 AILogicInterval마다 호출) */
 	void UpdateMoveTarget();
@@ -98,12 +103,34 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Movement|Step")
 	float StepWaitDuration = 0.8f;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Movement|Step")
+	float StepArrivalThreshold = 15.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Movement|Step",
+		meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	float StepDistanceVariance = 0.2f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Movement|Step",
+		meta = (ClampMin = "0.0", ClampMax = "90.0"))
+	float StepAngleVariance = 15.0f;
+
+	enum class EStepPhase : uint8 { Moving, Waiting };
+	EStepPhase StepPhase = EStepPhase::Moving;
+	FVector StepTarget = FVector::ZeroVector;
+	float StepWaitElapsed = 0.f;
+
 	// --- Teleport 이동 내부 (Phase 3 구현, 현재 stub) ---
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Movement|Teleport")
 	float TeleportInterval = 2.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Movement|Teleport")
 	float TeleportRadius = 200.0f;
+
+	float TeleportElapsed = 0.f;
+
+	/** Teleport 발생 시 BP에서 VFX 등 시각 효과를 구현할 자리 (EnemyBase와 동일 패턴) */
+	UFUNCTION(BlueprintImplementableEvent, Category = "Enemy|Movement|Teleport")
+	void OnTeleportPerformed(const FVector& FromLocation, const FVector& ToLocation);
 
 public:
 
@@ -123,7 +150,7 @@ protected:
 	FAttackHitData AttackHitData;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Combat|Debug")
-	bool bShowAttackDebug = true;
+	bool bShowAttackDebug = false;
 
 	UFUNCTION(BlueprintCallable, Category = "Enemy|Combat")
 	bool PerformAttackHit(const FAttackHitData& HitData, TArray<AActor*>& OutHitTargets);

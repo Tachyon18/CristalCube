@@ -33,7 +33,7 @@ ACC_EnemyCharacter::ACC_EnemyCharacter()
 	if(UCapsuleComponent* Capsule = GetCapsuleComponent())
 	{
 		Capsule->SetCollisionResponseToChannel(ECC_GameTraceChannel1, ECR_Overlap);
-		Capsule->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
+		Capsule->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
 		Capsule->SetGenerateOverlapEvents(true);
 	}
 
@@ -200,11 +200,12 @@ void ACC_EnemyCharacter::PerformMove(float DeltaTime)
 
 	case EMovementBehavior::Step:
 		// Phase 3 구현 예정
-		PerformMove_Direct(DeltaTime);
+		PerformMove_Step(DeltaTime);
 		break;
 
 	case EMovementBehavior::Teleport:
 		// Phase 3 구현 예정
+		PerformMove_Teleport(DeltaTime);
 		break;
 
 	case EMovementBehavior::Waypoint:
@@ -224,6 +225,95 @@ void ACC_EnemyCharacter::PerformMove_Direct(float DeltaTime)
 	LookAt.Pitch = 0.f;
 	LookAt.Roll = 0.f;
 	SetActorRotation(FMath::RInterpTo(GetActorRotation(), LookAt, DeltaTime, 5.0f));
+}
+
+void ACC_EnemyCharacter::PerformMove_Step(float DeltaTime)
+{
+	const FVector CurrentLoc = GetActorLocation();
+
+	switch (StepPhase)
+	{
+	case EStepPhase::Moving:
+	{
+		if (StepTarget.IsZero())
+			StepTarget = ComputeNextStepTarget();
+
+		const FVector ToTarget = StepTarget - CurrentLoc;
+		const float DistSq = ToTarget.SizeSquared2D();
+
+		if (DistSq <= StepArrivalThreshold * StepArrivalThreshold)
+		{
+			StepPhase = EStepPhase::Waiting;
+			StepWaitElapsed = 0.f;
+			break;
+		}
+
+		const FVector Direction = ToTarget.GetSafeNormal2D();
+		AddMovementInput(Direction, 1.0f);
+
+		FRotator LookAt = Direction.Rotation();
+		LookAt.Pitch = 0.f;
+		LookAt.Roll = 0.f;
+		SetActorRotation(FMath::RInterpTo(GetActorRotation(), LookAt, DeltaTime, 5.0f));
+		break;
+	}
+
+	case EStepPhase::Waiting:
+	{
+		StepWaitElapsed += DeltaTime;
+		if (StepWaitElapsed >= StepWaitDuration)
+		{
+			StepTarget = FVector::ZeroVector;
+			StepPhase = EStepPhase::Moving;
+		}
+		break;
+	}
+	}
+}
+
+void ACC_EnemyCharacter::PerformMove_Teleport(float DeltaTime)
+{
+	TeleportElapsed += DeltaTime;
+	if (TeleportElapsed < TeleportInterval) return;
+
+	TeleportElapsed = 0.f;
+
+	if (MoveTarget.IsZero()) return;
+
+	const float Angle = FMath::FRandRange(0.f, 360.f);
+	const float Radius = FMath::FRandRange(TeleportRadius * 0.5f, TeleportRadius);
+
+	const FVector Destination = MoveTarget + FVector(
+		FMath::Cos(FMath::DegreesToRadians(Angle)) * Radius,
+		FMath::Sin(FMath::DegreesToRadians(Angle)) * Radius,
+		0.f
+	);
+
+	const FVector PreviousLoc = GetActorLocation();
+
+	SetActorLocation(Destination, false, nullptr, ETeleportType::TeleportPhysics);
+
+	OnTeleportPerformed(PreviousLoc, GetActorLocation());
+}
+
+FVector ACC_EnemyCharacter::ComputeNextStepTarget()
+{
+	const FVector CurrentLoc = GetActorLocation();
+
+	if (MoveTarget.IsZero())
+		return CurrentLoc;
+
+	const FVector BaseDirection = (MoveTarget - CurrentLoc).GetSafeNormal2D();
+	if (BaseDirection.IsNearlyZero())
+		return CurrentLoc;
+
+	const float AngleOffset = FMath::FRandRange(-StepAngleVariance, StepAngleVariance);
+	const FVector VariedDirection = BaseDirection.RotateAngleAxis(AngleOffset, FVector::UpVector);
+
+	const float VariedDistance = StepDistance * FMath::FRandRange(
+		1.f - StepDistanceVariance, 1.f + StepDistanceVariance);
+
+	return CurrentLoc + VariedDirection * VariedDistance;
 }
 
 void ACC_EnemyCharacter::UpdateMoveTarget()

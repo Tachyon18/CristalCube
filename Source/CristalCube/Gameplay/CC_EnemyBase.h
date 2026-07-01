@@ -88,6 +88,18 @@ protected:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Reward")
     float ExpGemAmount = 5.0f;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Persistent")
+    bool bPersistent = false;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Persistent|Visual")
+    class UNiagaraSystem* PersistentAuraEffect = nullptr;
+
+    UPROPERTY()
+    class UNiagaraComponent* PersistentAuraComponent = nullptr;
+
+    UFUNCTION(BlueprintImplementableEvent, Category = "Enemy|Persistent")
+    void OnPersistentStateChanged(bool bNewState);
+
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Reward")
     TSubclassOf<class ACC_ExperienceGem> ExpGemClass;
 
@@ -214,6 +226,8 @@ public:
     virtual float GetDetectionRange_Implementation() const override { return DetectionRange; }
     virtual bool IsEnemyAlive_Implementation() const override { return IsAlive(); }
     virtual bool GetIsFrozen_Implementation() const override { return bIsFrozen; }
+    virtual bool IsPersistentEnemy_Implementation() const override { return bPersistent; }
+    virtual void SetPersistentEnemy_Implementation(bool bPersistentState) override;
 
     //==========================================================================
     // 공용

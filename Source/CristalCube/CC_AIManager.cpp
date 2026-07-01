@@ -49,7 +49,7 @@ void UCC_AIManager::RegisterEnemy(AActor* Enemy)
 	if (!ImplementsEnemyAI(Enemy))
 	{
 		UE_LOG(LogTemp, Warning,
-			TEXT("[AIManager] RegisterEnemy 실패: %s 가 ICC_EnemyAIInterface를 구현하지 않음"),
+			TEXT("[AIManager] RegisterEnemy Falied: %s does not implement ICC_EnemyAIInterface"),
 			*GetNameSafe(Enemy));
 		return;
 	}

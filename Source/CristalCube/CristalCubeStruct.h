@@ -10,6 +10,7 @@
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnFadeComplete);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCubeTransition, FIntPoint, NewCoordinate);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnCubeSystemReady);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCubeWaveCleared, FIntPoint, Coordinate);
 
 class UNiagaraSystem;
 

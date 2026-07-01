@@ -103,18 +103,24 @@ public:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Cube|Persistent")
     bool bCubeLocked = false;
 
+    UPROPERTY(BlueprintAssignable, Category = "Cube|Events")
+    FOnCubeWaveCleared OnCubeWaveCleared;
+
     /** WorldManager 레벨 관리 Persistent Enemy 목록 */
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Cube|Persistent")
-    TArray<class ACC_EnemyCharacter*> PersistentEnemyList;
+    TArray<AActor*> PersistentEnemyList;
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Cube|Persistent")
     int32 PersistentEnemyCount = 0;
 
-    UFUNCTION(BlueprintCallable, Category = "Cube|Persistent")
-    void RegisterPersistentEnemy(ACC_EnemyCharacter* Enemy);
+    UFUNCTION(BlueprintCallable, Category = "Cube")
+    void NotifyCubeWaveCleared(FIntPoint Coord);
 
     UFUNCTION(BlueprintCallable, Category = "Cube|Persistent")
-    void UnregisterPersistentEnemy(ACC_EnemyCharacter* Enemy);
+    void RegisterPersistentEnemy(AActor* Enemy);
+
+    UFUNCTION(BlueprintCallable, Category = "Cube|Persistent")
+    void UnregisterPersistentEnemy(AActor* Enemy);
 
     void CheckLockCondition();
     void TeleportPersistentEnemiesToCube(ACC_Cube* TargetCube);

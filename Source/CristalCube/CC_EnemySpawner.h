@@ -7,6 +7,8 @@
 #include "GamePlay/CC_Freezable.h"
 #include "CC_EnemySpawner.generated.h"
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnWaveCleared, ACC_EnemySpawner*, Spawner);
+
 class ACC_PlayerCharacter;
 class ACC_GameModeBase;
 
@@ -64,6 +66,9 @@ protected:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Spawner|Settings")
     float OwnerCubeWaitTimeout = 4.0f;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Spawner|Wave")
+    int32 WaveSize = 20;
+
     /** Should increase spawn rate over time? */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Spawner|Difficulty")
     bool bIncreaseSpawnRate = true;
@@ -90,9 +95,18 @@ protected:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Spawner|State")
     TArray<APawn*> SpawnedEnemies;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Spawner|Wave")
+	int32 TotalSpawnedThisWave = 0;
+
     /** Whether spawner is active */
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Spawner|State")
     bool bIsSpawning;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Spawner|Wave")
+    bool bWaveCleared = false;
+
+    UPROPERTY()
+    bool bHasWaveStarted = false;
 
     /** Current effective spawn interval */
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Spawner|State")
@@ -120,6 +134,20 @@ protected:
     /** GameState 신호 조회/구독용 캐시 */
     UPROPERTY()
     class ACC_GameModeBase* CachedGameMode = nullptr;
+
+public:
+    
+    UPROPERTY(BlueprintAssignable, Category = "Spawner|Wave")
+    FOnWaveCleared OnWaveCleared;
+
+    UFUNCTION(BlueprintPure, Category = "Spawner|Wave")
+    bool IsWaveFinishedSpawning() const { return TotalSpawnedThisWave >= WaveSize; }
+
+    UFUNCTION(BlueprintPure, Category = "Spawner|Wave")
+    bool IsWaveCleared() const { return bWaveCleared; }
+
+protected:
+    void CheckWaveClearCondition();
 
 public:
 

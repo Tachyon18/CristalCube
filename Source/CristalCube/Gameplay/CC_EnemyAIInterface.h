@@ -48,4 +48,14 @@ public:
     UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Enemy|AI")
     bool GetIsFrozen() const;
     virtual bool GetIsFrozen_Implementation() const = 0;
+
+    /** Persistent(Lock 추적 대상) 여부 조회 */
+    UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Enemy|Persistent")
+    bool IsPersistentEnemy() const;
+    virtual bool IsPersistentEnemy_Implementation() const = 0;
+
+    /** Persistent 상태 전환 — 등록/해제 */
+    UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Enemy|Persistent")
+    void SetPersistentEnemy(bool bPersistentState);
+    virtual void SetPersistentEnemy_Implementation(bool bPersistentState) = 0;
 };

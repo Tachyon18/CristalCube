@@ -14,6 +14,9 @@
 #include "../Characters/CC_PlayerCharacter.h"
 #include "../Gameplay/CC_ExperienceGem.h"
 #include "../Gameplay/CC_Cube.h"
+#include "NiagaraFunctionLibrary.h"
+#include "NiagaraComponent.h"
+
 
 // Sets default values
 ACC_EnemyBase::ACC_EnemyBase()
@@ -253,11 +256,18 @@ void ACC_EnemyBase::Die()
     if (ACC_EnemyManager* Manager = ACC_EnemyManager::Get(this))
         Manager->ReportEnemyKilled(this);
 
+    if (bPersistent)
+    {
+        if (ACC_CubeWorldManager* CubeManager = ACC_CubeWorldManager::Get(this))
+            CubeManager->UnregisterPersistentEnemy(this);
+    }
+
     SetLifeSpan(0.5f);
 }
 
 void ACC_EnemyBase::Freeze_Implementation()
 {
+    if (bPersistent) return;
     if (bIsFrozen) return;
     bIsFrozen = true;
     CustomTimeDilation = 0.0f;
@@ -290,6 +300,45 @@ void ACC_EnemyBase::Unfreeze_Implementation()
 void ACC_EnemyBase::SetChasePlayer_Implementation(bool bChase)
 {  
     bMovementEnabled = bChase;
+}
+
+void ACC_EnemyBase::SetPersistentEnemy_Implementation(bool bPersistentState)
+{
+
+    bPersistent = bPersistentState;
+
+    if (ACC_CubeWorldManager* CubeManager = ACC_CubeWorldManager::Get(this))
+    {
+        if (bPersistent)
+        {
+            CubeManager->RegisterPersistentEnemy(this);
+        }
+        else
+        {
+            CubeManager->UnregisterPersistentEnemy(this);
+        }
+    }
+
+    if (bPersistent)
+    {
+        if (PersistentAuraEffect && !PersistentAuraComponent && MeshComp)
+        {
+            PersistentAuraComponent = UNiagaraFunctionLibrary::SpawnSystemAttached(
+                PersistentAuraEffect, MeshComp, NAME_None,
+                FVector(0, 0, 50.f), FRotator::ZeroRotator,
+                EAttachLocation::SnapToTarget, true);
+        }
+    }
+    else
+    {
+        if (PersistentAuraComponent)
+        {
+            PersistentAuraComponent->DestroyComponent();
+            PersistentAuraComponent = nullptr;
+        }
+    }
+
+    OnPersistentStateChanged(bPersistent);
 }
 
 void ACC_EnemyBase::InitShape()
@@ -373,11 +422,6 @@ void ACC_EnemyBase::SetMovementBehavior(EMovementBehavior NewBehavior)
 
 void ACC_EnemyBase::RegisterToManagers()
 {
-    if (bIsFrozen)
-    {
-        return;
-    }
-
     if (UCC_AIManager* AIManager = UCC_AIManager::Get(this))
     {
         AIManager->RegisterEnemy(this);
@@ -386,5 +430,13 @@ void ACC_EnemyBase::RegisterToManagers()
     if (ACC_EnemyManager* Manager = ACC_EnemyManager::Get(this))
     {
         Manager->RegisterEnemy(this);
+    }
+
+    UE_LOG(LogTemp, Warning, TEXT("[%s] bPersistent value check: %s"),
+        *GetName(), bPersistent ? TEXT("true") : TEXT("false"));
+
+    if (bPersistent)
+    {
+        ICC_EnemyAIInterface::Execute_SetPersistentEnemy(this, true);
     }
 }

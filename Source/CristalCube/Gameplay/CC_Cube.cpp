@@ -5,6 +5,8 @@
 #include "CC_Tile.h"
 #include "CC_Freezable.h"
 #include "../CC_CubeWorldManager.h"
+#include "../CC_EnemySpawner.h"
+#include "CC_EnemyAIInterface.h"
 #include "DrawDebugHelpers.h"
 #include "GameFramework/Character.h"
 #include "Kismet/GameplayStatics.h"
@@ -614,7 +616,8 @@ void ACC_Cube::Unfreeze()
 	//if (PCGComponent) PCGComponent->GenerateLocal(false);
 
 	// Unfreeze all managed actors
-TArray<AActor*> ActorsToUnfreeze = ManagedActors;
+	TArray<AActor*> ActorsToUnfreeze = ManagedActors;
+
 	for (AActor* Actor : ActorsToUnfreeze)
 	{
 		if (!IsValid(Actor)) continue;
@@ -766,5 +769,20 @@ void ACC_Cube::DrawDebugInfo()
 			DrawDebugString(GetWorld(), TriggerLocation,
 				DirectionText, nullptr, TriggerColor, -1.0f, true, 1.5f);
 		}
+	}
+}
+
+void ACC_Cube::HandleSpawnerWaveCleared(ACC_EnemySpawner* Spawner)
+{
+	if (bWaveCleared) return;
+
+	bWaveCleared = true;
+
+	UE_LOG(LogTemp, Warning, TEXT("[Cube] (%d,%d) Wave Cleared — true Cube Clear achieved."),
+		CubeCoordinate.X, CubeCoordinate.Y);
+
+	if (ACC_CubeWorldManager* WorldManager = ACC_CubeWorldManager::Get(this))
+	{
+		WorldManager->NotifyCubeWaveCleared(CubeCoordinate);
 	}
 }

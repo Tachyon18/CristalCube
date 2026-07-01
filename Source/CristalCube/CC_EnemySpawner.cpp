@@ -118,8 +118,28 @@ void ACC_EnemySpawner::Tick(float DeltaTime)
     }
 }
 
+void ACC_EnemySpawner::CheckWaveClearCondition()
+{
+    if (bWaveCleared) return;
+    if (TotalSpawnedThisWave < WaveSize) return;   // 아직 다 못 내보냄
+    if (GetAliveEnemyCount() > 0) return;          // 아직 생존자 있음
+
+    bWaveCleared = true;
+
+    CC_LOG_SPAWNER(Warning, TEXT("[Spawner] WAVE CLEARED — Cube (%s)"),
+        OwnerCube ? *OwnerCube->CubeCoordinate.ToString() : TEXT("None"));
+
+    OnWaveCleared.Broadcast(this);
+}
+
 void ACC_EnemySpawner::StartSpawning()
 {
+    if (bWaveCleared)
+    {
+        CC_LOG_SPAWNER(Log, TEXT("[Spawner] Wave already cleared for this cube — not restarting."));
+        return;
+    }
+
     if (bIsSpawning)
     {
         CC_LOG_SPAWNER(Warning, TEXT("Already spawning!"));
@@ -130,6 +150,18 @@ void ACC_EnemySpawner::StartSpawning()
     {
         CC_LOG_SPAWNER(Error, TEXT("Cannot start spawning - no enemy class set!"));
         return;
+    }
+
+    if (!bHasWaveStarted)
+    {
+        bHasWaveStarted = true;
+        TotalSpawnedThisWave = 0;
+        CC_LOG_SPAWNER(Log, TEXT("[Spawner] Wave START (WaveSize=%d)"), WaveSize);
+    }
+    else
+    {
+        CC_LOG_SPAWNER(Log, TEXT("[Spawner] Wave RESUME (%d/%d already spawned)"),
+            TotalSpawnedThisWave, WaveSize);
     }
 
     bIsSpawning = true;
@@ -165,6 +197,19 @@ void ACC_EnemySpawner::StopSpawning()
 
 void ACC_EnemySpawner::SpawnEnemies()
 {
+    if (bWaveCleared)
+    {
+        return;
+    }
+
+    int32 RemainingInWave = WaveSize - TotalSpawnedThisWave;
+    if (RemainingInWave <= 0)
+    {
+        // 이미 다 내보냈음 — 타이머만 도는 상태였다면 정리
+        StopSpawning();
+        return;
+    }
+
     if (!CanSpawnMore())
     {
         CC_LOG_SPAWNER(VeryVerbose, TEXT("Max enemies reached (%d/%d), skipping spawn"),
@@ -183,7 +228,10 @@ void ACC_EnemySpawner::SpawnEnemies()
     }
 
     // Calculate how many enemies we can spawn
-    int32 EnemiesToSpawn = FMath::Min(EnemiesPerSpawn, MaxEnemies - GetAliveEnemyCount());
+    int32 EnemiesToSpawn = FMath::Min3(
+        EnemiesPerSpawn,
+        RemainingInWave,
+        MaxEnemies - GetAliveEnemyCount());
 
     int32 SuccessfulSpawns = 0;
 
@@ -200,10 +248,21 @@ void ACC_EnemySpawner::SpawnEnemies()
         }
     }
 
+	TotalSpawnedThisWave += SuccessfulSpawns;
+
     if (SuccessfulSpawns > 0)
     {
-        CC_LOG_SPAWNER(Log, TEXT("Spawned %d enemies (Total: %d/%d, Interval: %.2fs)"),
-            SuccessfulSpawns, GetAliveEnemyCount(), MaxEnemies, CurrentSpawnInterval);
+        CC_LOG_SPAWNER(Log, TEXT("Spawned %d enemies (Wave: %d/%d, Alive: %d/%d, Interval: %.2fs)"),
+            SuccessfulSpawns, TotalSpawnedThisWave, WaveSize,
+            GetAliveEnemyCount(), MaxEnemies, CurrentSpawnInterval);
+    }
+
+    if (TotalSpawnedThisWave >= WaveSize)
+    {
+        // 더 이상 내보낼 게 없음 — 타이머 정지. "전멸 판정"은 CheckWaveClearCondition()이 담당.
+        StopSpawning();
+        CC_LOG_SPAWNER(Log, TEXT("[Spawner] Wave spawn quota reached (%d/%d) — timer stopped, waiting for clear."),
+            TotalSpawnedThisWave, WaveSize);
     }
 }
 
@@ -226,11 +285,22 @@ APawn* ACC_EnemySpawner::SpawnSingleEnemy(const FVector& Location)
 
     if (NewEnemy)
     {
-        if (OwnerCube)
+        bool bIsPersistent = false;
+        if (NewEnemy->GetClass()->ImplementsInterface(UCC_EnemyAIInterface::StaticClass()))
+        {
+            bIsPersistent = ICC_EnemyAIInterface::Execute_IsPersistentEnemy(NewEnemy);
+        }
+
+        if (bIsPersistent)
+        {
+            CC_LOG_SPAWNER(Log, TEXT("[Spawner] NewEnemy is Persistent — skipping Cube ownership entirely"));
+
+        }
+        else if (OwnerCube)
         {
             OwnerCube->RegisterActor(NewEnemy);
 
-            if (OwnerCube->IsFrozen())
+            if (OwnerCube->IsFrozen() && !bIsPersistent)
             {
                 NewEnemy->SetActorHiddenInGame(true);
                 NewEnemy->SetActorTickEnabled(false);
@@ -335,6 +405,9 @@ void ACC_EnemySpawner::CleanupDeadEnemies()
         CC_LOG_SPAWNER(VeryVerbose, TEXT("Cleaned up %d dead enemies (Alive: %d)"),
             RemovedCount, GetAliveEnemyCount());
     }
+
+    // 정리 직후 웨이브 클리어 여부 체크 — 별도 폴링 타이머 안 만들고 기존 5초 주기에 편승
+    CheckWaveClearCondition();
 }
 
 void ACC_EnemySpawner::UpdateSpawnInterval()
@@ -420,6 +493,8 @@ void ACC_EnemySpawner::SetOwnerCube(ACC_Cube* Cube)
                 OwnerCube->RegisterActor(Enemy);
             }
         }
+
+		OnWaveCleared.AddUniqueDynamic(OwnerCube, &ACC_Cube::HandleSpawnerWaveCleared);
 
         // (CubeWorldManager::LinkSpawnersToNearestCube()에서 중복 호출하던 StartSpawning()은
         //  제거하고 이 경로 하나로 단일화)

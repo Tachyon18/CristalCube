@@ -18,6 +18,8 @@
 #include "../CC_CubeWorldManager.h"
 #include "../Gameplay/CC_ExperienceGem.h"
 #include "../Gameplay/CC_Cube.h"
+#include "NiagaraFunctionLibrary.h"
+#include "NiagaraComponent.h"
 
 
 ACC_EnemyCharacter::ACC_EnemyCharacter()
@@ -951,13 +953,66 @@ void ACC_EnemyCharacter::RegisterToManagers()
 		Manager->RegisterEnemy(this);
 	}
 
+	UE_LOG(LogTemp, Warning, TEXT("[%s] bPersistent value check: %s"),
+		*GetName(), bPersistent ? TEXT("true") : TEXT("false"));
+
 	if (bPersistent)
 	{
-		if (ACC_CubeWorldManager* CubeManager = ACC_CubeWorldManager::Get(this))
-		{
-			CubeManager->RegisterPersistentEnemy(this);
-		}
+		ICC_EnemyAIInterface::Execute_SetPersistentEnemy(this, true);
 	}
 
 	UE_LOG(LogTemp, Log, TEXT("[Enemy %s] Registered to managers."), *GetName());
+}
+
+void ACC_EnemyCharacter::SetPersistentEnemy_Implementation(bool bPersistentState)
+{
+	UE_LOG(LogTemp, Warning, TEXT("[%s] SetPersistentEnemy_Implementation ENTERED with %s"),
+		*GetName(), bPersistentState ? TEXT("true") : TEXT("false"));
+
+
+	bPersistent = bPersistentState;
+
+	if (ACC_CubeWorldManager* CubeManager = ACC_CubeWorldManager::Get(this))
+	{
+		if (bPersistent)
+		{
+			if (ACC_Cube* Active = CubeManager->GetActiveCube())
+			{
+				Active->UnregisterActor(this);
+			}
+
+			CubeManager->RegisterPersistentEnemy(this);
+		}
+		else
+		{
+			CubeManager->UnregisterPersistentEnemy(this);
+
+			if (ACC_Cube* Active = CubeManager->GetActiveCube())
+			{
+				Active->RegisterActor(this);
+			}
+		}
+	}
+
+	// 베이스라인 비주얼 ? 셰입/클래스 무관, 공유 에셋 1개로 토글
+	if (bPersistent)
+	{
+		if (PersistentAuraEffect && !PersistentAuraComponent && GetMesh())
+		{
+			PersistentAuraComponent = UNiagaraFunctionLibrary::SpawnSystemAttached(
+				PersistentAuraEffect, GetMesh(), NAME_None,
+				FVector(0, 0, 50.f), FRotator::ZeroRotator,
+				EAttachLocation::SnapToTarget, true);
+		}
+	}
+	else
+	{
+		if (PersistentAuraComponent)
+		{
+			PersistentAuraComponent->DestroyComponent();
+			PersistentAuraComponent = nullptr;
+		}
+	}
+
+	OnPersistentStateChanged(bPersistent);
 }

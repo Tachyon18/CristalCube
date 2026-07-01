@@ -284,6 +284,15 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "AI")
 	bool bIsFrozen = false;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Persistent|Visual")
+	class UNiagaraSystem* PersistentAuraEffect = nullptr;
+
+	UPROPERTY()
+	class UNiagaraComponent* PersistentAuraComponent = nullptr;
+
+	UFUNCTION(BlueprintImplementableEvent, Category = "Enemy|Persistent")
+	void OnPersistentStateChanged(bool bNewState);
+
 public:
 	
 	// ICC_Freezable 구현
@@ -319,4 +328,11 @@ public:
 	{
 		return bIsFrozen;
 	}
+
+	virtual bool IsPersistentEnemy_Implementation() const override 
+	{ 
+		return bPersistent; 
+	}
+
+	virtual void SetPersistentEnemy_Implementation(bool bPersistentState) override;
 };

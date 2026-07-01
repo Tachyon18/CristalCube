@@ -105,20 +105,43 @@ bool ACC_CubeWorldManager::IsValidCoordinate(FIntPoint Coord) const
 	return CubeGrid.Contains(Coord);
 }
 
-void ACC_CubeWorldManager::RegisterPersistentEnemy(ACC_EnemyCharacter* Enemy)
+void ACC_CubeWorldManager::NotifyCubeWaveCleared(FIntPoint Coord)
+{
+	if (CubeGrid.Contains(Coord))
+	{
+		CubeGrid[Coord].bCleared = true;  // 기존에 선언만 돼 있던 필드 — 드디어 실사용
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning,
+			TEXT("[Manager] NotifyCubeWaveCleared — (%d,%d) not found in CubeGrid"),
+			Coord.X, Coord.Y);
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("[Manager] Cube (%d,%d) CUBE CLEAR — true wave-clear achieved."),
+		Coord.X, Coord.Y);
+
+	OnCubeWaveCleared.Broadcast(Coord);
+}
+
+void ACC_CubeWorldManager::RegisterPersistentEnemy(AActor* Enemy)
 {
 	if (!Enemy) return;
-	PersistentEnemyCount++;
+
+	PersistentEnemyList.AddUnique(Enemy);
+	PersistentEnemyCount = PersistentEnemyList.Num();
 	UE_LOG(LogTemp, Log, TEXT("[Manager] Persistent enemy registered. Total: %d"),
 		PersistentEnemyCount);
 
 	CheckLockCondition();
 }
 
-void ACC_CubeWorldManager::UnregisterPersistentEnemy(ACC_EnemyCharacter* Enemy)
+void ACC_CubeWorldManager::UnregisterPersistentEnemy(AActor* Enemy)
 {
 	if (!Enemy) return;
-	PersistentEnemyCount = FMath::Max(0, PersistentEnemyCount - 1);
+
+	PersistentEnemyList.Remove(Enemy);
+	PersistentEnemyCount = PersistentEnemyList.Num();
 	UE_LOG(LogTemp, Log, TEXT("[Manager] Persistent enemy unregistered. Total: %d"),
 		PersistentEnemyCount);
 
@@ -148,7 +171,9 @@ void ACC_CubeWorldManager::TeleportPersistentEnemiesToCube(ACC_Cube* TargetCube)
 	FVector CubeCenter = TargetCube->GetCubeCenter();
 	float Spread = 600.0f;
 
-	for (ACC_EnemyCharacter* Enemy : PersistentEnemyList)
+	int32 TeleportedCount = 0;
+
+	for (AActor* Enemy : PersistentEnemyList)
 	{
 		if (!IsValid(Enemy)) continue;
 
@@ -157,7 +182,17 @@ void ACC_CubeWorldManager::TeleportPersistentEnemiesToCube(ACC_Cube* TargetCube)
 			FMath::RandRange(-Spread, Spread),
 			0.0f
 		);
-		Enemy->SetActorLocation(CubeCenter + Offset);
+
+		Enemy->SetActorLocation(CubeCenter + Offset, false, nullptr, ETeleportType::TeleportPhysics);
+
+		++TeleportedCount;
+	}
+
+	if (TeleportedCount > 0)
+	{
+		UE_LOG(LogTemp, Log,
+			TEXT("[Manager] Teleported %d persistent enemies to Cube (%d,%d)"),
+			TeleportedCount, TargetCube->CubeCoordinate.X, TargetCube->CubeCoordinate.Y);
 	}
 }
 
@@ -516,7 +551,7 @@ void ACC_CubeWorldManager::PerformTransition(FIntPoint NextCoord)
 	}
 
 	// 2. Persistent Enemy 이전 — Freeze 전에 처리해야 소속 문제 없음
-	//TeleportPersistentEnemiesToCube(NextCube);
+	TeleportPersistentEnemiesToCube(NextCube);
 
 	// 3. 이전 큐브 Freeze
 	if (ActiveCube)

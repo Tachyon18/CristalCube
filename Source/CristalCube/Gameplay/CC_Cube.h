@@ -239,6 +239,12 @@ protected:
 
 public:
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Cube")
+	bool bWaveCleared = false;
+
+	UFUNCTION()
+	void HandleSpawnerWaveCleared(class ACC_EnemySpawner* Spawner);
+
 protected:
 
 	float ManagedActorsCleanupTimer = 0.f;

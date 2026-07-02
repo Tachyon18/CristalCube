@@ -13,6 +13,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnCubeSystemReady);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCubeWaveCleared, FIntPoint, Coordinate);
 
 class UNiagaraSystem;
+class UCC_SkillBase;
 
 //==============================================================================
 // UPGRADE SYSTEM (Simplified DataTable Approach)
@@ -497,10 +498,11 @@ USTRUCT(BlueprintType)
 struct FSkillTableRow : public FTableRowBase
 {
     GENERATED_BODY()
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    FSkillDefinition SkillData;
-
+ 
+    // 그랜트할 스킬 클래스. 실제 스탯/CoreType/Addon 등은 이 클래스의 CDO(FSkillDefinition)가 소유.
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Skill")
+    TSubclassOf<UCC_SkillBase> SkillClass;
+    
     // UI 전용
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
     UTexture2D* Icon = nullptr;
@@ -517,6 +519,32 @@ struct FSkillTableRow : public FTableRowBase
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Acquisition")
     int32 UnlockLevel = 1;
+};
+
+USTRUCT(BlueprintType)
+struct FAddonTableRow : public FTableRowBase
+{
+    GENERATED_BODY()
+
+    /**
+     * 대응하는 실행 로직 enum. ESkillAddonType에 아직 값이 없는(=C++ 미구현) Addon은
+     * None으로 두고 bImplemented=false로 표시 — 카탈로그/기획 문서 목적으로만 존재.
+     */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon")
+    ESkillAddonType AddonType = ESkillAddonType::None;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
+    FText DisplayName;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
+    FText Description;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
+    UTexture2D* Icon = nullptr;
+
+    /** false면 ProcessAddons()에 실행 로직이 아직 없는 상태 — UI에서 "구현 예정" 뱃지 등으로 구분 가능 */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Status")
+    bool bImplemented = true;
 };
 
 ///==============================================================================

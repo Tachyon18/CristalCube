@@ -4,6 +4,7 @@
 #include "CC_PlayerState.h"
 #include "SkillSystem/CC_SkillBase.h"
 #include "SkillSystem/CC_SkillSystem.h"
+#include "SkillSystem/CC_SkillLibrarySubsystem.h"
 #include "CC_LogHelper.h"
 
 ACC_PlayerState::ACC_PlayerState()
@@ -14,6 +15,7 @@ ACC_PlayerState::ACC_PlayerState()
 void ACC_PlayerState::BeginPlay()
 {
 	Super::BeginPlay();
+    InitializeSkillLibrary();
 }
 
 void ACC_PlayerState::Tick(float DeltaTime)
@@ -95,6 +97,57 @@ void ACC_PlayerState::RemoveAllSkills()
         }
     }
     EquippedSkills.Empty();
+}
+
+void ACC_PlayerState::InitializeSkillLibrary()
+{
+    UGameInstance* GameInstance = GetGameInstance();
+    if (!GameInstance)
+    {
+        UE_LOG(LogTemp, Error, TEXT("[PlayerState] Cannot init SkillLibrary - GameInstance null"));
+        return;
+    }
+
+    SkillLibrary = GameInstance->GetSubsystem<UCC_SkillLibrarySubsystem>();
+    if (!SkillLibrary)
+    {
+        UE_LOG(LogTemp, Error, TEXT("[PlayerState] Cannot init SkillLibrary - Subsystem null"));
+        return;
+    }
+
+    if (SkillDataTable)
+    {
+        SkillLibrary->LoadSkillDataTable(SkillDataTable);
+        UE_LOG(LogTemp, Log, TEXT("[PlayerState] Skill Library Initialized"));
+    }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[PlayerState] No SkillDataTable set"));
+    }
+
+    if (AddonDataTable)
+    {
+        SkillLibrary->LoadAddonDataTable(AddonDataTable);
+    }
+}
+
+UCC_SkillBase* ACC_PlayerState::GrantSkillByRowName(FName SkillRowName)
+{
+    if (!SkillLibrary)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[PlayerState] GrantSkillByRowName: SkillLibrary not initialized"));
+        return nullptr;
+    }
+
+    FSkillTableRow* Row = SkillLibrary->GetSkillRowPtr(SkillRowName);
+    if (!Row || !Row->SkillClass)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[PlayerState] GrantSkillByRowName: '%s' not found or SkillClass unset"),
+            *SkillRowName.ToString());
+        return nullptr;
+    }
+
+    return GrantSkill(Row->SkillClass);
 }
 
 UCC_SkillBase* ACC_PlayerState::FindSkill(FName SkillID) const

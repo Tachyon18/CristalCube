@@ -49,6 +49,22 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Skills")
     void RemoveAllSkills();
 
+    UPROPERTY(EditDefaultsOnly, Category = "Skills")
+    UDataTable* SkillDataTable;
+
+    UPROPERTY(EditDefaultsOnly, Category = "Skills")
+    UDataTable* AddonDataTable;
+
+    UPROPERTY()
+    class UCC_SkillLibrarySubsystem* SkillLibrary;
+
+    UFUNCTION(BlueprintCallable, Category = "Skills")
+    void InitializeSkillLibrary();
+
+    /** SkillLibrary에서 RowName으로 SkillClass를 찾아 기존 GrantSkill에 위임 */
+    UFUNCTION(BlueprintCallable, Category = "Skills")
+    UCC_SkillBase* GrantSkillByRowName(FName SkillRowName);
+
     //==========================================================================
     // QUERIES
     //==========================================================================

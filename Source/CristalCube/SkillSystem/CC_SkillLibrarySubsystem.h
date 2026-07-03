@@ -52,7 +52,7 @@ struct FSkillDisplayData
     TSubclassOf<class UCC_SkillBase> SkillClass;
 };
 
-UCLASS()
+UCLASS(Blueprintable)
 class CRISTALCUBE_API UCC_SkillLibrarySubsystem : public UGameInstanceSubsystem
 {
 	GENERATED_BODY()

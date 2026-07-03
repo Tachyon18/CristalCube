@@ -9,6 +9,8 @@
 class UCC_SkillBase;
 class UCC_SkillSystem;
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnSkillsChanged);
+
 /**
  * 플레이어의 스킬 로스터를 관리하는 PlayerState.
  * - 스킬 인스턴스의 소유자 (GC Outer)
@@ -49,6 +51,25 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Skills")
     void RemoveAllSkills();
 
+    /** 특정 슬롯에 명시적으로 스킬 장착. 슬롯이 이미 차있거나 범위 밖이면 실패. */
+    UFUNCTION(BlueprintCallable, Category = "Skills")
+    UCC_SkillBase* GrantSkillToSlot(TSubclassOf<UCC_SkillBase> SkillClass, int32 SlotIndex);
+
+    /** 특정 슬롯의 스킬 제거. RemoveSkill(SkillID)과 달리 압축하지 않고 그 자리를 비운다. */
+    UFUNCTION(BlueprintCallable, Category = "Skills")
+    bool RemoveSkillAtSlot(int32 SlotIndex);
+
+    /** 특정 슬롯 조회. 범위 밖이거나 비어있으면 nullptr. */
+    UFUNCTION(BlueprintPure, Category = "Skills")
+    UCC_SkillBase* GetSkillAtSlot(int32 SlotIndex) const;
+
+    /** 비어있는 첫 슬롯 인덱스. 꽉 찼으면 -1. */
+    UFUNCTION(BlueprintPure, Category = "Skills")
+    int32 FindFirstEmptySlot() const;
+
+    UPROPERTY(BlueprintAssignable, Category = "Skills")
+    FOnSkillsChanged OnSkillsChanged;
+
     UPROPERTY(EditDefaultsOnly, Category = "Skills")
     UDataTable* SkillDataTable;
 
@@ -76,10 +97,10 @@ public:
     bool HasSkill(FName SkillID) const;
 
     UFUNCTION(BlueprintPure, Category = "Skills")
-    bool CanGrantMoreSkills() const { return EquippedSkills.Num() < MaxSkillSlots; }
+    bool CanGrantMoreSkills() const;
 
     UFUNCTION(BlueprintPure, Category = "Skills")
-    int32 GetSkillCount() const { return EquippedSkills.Num(); }
+    int32 GetSkillCount() const;
 
     UFUNCTION(BlueprintPure, Category = "Skills")
     const TArray<UCC_SkillBase*>& GetAllSkills() const { return EquippedSkills; }

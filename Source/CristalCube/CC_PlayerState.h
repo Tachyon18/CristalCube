@@ -86,6 +86,10 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Skills")
     UCC_SkillBase* GrantSkillByRowName(FName SkillRowName);
 
+    /** 두 슬롯의 스킬 위치를 교환. 인덱스 무효/동일하면 무시. */
+    UFUNCTION(BlueprintCallable, Category = "Skills")
+    bool SwapSlots(int32 SlotA, int32 SlotB);
+
     //==========================================================================
     // QUERIES
     //==========================================================================

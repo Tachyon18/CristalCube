@@ -71,7 +71,9 @@ void ACC_PlayerController::OnPossess(APawn* InPawn)
     CC_LOG_PLAYER(Log, "OnPossess: ControlledCharacter cached ? %s",
         CC_ACTOR_NAME(ControlledCharacter));
 
-    SetInputMode(FInputModeGameAndUI());
+    FInputModeGameAndUI InputMode;
+    InputMode.SetHideCursorDuringCapture(false);
+    SetInputMode(InputMode);
     bShowMouseCursor = true;
 
     CC_LOG_PLAYER(Log, "OnPossess: InputMode reset to GameOnly");

@@ -415,6 +415,15 @@ struct FSkillDefinition
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Advanced")
     bool bPersistsThroughCubeTransition = false;
 
+    /**
+     * true면 ACC_PlayerState::CastAllReadySkills()의 자동 공격 루프 대상에 포함됨.
+     * false면 TryCastSkill(SkillID, ...)로 명시적으로만 발동 (차지형/버튼 입력형 스킬 등).
+     * "이펙트 없는 기본 공격"은 별도 클래스 없이 CoreType=Instant/Projectile +
+     * VFX 필드 전부 nullptr + bAutoCast=true 조합으로 표현 가능.
+     */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Advanced")
+    bool bAutoCast = true;
+
     // === Core (필수, 하나만) ===
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Core")
     ESkillCoreType CoreType = ESkillCoreType::Projectile;

@@ -13,7 +13,17 @@ void UCC_SkillInventoryWidget::NativeConstruct()
 
     Slots = { Slot1, Slot2, Slot3, Slot4, Slot5, Slot6 };
 
+    for (int32 i = 0; i < Slots.Num(); ++i)
+    {
+        if (Slots[i])
+        {
+            Slots[i]->SetSlotIndex(i);
+            Slots[i]->OnSlotDropped.AddDynamic(this, &UCC_SkillInventoryWidget::HandleSlotDropped);
+        }
+    }
+
     BoundPlayerState = GetOwningPlayerState<ACC_PlayerState>();
+
     if (BoundPlayerState)
     {
         BoundPlayerState->OnSkillsChanged.AddDynamic(this, &UCC_SkillInventoryWidget::HandleSkillsChanged);
@@ -72,6 +82,15 @@ void UCC_SkillInventoryWidget::RefreshInventory()
         {
             Slots[i]->ClearSlot();
         }
+    }
+}
+
+void UCC_SkillInventoryWidget::HandleSlotDropped(int32 SourceSlotIndex, int32 TargetSlotIndex)
+{
+    if (BoundPlayerState)
+    {
+        BoundPlayerState->SwapSlots(SourceSlotIndex, TargetSlotIndex);
+        // RefreshInventory()는 SwapSlots 내부의 OnSkillsChanged.Broadcast()가 자동 트리거함 — 수동 호출 불필요
     }
 }
 

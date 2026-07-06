@@ -49,6 +49,9 @@ protected:
     UPROPERTY(meta = (BindWidget))
     UCC_SkillInventorySlotWidget* Slot6;
 
+    UFUNCTION()
+    void HandleSlotDropped(int32 SourceSlotIndex, int32 TargetSlotIndex);
+
 private:
     /** Slot1~6을 순회용 배열로 캐싱 (NativeConstruct에서 1회 구성) */
     UPROPERTY()

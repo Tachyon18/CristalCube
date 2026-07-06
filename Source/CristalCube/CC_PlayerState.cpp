@@ -207,6 +207,18 @@ UCC_SkillBase* ACC_PlayerState::GrantSkillByRowName(FName SkillRowName)
     return GrantSkill(Row->SkillClass);
 }
 
+bool ACC_PlayerState::SwapSlots(int32 SlotA, int32 SlotB)
+{
+    if (SlotA == SlotB || !EquippedSkills.IsValidIndex(SlotA) || !EquippedSkills.IsValidIndex(SlotB))
+    {
+        return false;
+    }
+
+    EquippedSkills.Swap(SlotA, SlotB);   // 둘 다 비어있어도 안전 (nullptr swap)
+    OnSkillsChanged.Broadcast();
+    return true;
+}
+
 UCC_SkillBase* ACC_PlayerState::FindSkill(FName SkillID) const
 {
     for (UCC_SkillBase* Skill : EquippedSkills)
@@ -261,7 +273,7 @@ void ACC_PlayerState::CastAllReadySkills(UCC_SkillSystem* SkillSystem, FVector T
 
     for (UCC_SkillBase* Skill : EquippedSkills)
     {
-        if (IsValid(Skill) && Skill->IsReady())
+        if (IsValid(Skill) && Skill->IsReady() && Skill->GetDefinition().bAutoCast)
         {
             Skill->TryCast(SkillSystem, TargetLocation);
         }

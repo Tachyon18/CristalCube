@@ -69,6 +69,22 @@ protected:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Shape")
     float MeshZOffset = 0.f;
 
+    /** 테스트/디자인용 메시 스케일 — InitShape()에서 캡슐 재단 전에 적용됨.
+     *  이 값을 바꾸고 Play만 다시 하면 캡슐 크기/위치가 자동으로 다시 맞춰짐. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Shape")
+    FVector ShapeScale = FVector(1.f, 1.f, 1.f);
+
+    /** 메시 바운드로 계산된 캡슐 크기(Radius/HalfHeight)에 곱해지는 배율.
+     *  1.0 = 메시에 딱 맞춤, 1.0보다 크면 여유 있게(더 잘 맞음), 작으면 타이트하게.
+     *  체감상 살짝 작아 보이는 문제 보정용 — 도형별/인스턴스별로 자유롭게 조절 가능. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Shape",
+        meta = (ClampMin = "0.5", ClampMax = "2.0"))
+    float CapsuleFitMultiplier = 1.15f;
+
+    /** AutoFitCapsuleToMesh()가 라인 트레이스로 실측한 지면 Z (디버그 확인용으로 노출) */
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Enemy|Shape")
+    float LastMeasuredFloorZ = 0.f;
+
     // Phase 4: HISM 교체 예정 자리
     // UPROPERTY() UHierarchicalInstancedStaticMeshComponent* HISM;
 
@@ -228,6 +244,7 @@ public:
     virtual bool GetIsFrozen_Implementation() const override { return bIsFrozen; }
     virtual bool IsPersistentEnemy_Implementation() const override { return bPersistent; }
     virtual void SetPersistentEnemy_Implementation(bool bPersistentState) override;
+    virtual void ResetMovementState_Implementation() override;
 
     //==========================================================================
     // 공용
@@ -251,4 +268,12 @@ public:
     /** 현재 ShapeType 반환 (Phase 4 HISM 분류용) */
     UFUNCTION(BlueprintPure, Category = "Enemy|Shape")
     EEnemyShapeType GetShapeType() const { return ShapeType; }
+
+    //==========================================================================
+    // DEBUG
+    //==========================================================================
+
+    FTimerHandle CapsuleDebugTimer;
+
+    void DrawCapsuleDebug();
 };

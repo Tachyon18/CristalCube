@@ -11,6 +11,7 @@
 #include "../CC_EnemyManager.h"
 #include "../CC_AIManager.h"
 #include "../CC_CubeWorldManager.h"
+#include "../CC_CollisionHelper.h"
 #include "../Characters/CC_PlayerCharacter.h"
 #include "../Gameplay/CC_ExperienceGem.h"
 #include "../Gameplay/CC_Cube.h"
@@ -29,8 +30,7 @@ ACC_EnemyBase::ACC_EnemyBase()
     CapsuleComp->InitCapsuleSize(34.f, 34.f);
     CapsuleComp->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
 
-    CapsuleComp->SetCollisionResponseToChannel(ECC_GameTraceChannel1, ECR_Overlap);
-    CapsuleComp->SetGenerateOverlapEvents(true);
+    FCC_CollisionHelper::ConfigureAsSkillHittable(CapsuleComp);
 
     MeshComp = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("MeshComp"));
     MeshComp->SetupAttachment(CapsuleComp);
@@ -75,12 +75,17 @@ void ACC_EnemyBase::BeginPlay()
 
     GetWorldTimerManager().SetTimerForNextTick(this, &ACC_EnemyBase::RegisterToManagers);
 
+    // 캡슐 디버그 — CVar 꺼져있으면 DrawEnemyCapsuleDebug 내부에서 즉시 return
+    GetWorldTimerManager().SetTimer(
+        CapsuleDebugTimer, this, &ACC_EnemyBase::DrawCapsuleDebug, 0.1f, true);
+
 }
 
 void ACC_EnemyBase::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 
     GetWorldTimerManager().ClearTimer(AttackCooldownTimer);
+    GetWorldTimerManager().ClearTimer(CapsuleDebugTimer);
 
     if (UCC_AIManager* AIManager = UCC_AIManager::Get(this))
        AIManager->UnregisterEnemy(this);
@@ -341,6 +346,19 @@ void ACC_EnemyBase::SetPersistentEnemy_Implementation(bool bPersistentState)
     OnPersistentStateChanged(bPersistent);
 }
 
+void ACC_EnemyBase::ResetMovementState_Implementation()
+{
+    if (EnemyMovement)
+    {
+        EnemyMovement->StopMovementImmediately();
+    }
+
+    // 텔레포트된 새 위치를 기준으로 다시 판단하도록 목표/상태 리셋
+    MoveTarget = GetActorLocation();
+    EnemyState = EEnemyState::Moving;
+    bIsAttacking = false;
+}
+
 void ACC_EnemyBase::InitShape()
 {
     if (!MeshComp) return;
@@ -355,11 +373,14 @@ void ACC_EnemyBase::InitShape()
         { EEnemyShapeType::Cone,     TEXT("/Engine/BasicShapes/Cone.Cone")           },
     };
 
+    MeshComp->SetRelativeScale3D(ShapeScale);
+
     if (ShapeType == EEnemyShapeType::Custom)
     {
         if (UStaticMesh* Mesh = CustomMesh.LoadSynchronous())
             MeshComp->SetStaticMesh(Mesh);
 
+        AutoFitCapsuleToMesh(); // ← 변경: 기존엔 여기서 그냥 return, Custom은 재단 안 됐음
         ApplyMeshZOffset();
         return;
     }
@@ -378,14 +399,46 @@ void ACC_EnemyBase::InitShape()
 void ACC_EnemyBase::AutoFitCapsuleToMesh()
 {
     if (!MeshComp || !CapsuleComp) return;
-
+    
     // 캡슐 "크기"만 메시 바운드 기준으로 자동 계산.
     // 위치(Z) 보정은 더 이상 여기서 하지 않음 — MeshZOffset으로 디자이너가 직접 지정.
+    //const float OldHalfHeight = CapsuleComp->GetUnscaledCapsuleHalfHeight();
+
     const FBoxSphereBounds Bounds = MeshComp->CalcBounds(MeshComp->GetComponentTransform());
-    const float Radius = FMath::Max(Bounds.BoxExtent.X, Bounds.BoxExtent.Y) * 0.75f;
-    const float HalfHeight = FMath::Max(Bounds.BoxExtent.Z, Radius);
+    float Radius = FMath::Max(Bounds.BoxExtent.X, Bounds.BoxExtent.Y) * 0.75f;
+    float HalfHeight = FMath::Max(Bounds.BoxExtent.Z, Radius);
+
+    Radius *= CapsuleFitMultiplier;
+    HalfHeight *= CapsuleFitMultiplier;
 
     CapsuleComp->SetCapsuleSize(Radius, HalfHeight);
+
+    // 스폰 시점 위치가 "지면"이라고 가정하지 않고, 실제로 라인 트레이스를 쏴서
+    // 진짜 지면 Z를 직접 측정. 스폰 경로든 에디터 수동 배치든, Scale이 뭐든 전부 대응됨.
+    const FVector CurrentLoc = GetActorLocation();
+    const FVector TraceStart = CurrentLoc + FVector(0.f, 0.f, 500.f);
+    const FVector TraceEnd = CurrentLoc - FVector(0.f, 0.f, 2000.f);
+
+    FCollisionQueryParams Params;
+    Params.AddIgnoredActor(this);
+
+    FHitResult Hit;
+    float FloorZ = CurrentLoc.Z; // 트레이스 실패 시 폴백 — 현재 위치 유지
+
+    if (GetWorld()->LineTraceSingleByChannel(Hit, TraceStart, TraceEnd, ECC_WorldStatic, Params))
+    {
+        FloorZ = Hit.Location.Z;
+    }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[%s] AutoFitCapsuleToMesh: Trace failed."),
+            *GetName(), FloorZ);
+    }
+
+    LastMeasuredFloorZ = FloorZ;
+
+    FVector NewLoc = CurrentLoc;
+    NewLoc.Z = FloorZ + HalfHeight;
 }
 
 void ACC_EnemyBase::ApplyMeshZOffset()
@@ -393,6 +446,11 @@ void ACC_EnemyBase::ApplyMeshZOffset()
     if (!MeshComp) return;
 
     MeshComp->SetRelativeLocation(FVector(0.f, 0.f, MeshZOffset));
+}
+
+void ACC_EnemyBase::DrawCapsuleDebug()
+{
+    FCC_CollisionHelper::DrawEnemyCapsuleDebug(GetWorld(), CapsuleComp, bIsFrozen, bPersistent);
 }
 
 void ACC_EnemyBase::SetMovementEnabled(bool bEnabled)

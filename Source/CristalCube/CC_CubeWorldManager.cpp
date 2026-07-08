@@ -7,6 +7,7 @@
 #include "DrawDebugHelpers.h"
 #include "Gameplay/CC_Cube.h"
 #include "Gameplay/CC_CubeMoodComponent.h"
+#include "Gameplay/CC_EnemyAIInterface.h"
 #include "Characters/CC_EnemyCharacter.h"
 #include "CC_EnemyManager.h"
 #include "CC_EnemySpawner.h"
@@ -79,6 +80,30 @@ void ACC_CubeWorldManager::Tick(float DeltaTime)
 		{
 			DebugLogTimer = 0.f;
 			PrintDebugInfo();
+		}
+	}
+
+	// PersistentEnemyList 방어적 정리 — Die()를 거치지 않고 사라진(에디터 삭제 등)
+	// Persistent 적이 있으면 카운트가 영원히 부풀려져 Lock이 영구 고착될 수 있음.
+	// 정리 후 카운트를 실제 리스트 크기로 재동기화하고 Lock 상태를 재평가함.
+	PersistentCleanupTimer += DeltaTime;
+	if (PersistentCleanupTimer >= 3.0f)
+	{
+		PersistentCleanupTimer = 0.0f;
+
+		int32 Before = PersistentEnemyList.Num();
+		PersistentEnemyList.RemoveAll([](AActor* A) { return !IsValid(A); });
+		int32 Removed = Before - PersistentEnemyList.Num();
+
+		if (Removed > 0)
+		{
+			PersistentEnemyCount = PersistentEnemyList.Num();
+
+			UE_LOG(LogTemp, Warning,
+				TEXT("[Manager] Defensive cleanup removed %d stale PersistentEnemyList entries (Count now: %d)"),
+				Removed, PersistentEnemyCount);
+
+			CheckLockCondition();  // 유령 카운트로 인한 영구 Lock 자동 해제
 		}
 	}
 }
@@ -183,7 +208,40 @@ void ACC_CubeWorldManager::TeleportPersistentEnemiesToCube(ACC_Cube* TargetCube)
 			0.0f
 		);
 
-		Enemy->SetActorLocation(CubeCenter + Offset, false, nullptr, ETeleportType::TeleportPhysics);
+		const FVector TargetXY = CubeCenter + Offset;
+
+		// 지면 스냅 — SpawnSingleEnemy()와 동일한 방식.
+		// 여기 없으면 Persistent 적이 Cube 전환마다 지면에 파묻힘.
+		FHitResult FloorHit;
+		const FVector TraceStart = FVector(TargetXY.X, TargetXY.Y, CubeCenter.Z + 500.f);
+		const FVector TraceEnd = FVector(TargetXY.X, TargetXY.Y, CubeCenter.Z - 2000.f);
+
+		FCollisionQueryParams TraceParams;
+		TraceParams.AddIgnoredActor(Enemy);
+
+		FVector FinalLocation;
+
+		if (GetWorld()->LineTraceSingleByChannel(FloorHit, TraceStart, TraceEnd, ECC_WorldStatic, TraceParams))
+		{
+			const float HalfHeight = Enemy->GetSimpleCollisionHalfHeight();
+			FinalLocation = FVector(TargetXY.X, TargetXY.Y, FloorHit.Location.Z + HalfHeight);
+		}
+		else
+		{
+			// 트레이스 실패 시 폴백 — 최소한 Cube 바닥 기준 높이는 유지
+			FinalLocation = FVector(TargetXY.X, TargetXY.Y, CubeCenter.Z + Enemy->GetSimpleCollisionHalfHeight());
+
+			UE_LOG(LogTemp, Warning,
+				TEXT("[Manager] TeleportPersistentEnemiesToCube: floor trace failed for %s — Cube base Z fallback used."),
+				*Enemy->GetName());
+		}
+
+		Enemy->SetActorLocation(FinalLocation, false, nullptr, ETeleportType::TeleportPhysics);
+		// 텔레포트 직후 잔여 속도/이동 상태 초기화 — 안 하면 이전 위치 기준 관성/목표가 남아있음
+		if (Enemy->GetClass()->ImplementsInterface(UCC_EnemyAIInterface::StaticClass()))
+		{
+			ICC_EnemyAIInterface::Execute_ResetMovementState(Enemy);
+		}
 
 		++TeleportedCount;
 	}

@@ -19,6 +19,7 @@
 #include "../Widgets/CC_LevelUpWidget.h"
 #include "../CC_TileTrackerComponent.h"
 #include "../SkillSystem/CC_SkillSystem.h"
+#include "../CC_CollisionHelper.h"
 #include "CC_EnemyCharacter.h"
 
 
@@ -39,8 +40,7 @@ ACC_PlayerCharacter::ACC_PlayerCharacter()
 
 	if (UCapsuleComponent* Capsule = GetCapsuleComponent())
 	{
-		Capsule->SetCollisionResponseToChannel(ECC_GameTraceChannel1, ECR_Overlap);
-		Capsule->SetGenerateOverlapEvents(true);
+		FCC_CollisionHelper::ConfigureAsSkillHittable(GetCapsuleComponent());
 	}
 
 	// Initialize player stats (all start at 1.0 = no bonus)

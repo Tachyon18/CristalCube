@@ -9,6 +9,8 @@
 #include "../Characters/CC_Character.h"
 #include "../Gameplay/CC_EnemyAIInterface.h"
 #include "../CC_CubeWorldManager.h"
+#include "Components/SphereComponent.h"
+#include "GameFramework/ProjectileMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "Engine/DamageEvents.h"
 #include "NiagaraFunctionLibrary.h"
@@ -928,6 +930,8 @@ void UCC_SkillSystem::OnProjectileHit(ACC_SkillEffector* Effector, AActor* HitAc
 	Hit.ImpactPoint = HitActor->GetActorLocation();
 	ProcessAddons(Skill, Context, Hit);
 
+	UE_LOG(LogTemp, Log, TEXT("[SkillSystem] Projectile hit processed for %s"), *HitActor->GetName());
+
 	bool bHasPenetrate = Skill.Addons.Contains(ESkillAddonType::Penetrate);
 
 	if (bHasPenetrate)
@@ -938,12 +942,30 @@ void UCC_SkillSystem::OnProjectileHit(ACC_SkillEffector* Effector, AActor* HitAc
 
 		if (!CanPenetrate(Skill, Context))
 		{
-			Effector->Destroy();
+			//Effector->DeactivateAndDestroy();
+			if (Effector->CollisionSphere)
+			{
+				Effector->CollisionSphere->SetGenerateOverlapEvents(false);
+				Effector->CollisionSphere->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			}
+			if (Effector->ProjectileMovement)
+			{
+				Effector->ProjectileMovement->SetActive(false);
+			}
 		}
 	}
 	else
 	{
-		Effector->Destroy();
+		//Effector->DeactivateAndDestroy();
+		if (Effector->CollisionSphere)
+		{
+			Effector->CollisionSphere->SetGenerateOverlapEvents(false);
+			Effector->CollisionSphere->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		}
+		if (Effector->ProjectileMovement)
+		{
+			Effector->ProjectileMovement->SetActive(false);
+		}
 	}
 
 }

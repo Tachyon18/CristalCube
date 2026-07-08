@@ -267,5 +267,8 @@ protected:
 
     float DebugLogTimer = 0.f;
 
+    /** PersistentEnemyList 방어적 정리 타이머 — CC_Cube::ManagedActorsCleanupTimer와 동일 패턴 */
+    float PersistentCleanupTimer = 0.f;
+
     bool bSystemReady = false;
 };

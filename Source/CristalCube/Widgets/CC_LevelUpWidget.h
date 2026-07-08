@@ -39,7 +39,9 @@ protected:
     UPROPERTY(meta = (BindWidget)) UTextBlock* Choice1Description;
     UPROPERTY(meta = (BindWidget)) UTextBlock* Choice2Description;
     UPROPERTY(meta = (BindWidget)) UTextBlock* Choice3Description;
-
+    UPROPERTY(meta = (BindWidget)) class UImage* Choice1Icon;
+    UPROPERTY(meta = (BindWidget)) UImage* Choice2Icon;
+    UPROPERTY(meta = (BindWidget)) UImage* Choice3Icon;
     UPROPERTY(BlueprintReadOnly , meta = (BindWidget)) class UCC_IntroGlassWidget* CardPanel1;
     UPROPERTY(BlueprintReadOnly , meta = (BindWidget)) UCC_IntroGlassWidget* CardPanel2;
     UPROPERTY(BlueprintReadOnly , meta = (BindWidget)) UCC_IntroGlassWidget* CardPanel3;

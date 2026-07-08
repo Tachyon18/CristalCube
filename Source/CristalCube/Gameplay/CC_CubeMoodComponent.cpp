@@ -20,7 +20,7 @@ UCC_CubeMoodComponent::UCC_CubeMoodComponent()
         // 기본 무드 3개 (CubeType 0/1/2) 미리 채워두기
     FCubeMoodSettings Meadow;
     Meadow.SunColor = FLinearColor(1.0f, 0.95f, 0.8f);
-    Meadow.SunIntensity = 80000.f;
+    Meadow.SunIntensity = 8.f;
     Meadow.SunRotation = FRotator(-50.f, 0.f, 0.f);
     Meadow.BloomIntensity = 0.675f;
     Meadow.ColorSaturation = 1.1f;
@@ -30,7 +30,7 @@ UCC_CubeMoodComponent::UCC_CubeMoodComponent()
 
     FCubeMoodSettings Desert;
     Desert.SunColor = FLinearColor(1.0f, 0.85f, 0.6f);
-    Desert.SunIntensity = 111000.f;
+    Desert.SunIntensity = 11.1f;
     Desert.SunRotation = FRotator(-65.f, 0.f, 0.f);
     Desert.BloomIntensity = 0.4f;
     Desert.ColorSaturation = 1.0f;
@@ -40,7 +40,7 @@ UCC_CubeMoodComponent::UCC_CubeMoodComponent()
 
     FCubeMoodSettings Volcanic;
     Volcanic.SunColor = FLinearColor(1.0f, 0.35f, 0.1f);
-    Volcanic.SunIntensity = 40000.f;
+    Volcanic.SunIntensity = 4.f;
     Volcanic.SunRotation = FRotator(-30.f, 0.f, 0.f);
     Volcanic.BloomIntensity = 1.2f;
     Volcanic.ColorSaturation = 0.9f;

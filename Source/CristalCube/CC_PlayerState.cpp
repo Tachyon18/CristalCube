@@ -44,6 +44,8 @@ UCC_SkillBase* ACC_PlayerState::GrantSkill(TSubclassOf<UCC_SkillBase> SkillClass
         return nullptr;
     }
 
+	UE_LOG(LogTemp, Log, TEXT("GrantSkill: Granting skill %s to slot %d"), *SkillClass->GetName(), EmptySlot);
+
     return GrantSkillToSlot(SkillClass, EmptySlot);
 }
 

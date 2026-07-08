@@ -58,4 +58,9 @@ public:
     UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Enemy|Persistent")
     void SetPersistentEnemy(bool bPersistentState);
     virtual void SetPersistentEnemy_Implementation(bool bPersistentState) = 0;
+
+    /** 순간이동 등으로 위치가 갑자기 바뀐 직후 호출 — 잔여 속도/이동 목표/상태를 초기화 */
+    UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Enemy|AI")
+    void ResetMovementState();
+    virtual void ResetMovementState_Implementation() = 0;
 };

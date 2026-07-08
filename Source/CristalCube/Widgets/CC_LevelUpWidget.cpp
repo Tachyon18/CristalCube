@@ -42,7 +42,14 @@ void UCC_LevelUpWidget::SetWeaponChoices(const TArray<FName>& InWeaponNames)
         {
             Choice1Name->SetText(WeaponData->WeaponName);
             Choice1Description->SetText(WeaponData->Description);
+
+            if (Choice1Icon && WeaponData->Icon)
+            {
+                Choice1Icon->SetBrushFromTexture(WeaponData->Icon);
+            }
         }
+
+
     }
 
     if (WeaponChoices.IsValidIndex(1))
@@ -52,6 +59,11 @@ void UCC_LevelUpWidget::SetWeaponChoices(const TArray<FName>& InWeaponNames)
         {
             Choice2Name->SetText(WeaponData->WeaponName);
             Choice2Description->SetText(WeaponData->Description);
+
+			if (Choice2Icon && WeaponData->Icon)
+			{
+				Choice2Icon->SetBrushFromTexture(WeaponData->Icon);
+			}
         }
     }
 
@@ -62,6 +74,11 @@ void UCC_LevelUpWidget::SetWeaponChoices(const TArray<FName>& InWeaponNames)
         {
             Choice3Name->SetText(WeaponData->WeaponName);
             Choice3Description->SetText(WeaponData->Description);
+
+            if (Choice3Icon && WeaponData->Icon)
+            {
+                Choice3Icon->SetBrushFromTexture(WeaponData->Icon);
+            }
         }
     }
 }

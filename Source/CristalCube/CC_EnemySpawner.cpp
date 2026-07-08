@@ -285,6 +285,35 @@ APawn* ACC_EnemySpawner::SpawnSingleEnemy(const FVector& Location)
 
     if (NewEnemy)
     {
+        // 지면 스냅 — SpawnActor 시점엔 이미 BeginPlay(InitShape 포함)가 끝난 상태라
+        // NewEnemy의 캡슐 크기가 확정돼 있음. CMC/중력이 없어 스폰 후 알아서 안착하지
+        // 않으므로, 여기서 한 번에 확실히 지면 위로 맞춰줌.
+
+        FHitResult FloorHit;
+        const FVector TraceStart = Location + FVector(0.f, 0.f, 500.f);
+        const FVector TraceEnd = Location - FVector(0.f, 0.f, 2000.f);
+
+        FCollisionQueryParams TraceParams;
+        TraceParams.AddIgnoredActor(NewEnemy);
+
+        if (GetWorld()->LineTraceSingleByChannel(FloorHit, TraceStart, TraceEnd, ECC_WorldStatic, TraceParams))
+        {
+            const float HalfHeight = NewEnemy->GetSimpleCollisionHalfHeight();
+            const FVector Grounded(Location.X, Location.Y, FloorHit.Location.Z + HalfHeight);
+            NewEnemy->SetActorLocation(Grounded);
+
+            CC_LOG_SPAWNER(VeryVerbose,
+                TEXT("[Spawner] Grounded %s at Z=%.1f (Floor=%.1f, HalfHeight=%.1f)"),
+                *NewEnemy->GetName(), Grounded.Z, FloorHit.Location.Z, HalfHeight);
+        }
+        else
+        {
+            CC_LOG_SPAWNER(Warning,
+                TEXT("[Spawner] Floor trace failed for %s at (%.0f, %.0f) — spawned at requested Z (%.1f) as-is."),
+                *NewEnemy->GetName(), Location.X, Location.Y, Location.Z);
+        }
+
+
         bool bIsPersistent = false;
         if (NewEnemy->GetClass()->ImplementsInterface(UCC_EnemyAIInterface::StaticClass()))
         {

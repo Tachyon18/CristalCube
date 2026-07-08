@@ -90,6 +90,11 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Skill Effector")
 	void Initialize(ESkillCoreType InCoreType, const FSkillDefinition& InSkillDef);
 
+	/** Destroy() 직접 호출 대신 항상 이걸 사용 — VFX가 Death Event/잔여 파티클을
+	*  끊기지 않고 정상 종료할 수 있도록 Detach 후 파괴함. */
+	UFUNCTION(BlueprintCallable, Category = "Skill Effector")
+	void DeactivateAndDestroy();
+
 	UFUNCTION()
 	void OnOverlapBegin(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
 
@@ -110,8 +115,11 @@ public:
 
 	virtual void OnRemovedByCubeTransition_Implementation() override
 	{
-		Destroy();
+		DeactivateAndDestroy();
 	}
 protected:
+
+	// LifeSpan 타임아웃(아무것도 못 맞추고 EffectDuration 지남)도 같은 경로를 타도록 오버라이드
+	virtual void LifeSpanExpired() override;
 
 };

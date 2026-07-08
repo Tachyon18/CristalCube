@@ -4,6 +4,7 @@
 #include "CC_SkillEffector.h"
 #include "Kismet/GameplayStatics.h"
 #include "../CC_LogHelper.h"
+#include "../CC_CollisionHelper.h"
 #include "Components/SphereComponent.h"
 #include "../Gameplay/CC_EnemyAIInterface.h"
 #include "NiagaraComponent.h"	
@@ -21,7 +22,9 @@ ACC_SkillEffector::ACC_SkillEffector()
 	CollisionSphere->SetSphereRadius(50.0f);
 	CollisionSphere->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 	CollisionSphere->SetCollisionResponseToAllChannels(ECR_Ignore);
-	CollisionSphere->SetCollisionResponseToChannel(ECC_GameTraceChannel1, ECR_Overlap);
+	
+	FCC_CollisionHelper::ConfigureAsSkillHittable(CollisionSphere);
+
 	CollisionSphere->SetNotifyRigidBodyCollision(true);
 	CollisionSphere->SetGenerateOverlapEvents(true);
 
@@ -124,8 +127,42 @@ void ACC_SkillEffector::Initialize(ESkillCoreType InCoreType, const FSkillDefini
 	CC_LOG_SKILL(Log, "[SkillEffector] Initialized - Type: %d, Damage: %.1f", (int32)SkillCoreType, SkillDef.BaseDamage);
 }
 
+void ACC_SkillEffector::DeactivateAndDestroy()
+{
+	// 콜리전/이동 즉시 정지 — 더 이상 새로운 히트나 이동을 만들지 않음
+	if (CollisionSphere)
+	{
+		CollisionSphere->SetGenerateOverlapEvents(false);
+		CollisionSphere->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	}
+	
+	if (ProjectileMovement)
+	{
+		ProjectileMovement->SetActive(false);
+	}
+
+	// VFXStack(AddVFX로 붙인 것)뿐 아니라, BP에서 직접 붙여둔 Niagara 컴포넌트까지
+	// 이 액터에 존재하는 "모든" UNiagaraComponent를 찾아서 동일하게 처리.
+	// 붙인 경로(C++ AddVFX / BP SCS / 에디터에서 드래그)와 무관하게 전부 커버됨.
+	TArray<UNiagaraComponent*> AllNiagaraComponents;
+	GetComponents<UNiagaraComponent>(AllNiagaraComponents);
+
+	for (UNiagaraComponent* VFX : AllNiagaraComponents)
+	{
+		if (!VFX) continue;
+
+		VFX->DetachFromComponent(FDetachmentTransformRules::KeepWorldTransform);
+		VFX->Deactivate();  // 즉시 정지 아님 — "정상 종료" 신호. Death Event/버스트 처리할 시간을 줌
+	}
+	VFXStack.Empty();
+
+	Destroy();
+}
+
 void ACC_SkillEffector::OnOverlapBegin(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
 {
+	UE_LOG(LogTemp, Log, TEXT("[SkillEffector] Overlap Begin with: %s"), *OtherActor->GetName());
+
 	if (!OtherActor || OtherActor == this || OtherActor == SkillOwner)
 	{
 		return;
@@ -201,4 +238,11 @@ void ACC_SkillEffector::SetupAsRainfall()
 
 	CC_LOG_SKILL(Log, "[SkillEffector] Setup as Rainfall");
 
+}
+
+void ACC_SkillEffector::LifeSpanExpired()
+{
+	// 기본 AActor::LifeSpanExpired()는 그냥 Destroy()를 호출함 —
+	// 여기서도 VFX가 끊기지 않도록 같은 경로로 통일
+	DeactivateAndDestroy();
 }

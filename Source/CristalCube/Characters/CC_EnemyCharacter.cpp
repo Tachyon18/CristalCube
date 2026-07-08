@@ -16,6 +16,7 @@
 #include "../CC_AIManager.h"
 #include "../CC_EnemyAIController.h"
 #include "../CC_CubeWorldManager.h"
+#include "../CC_CollisionHelper.h"
 #include "../Gameplay/CC_ExperienceGem.h"
 #include "../Gameplay/CC_Cube.h"
 #include "NiagaraFunctionLibrary.h"
@@ -34,9 +35,7 @@ ACC_EnemyCharacter::ACC_EnemyCharacter()
 
 	if(UCapsuleComponent* Capsule = GetCapsuleComponent())
 	{
-		Capsule->SetCollisionResponseToChannel(ECC_GameTraceChannel1, ECR_Overlap);
-		Capsule->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
-		Capsule->SetGenerateOverlapEvents(true);
+		FCC_CollisionHelper::ConfigureAsSkillHittable(GetCapsuleComponent());
 	}
 
 	// ─── RVO Avoidance: Enemy 간 소프트 분산 ──────────────────────────────
@@ -169,6 +168,8 @@ void ACC_EnemyCharacter::ReportActualDeathToEnemyManager()
 void ACC_EnemyCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
+
+	FCC_CollisionHelper::DrawEnemyCapsuleDebug(GetWorld(), GetCapsuleComponent(), bIsFrozen, bPersistent);
 
 	// Chase player if enabled and alive
 	if (!IsAlive()|| EnemyState == EEnemyState::Attacking)
@@ -1015,4 +1016,28 @@ void ACC_EnemyCharacter::SetPersistentEnemy_Implementation(bool bPersistentState
 	}
 
 	OnPersistentStateChanged(bPersistent);
+}
+
+void ACC_EnemyCharacter::ResetMovementState_Implementation()
+{
+	if (UCharacterMovementComponent* CMC = GetCharacterMovement())
+	{
+		CMC->StopMovementImmediately();
+	}
+
+	CachedMoveDirection = FVector::ZeroVector;
+	MoveTarget = GetActorLocation();
+
+	// Step/Teleport 이동 내부 상태도 초기화 ? 텔레포트 전 목표/타이머가
+	// 새 위치와 무관하게 남아있으면 이상하게 움직일 수 있음
+	StepPhase = EStepPhase::Moving;
+	StepTarget = FVector::ZeroVector;
+	StepWaitElapsed = 0.f;
+	TeleportElapsed = 0.f;
+
+	if (EnemyState == EEnemyState::Attacking)
+	{
+		EnemyState = EEnemyState::Moving;
+		bIsAttacking = false;
+	}
 }

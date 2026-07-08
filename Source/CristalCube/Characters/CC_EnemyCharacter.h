@@ -335,4 +335,5 @@ public:
 	}
 
 	virtual void SetPersistentEnemy_Implementation(bool bPersistentState) override;
+	virtual void ResetMovementState_Implementation() override;
 };

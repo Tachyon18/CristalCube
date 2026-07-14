@@ -136,4 +136,28 @@ protected:
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Skills")
     int32 MaxSkillSlots = 6;
 
+public:
+    
+	//==========================================================================
+	// CUBE REWARD MANAGEMENT
+	//==========================================================================
+
+    // CC_PlayerState.h — public 섹션에 추가
+    UPROPERTY(EditDefaultsOnly, Category = "Cube Energy")
+    float CubeEnergyGaugeMax = 100.0f;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Cube Energy")
+    float CubeEnergyCurrent = 0.0f;
+
+    /** 게이지 완충 후 적립된, 아직 소진 안 된 보너스 픽 수 */
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Cube Energy")
+    int32 PendingBonusPicks = 0;
+
+    UFUNCTION(BlueprintCallable, Category = "Cube Energy")
+    void AddCubeEnergy(float Amount);
+
+    /** Cube Clear 시점 호출 — 기본 1장 + 적립된 보너스를 합쳐 반환하고 Pending은 0으로 리셋 */
+    UFUNCTION(BlueprintCallable, Category = "Cube Energy")
+    int32 ConsumeCubeClearPicks();
+
 };

@@ -103,18 +103,12 @@ public:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Cube|Persistent")
     bool bCubeLocked = false;
 
-    UPROPERTY(BlueprintAssignable, Category = "Cube|Events")
-    FOnCubeWaveCleared OnCubeWaveCleared;
-
     /** WorldManager 레벨 관리 Persistent Enemy 목록 */
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Cube|Persistent")
     TArray<AActor*> PersistentEnemyList;
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Cube|Persistent")
     int32 PersistentEnemyCount = 0;
-
-    UFUNCTION(BlueprintCallable, Category = "Cube")
-    void NotifyCubeWaveCleared(FIntPoint Coord);
 
     UFUNCTION(BlueprintCallable, Category = "Cube|Persistent")
     void RegisterPersistentEnemy(AActor* Enemy);
@@ -124,6 +118,16 @@ public:
 
     void CheckLockCondition();
     void TeleportPersistentEnemiesToCube(ACC_Cube* TargetCube);
+
+	//========================================
+	// Cube Reward System
+	//========================================
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cube|Energy")
+    float LockClearEnergyPerEnemy = 8.0f;
+
+    // Lock 발동 시점의 Persistent 수를 기억 — 해제 시 "얼마나 힘들게 풀었는지" 계산용
+    int32 LockTriggerPersistentCount = 0;
 
     // ========================================
     // Data Structures

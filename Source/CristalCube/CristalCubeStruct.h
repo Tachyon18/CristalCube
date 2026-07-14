@@ -10,7 +10,7 @@
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnFadeComplete);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCubeTransition, FIntPoint, NewCoordinate);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnCubeSystemReady);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCubeWaveCleared, FIntPoint, Coordinate);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCubeCleared, FIntPoint, Coordinate);
 
 class UNiagaraSystem;
 class UCC_SkillBase;
@@ -589,6 +589,8 @@ enum class ECubeClearRewardType : uint8
     SkillGrant      UMETA(DisplayName = "Skill Grant"),      // 스킬 획득
     StatBoost       UMETA(DisplayName = "Stat Boost"),       // 스탯 부스트 (영구)
     HealFull        UMETA(DisplayName = "Full Heal"),        // 체력 완전 회복
+    AddonGrant      UMETA(DisplayName = "Addon Grant"),
+    AddonUpgrade    UMETA(DisplayName = "Addon Upgrade"),
 };
 
 USTRUCT(BlueprintType)
@@ -599,6 +601,14 @@ struct FCubeClearReward
     /** 보상 종류 */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Reward")
     ECubeClearRewardType RewardType = ECubeClearRewardType::WeaponUpgrade;
+
+    /** AddonGrant / AddonUpgrade 용 — 대상 애드온 타입 */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Reward|Addon")
+    ESkillAddonType TargetAddonType = ESkillAddonType::None;
+
+    /** AddonUpgrade 용 — 적용할 강화 수치 (해당 애드온 타입에 대응되는 필드만 사용됨) */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Reward|Addon")
+    FSkillPassiveProperties AddonUpgradeDelta;
 
     /** UI 표시 이름 */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Reward")

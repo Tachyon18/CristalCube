@@ -778,11 +778,6 @@ void ACC_Cube::HandleSpawnerWaveCleared(ACC_EnemySpawner* Spawner)
 
 	bWaveCleared = true;
 
-	UE_LOG(LogTemp, Warning, TEXT("[Cube] (%d,%d) Wave Cleared — true Cube Clear achieved."),
+	UE_LOG(LogTemp, Warning, TEXT("[Cube] (%d,%d) Spawner wave cleared — local wave-model bookkeeping only."),
 		CubeCoordinate.X, CubeCoordinate.Y);
-
-	if (ACC_CubeWorldManager* WorldManager = ACC_CubeWorldManager::Get(this))
-	{
-		WorldManager->NotifyCubeWaveCleared(CubeCoordinate);
-	}
 }

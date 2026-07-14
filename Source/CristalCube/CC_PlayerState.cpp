@@ -281,3 +281,26 @@ void ACC_PlayerState::CastAllReadySkills(UCC_SkillSystem* SkillSystem, FVector T
         }
     }
 }
+
+void ACC_PlayerState::AddCubeEnergy(float Amount)
+{
+    if (Amount <= 0.f || CubeEnergyGaugeMax <= 0.f) return;
+
+    CubeEnergyCurrent += Amount;
+
+    while (CubeEnergyCurrent >= CubeEnergyGaugeMax)
+    {
+        CubeEnergyCurrent -= CubeEnergyGaugeMax;
+        ++PendingBonusPicks;
+    }
+
+    UE_LOG(LogTemp, Log, TEXT("[PlayerState] CubeEnergy +%.1f (Current: %.1f/%.1f, PendingPicks: %d)"),
+        Amount, CubeEnergyCurrent, CubeEnergyGaugeMax, PendingBonusPicks);
+}
+
+int32 ACC_PlayerState::ConsumeCubeClearPicks()
+{
+    const int32 Total = 1 + PendingBonusPicks;  // Cube Clear당 최소 1장 보장
+    PendingBonusPicks = 0;
+    return Total;
+}

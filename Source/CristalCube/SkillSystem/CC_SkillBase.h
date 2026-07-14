@@ -89,6 +89,18 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Skill")
     virtual void ApplyPassiveModifier(const FSkillPassiveProperties& Modifier);
 
+    // CC_SkillBase.h — public 섹션에 추가
+    UFUNCTION(BlueprintPure, Category = "Skill|Addon")
+    bool HasAddon(ESkillAddonType AddonType) const { return SkillDef.Addons.Contains(AddonType); }
+
+    /** 새 애드온을 이 스킬에 추가. 이미 있으면 false. */
+    UFUNCTION(BlueprintCallable, Category = "Skill|Addon")
+    bool GrantAddon(ESkillAddonType AddonType);
+
+    /** 이미 보유한 애드온의 세부 수치 강화. 미보유 시 무시. */
+    UFUNCTION(BlueprintCallable, Category = "Skill|Addon")
+    void ApplyAddonModifier(ESkillAddonType AddonType, const FSkillPassiveProperties& Modifier);
+
 protected:
 
     //==========================================================================

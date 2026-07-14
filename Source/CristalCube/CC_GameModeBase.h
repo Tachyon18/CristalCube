@@ -13,7 +13,8 @@ enum class EGameState : uint8
     Playing         UMETA(DisplayName = "Playing"),
     Paused          UMETA(DisplayName = "Paused"),
     GameOver        UMETA(DisplayName = "Game Over"),
-    LevelUp         UMETA(DisplayName = "Level Up")
+    LevelUp         UMETA(DisplayName = "Level Up"),
+    GameClear       UMETA(DisplayName = "Game Clear")
 };
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnGameStateChanged, EGameState, NewState);

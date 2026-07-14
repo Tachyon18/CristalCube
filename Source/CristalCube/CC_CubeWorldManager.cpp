@@ -9,6 +9,7 @@
 #include "Gameplay/CC_CubeMoodComponent.h"
 #include "Gameplay/CC_EnemyAIInterface.h"
 #include "Characters/CC_EnemyCharacter.h"
+#include "CC_PlayerState.h"
 #include "CC_EnemyManager.h"
 #include "CC_EnemySpawner.h"
 
@@ -130,25 +131,6 @@ bool ACC_CubeWorldManager::IsValidCoordinate(FIntPoint Coord) const
 	return CubeGrid.Contains(Coord);
 }
 
-void ACC_CubeWorldManager::NotifyCubeWaveCleared(FIntPoint Coord)
-{
-	if (CubeGrid.Contains(Coord))
-	{
-		CubeGrid[Coord].bCleared = true;  // 기존에 선언만 돼 있던 필드 — 드디어 실사용
-	}
-	else
-	{
-		UE_LOG(LogTemp, Warning,
-			TEXT("[Manager] NotifyCubeWaveCleared — (%d,%d) not found in CubeGrid"),
-			Coord.X, Coord.Y);
-	}
-
-	UE_LOG(LogTemp, Warning, TEXT("[Manager] Cube (%d,%d) CUBE CLEAR — true wave-clear achieved."),
-		Coord.X, Coord.Y);
-
-	OnCubeWaveCleared.Broadcast(Coord);
-}
-
 void ACC_CubeWorldManager::RegisterPersistentEnemy(AActor* Enemy)
 {
 	if (!Enemy) return;
@@ -178,6 +160,7 @@ void ACC_CubeWorldManager::CheckLockCondition()
 	if (!bCubeLocked && PersistentEnemyCount >= LockThreshold)
 	{
 		bCubeLocked = true;
+		LockTriggerPersistentCount = PersistentEnemyCount;
 		if (ActiveCube)  ActiveCube->SetLockWall(true);
 		UE_LOG(LogTemp, Warning, TEXT("[Manager] Cube LOCKED! Count: %d"), PersistentEnemyCount);
 	}
@@ -186,6 +169,15 @@ void ACC_CubeWorldManager::CheckLockCondition()
 		bCubeLocked = false;
 		if (ActiveCube) ActiveCube->SetLockWall(false);
 		UE_LOG(LogTemp, Warning, TEXT("[Manager] Cube UNLOCKED! Count: %d"), PersistentEnemyCount);
+
+		// Lock Clear 보너스 — 얼마나 힘들게 쌓인 Lock이었는지에 비례
+		if (ACharacter* Player = GetPlayerCharacter())
+		{
+			if (ACC_PlayerState* PS = Player->GetPlayerState<ACC_PlayerState>())
+			{
+				PS->AddCubeEnergy(static_cast<float>(LockTriggerPersistentCount) * LockClearEnergyPerEnemy);
+			}
+		}
 	}
 }
 

@@ -5,6 +5,8 @@
 #include "Characters/CC_PlayerCharacter.h"
 #include "Blueprint/UserWidget.h"
 #include "Kismet/GameplayStatics.h"
+#include "CC_PlayerState.h"
+#include "SkillSystem/CC_SkillBase.h"
 #include "TimerManager.h"
 
 ACC_MainGameMode::ACC_MainGameMode()
@@ -35,102 +37,131 @@ void ACC_MainGameMode::SpawnCycleManager()
 
     if (CycleManager)
     {
-        // 사이클 완료 이벤트 바인딩
-        CycleManager->OnCubeCleared.AddDynamic(
-            this, &ACC_MainGameMode::OnCubeCleared);
+        CycleManager->OnCubeClearAchieved.AddDynamic(this, &ACC_MainGameMode::OnCubeClearAchieved);
+        CycleManager->OnGameCleared.AddDynamic(this, &ACC_MainGameMode::OnGameCleared);
 
-        CycleManager->StartFirstCycle();
+        CycleManager->StartCubeClearTracking();
 
-        UE_LOG(LogTemp, Log, TEXT("[GameMode] CycleManager spawned and first cycle started."));
+        UE_LOG(LogTemp, Log, TEXT("[GameMode] CycleManager spawned and Cube Clear tracking started."));
     }
+}
+
+void ACC_MainGameMode::ApplyCubeClearReward(const FCubeClearReward& SelectedReward)
+{
+    APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0);
+    ACC_PlayerCharacter* Player = PC ? Cast<ACC_PlayerCharacter>(PC->GetPawn()) : nullptr;
+    ACC_PlayerState* PS = PC ? PC->GetPlayerState<ACC_PlayerState>() : nullptr;
+
+    switch (SelectedReward.RewardType)
+    {
+    case ECubeClearRewardType::StatBoost:
+        if (Player && SelectedReward.StatUpgradeType != EUpgradeType::None)
+        {
+            Player->ApplyStatUpgrade(SelectedReward.StatUpgradeType, SelectedReward.StatValue);
+        }
+        break;
+
+    case ECubeClearRewardType::HealFull:
+        if (Player)
+        {
+            
+        }
+        break;
+
+    case ECubeClearRewardType::SkillGrant:
+        if (PS)
+        {
+            PS->GrantSkillByRowName(SelectedReward.DataRowName);
+        }
+        break;
+
+    case ECubeClearRewardType::AddonGrant:
+        if (PS)
+        {
+            TArray<UCC_SkillBase*> Candidates;
+            for (UCC_SkillBase* Skill : PS->GetAllSkills())
+            {
+                if (Skill && !Skill->HasAddon(SelectedReward.TargetAddonType))
+                {
+                    Candidates.Add(Skill);
+                }
+            }
+            if (Candidates.Num() > 0)
+            {
+                Candidates[FMath::RandRange(0, Candidates.Num() - 1)]->GrantAddon(SelectedReward.TargetAddonType);
+            }
+        }
+        break;
+
+    case ECubeClearRewardType::AddonUpgrade:
+        if (PS)
+        {
+            TArray<UCC_SkillBase*> Candidates;
+            for (UCC_SkillBase* Skill : PS->GetAllSkills())
+            {
+                if (Skill && Skill->HasAddon(SelectedReward.TargetAddonType))
+                {
+                    Candidates.Add(Skill);
+                }
+            }
+            if (Candidates.Num() > 0)
+            {
+                Candidates[FMath::RandRange(0, Candidates.Num() - 1)]->ApplyAddonModifier(
+                    SelectedReward.TargetAddonType, SelectedReward.AddonUpgradeDelta);
+            }
+        }
+        break;
+
+    default:
+        break;
+    }
+
+    UE_LOG(LogTemp, Log, TEXT("[MainGameMode] Reward applied: %s"),
+        *SelectedReward.DisplayName.ToString());
+}
+
+void ACC_MainGameMode::OnCubeClearAchieved(int32 StageNumber)
+{
+    APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0);
+    ACC_PlayerState* PS = PC ? PC->GetPlayerState<ACC_PlayerState>() : nullptr;
+    if (!PS) return;
+
+    PS->AddCubeEnergy(CubeEnergyPerCubeClear);
+
+    const int32 NewPicks = PS->ConsumeCubeClearPicks();
+    PendingRewardSlots += NewPicks;
+
+    UE_LOG(LogTemp, Log,
+        TEXT("[MainGameMode] Cube Clear (stage %d) — +%.1f energy, +%d reward slot(s), pending: %d"),
+        StageNumber, CubeEnergyPerCubeClear, NewPicks, PendingRewardSlots);
+
+    RefreshCubeClearRewardBar();
+}
+
+void ACC_MainGameMode::OnGameCleared()
+{
+    UE_LOG(LogTemp, Warning, TEXT("[MainGameMode] === GAME CLEARED (Boss defeated) ==="));
+
+    SetGameState(EGameState::GameClear);
+    ShowGameClearUI();
 }
 
 // ============================================================
-//  Cube Clear
+//  Cycle Clear
 // ============================================================
 
-void ACC_MainGameMode::OnCubeCleared(int32 ClearedCycle)
+void ACC_MainGameMode::RefreshCubeClearRewardBar()
 {
-    UE_LOG(LogTemp, Warning,
-        TEXT("[MainGameMode] Cube %d cleared — showing reward UI"), ClearedCycle);
-
-    SetGameState(EGameState::LevelUp); // LevelUp 상태 재활용 (입력 차단 목적)
-    ShowCubeClearUI(ClearedCycle);
-}
-
-void ACC_MainGameMode::ShowCubeClearUI(int32 ClearedCycle)
-{
-    if (!CubeClearWidgetClass)
-    {
-        UE_LOG(LogTemp, Warning,
-            TEXT("[MainGameMode] CubeClearWidgetClass not set! Auto-proceeding."));
-        OnCubeClearRewardSelected(FCubeClearReward());
-        return;
-    }
-
-    APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0);
-    if (!PC) return;
-
-    CurrentCubeClearWidget = CreateWidget<UUserWidget>(PC, CubeClearWidgetClass);
-    if (CurrentCubeClearWidget)
-    {
-        UGameplayStatics::SetGamePaused(GetWorld(), true);
-
-        CurrentCubeClearWidget->AddToViewport();
-        PC->SetInputMode(FInputModeUIOnly());
-        PC->SetShowMouseCursor(true);
-    }
-}
-
-void ACC_MainGameMode::HideCubeClearUI()
-{
-    if (CurrentCubeClearWidget)
-    {
-        CurrentCubeClearWidget->RemoveFromParent();
-        CurrentCubeClearWidget = nullptr;
-    }
-
-    APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0);
-    if (PC)
-    {
-        PC->SetInputMode(FInputModeGameOnly());
-        PC->SetShowMouseCursor(false);
-    }
+    // 실제 하단 코너 UI 갱신은 WBP 쪽에서 PendingRewardSlots를 읽어 구현 예정 (Track 5).
+    // 예전 버전의 무한재귀 + 미정의 SelectedReward 참조 버그 제거 — 지금은 알림 역할만.
 }
 
 void ACC_MainGameMode::OnCubeClearRewardSelected(FCubeClearReward SelectedReward)
 {
-    HideCubeClearUI();
-    SetGameState(EGameState::Playing);
+    ApplyCubeClearReward(SelectedReward);
 
-    // StatBoost 보상 선택 시 , 플레이어 스탯 즉시 반영
-    if (SelectedReward.RewardType == ECubeClearRewardType::StatBoost && SelectedReward.StatUpgradeType != EUpgradeType::None)
-    {
-        if (APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0))
-        {
-            if (ACC_PlayerCharacter* Player = Cast<ACC_PlayerCharacter>(PC->GetPawn()))
-            {
-                Player->ApplyStatUpgrade(
-                    SelectedReward.StatUpgradeType,
-                    SelectedReward.StatValue);
-
-                UE_LOG(LogTemp, Log,
-                    TEXT("[MainGameMode] StatBoost applied: Type=%d Value=%.3f"),
-                    (int32)SelectedReward.StatUpgradeType,
-                    SelectedReward.StatValue);
-            }
-        }
-    }
-
-    // 보상 적용 — 블루프린트에서 오버라이드하거나 PlayerCharacter에 위임
-    UE_LOG(LogTemp, Log,
-        TEXT("[MainGameMode] Reward selected: %s. Starting next cycle."),
-        *SelectedReward.DisplayName.ToString());
-
-    if (CycleManager)
-    {
-        CycleManager->StartNextCycle();
-    }
+    PendingRewardSlots = FMath::Max(0, PendingRewardSlots - 1);
+    RefreshCubeClearRewardBar();
 }
 
 TArray<FCubeClearReward> ACC_MainGameMode::GetRandomCubeClearRewards(int32 Count)
@@ -138,7 +169,6 @@ TArray<FCubeClearReward> ACC_MainGameMode::GetRandomCubeClearRewards(int32 Count
     TArray<FCubeClearReward> Result;
     if (CubeClearRewardPool.Num() == 0) return Result;
 
-    // 풀 복사 후 셔플
     TArray<FCubeClearReward> Pool = CubeClearRewardPool;
     for (int32 i = Pool.Num() - 1; i > 0; --i)
     {
@@ -160,6 +190,28 @@ TArray<FCubeClearReward> ACC_MainGameMode::GetRandomCubeClearRewards(int32 Count
 //  게임 오버
 // ============================================================
 
+void ACC_MainGameMode::ShowGameClearUI()
+{
+    UGameplayStatics::SetGamePaused(GetWorld(), true);
+
+    if (!GameClearWidgetClass)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[MainGameMode] GameClearWidgetClass not set!"));
+        return;
+    }
+
+    APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0);
+    if (!PC) return;
+
+    CurrentGameClearWidget = CreateWidget<UUserWidget>(PC, GameClearWidgetClass);
+    if (CurrentGameClearWidget)
+    {
+        CurrentGameClearWidget->AddToViewport();
+        PC->SetInputMode(FInputModeUIOnly());
+        PC->SetShowMouseCursor(true);
+    }
+}
+
 void ACC_MainGameMode::TriggerGameOver()
 {
     Super::TriggerGameOver();
@@ -170,5 +222,4 @@ void ACC_MainGameMode::TriggerGameOver()
         GetWorldTimerManager().SetTimer(
             GameOverTimerHandle, this, &ACC_MainGameMode::RestartCurrentLevel, GameOverDelay, false);
     }
-    // GameOverDelay == 0 이면 블루프린트(WBP_GameOver)에서 수동 처리
 }

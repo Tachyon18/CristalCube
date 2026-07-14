@@ -77,3 +77,52 @@ void UCC_SkillBase::ApplyPassiveModifier(const FSkillPassiveProperties& Modifier
     UE_LOG(LogTemp, Log, TEXT("[%s] Passive modifier applied. DmgMul: %.2f"),
         *SkillDef.SkillID.ToString(), SkillDef.Passives.DamageMultiplier);
 }
+
+bool UCC_SkillBase::GrantAddon(ESkillAddonType AddonType)
+{
+    if (AddonType == ESkillAddonType::None) return false;
+    if (SkillDef.Addons.Contains(AddonType)) return false;
+
+    SkillDef.Addons.Add(AddonType);
+
+    UE_LOG(LogTemp, Log, TEXT("[%s] Addon granted: %s"),
+        *SkillDef.SkillID.ToString(), *UEnum::GetValueAsString(AddonType));
+    return true;
+}
+
+void UCC_SkillBase::ApplyAddonModifier(ESkillAddonType AddonType, const FSkillPassiveProperties& Modifier)
+{
+    if (!HasAddon(AddonType))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[%s] ApplyAddonModifier: addon %s not present, ignored"),
+            *SkillDef.SkillID.ToString(), *UEnum::GetValueAsString(AddonType));
+        return;
+    }
+
+    switch (AddonType)
+    {
+    case ESkillAddonType::Explosion:
+        SkillDef.Passives.ExplosionData.Radius += Modifier.ExplosionData.Radius;
+        SkillDef.Passives.ExplosionData.MinDamageRatio = FMath::Clamp(
+            SkillDef.Passives.ExplosionData.MinDamageRatio + Modifier.ExplosionData.MinDamageRatio, 0.f, 1.f);
+        break;
+    case ESkillAddonType::Chain:
+        SkillDef.Passives.ChainData.ChainCount += Modifier.ChainData.ChainCount;
+        SkillDef.Passives.ChainData.DamageDecay = FMath::Clamp(
+            SkillDef.Passives.ChainData.DamageDecay + Modifier.ChainData.DamageDecay, 0.f, 1.f);
+        SkillDef.Passives.ChainData.SearchRadius += Modifier.ChainData.SearchRadius;
+        break;
+    case ESkillAddonType::Penetrate:
+        SkillDef.Passives.PierceData.PierceCount += Modifier.PierceData.PierceCount;
+        break;
+    case ESkillAddonType::MultiShot:
+        SkillDef.Passives.MultiShotData.AdditionalCount += Modifier.MultiShotData.AdditionalCount;
+        SkillDef.Passives.MultiShotData.SpreadAngle += Modifier.MultiShotData.SpreadAngle;
+        break;
+    default:
+        break;
+    }
+
+    UE_LOG(LogTemp, Log, TEXT("[%s] Addon modifier applied: %s"),
+        *SkillDef.SkillID.ToString(), *UEnum::GetValueAsString(AddonType));
+}

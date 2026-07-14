@@ -3,31 +3,16 @@
 
 #include "CC_CycleManager.h"
 #include "CC_EnemyManager.h"
+#include "CC_CubeWorldManager.h"
+#include "Gameplay/CC_Cube.h"
+#include "Gameplay/CC_EnemyAIInterface.h"
+#include "Curves/CurveFloat.h"
 #include "TimerManager.h"
 
 // Sets default values
 ACC_CycleManager::ACC_CycleManager()
 {
- 	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
-	PrimaryActorTick.bCanEverTick = false;
-
-    // 기본 사이클 설정 6개 (블루프린트에서 조정 가능)
-    auto Make = [](int32 Kills, int32 Max, float Interval, float Dmg, float Spd) {
-        FCycleConfig C;
-        C.KillsRequired = Kills;
-        C.MaxEnemies = Max;
-        C.SpawnInterval = Interval;
-        C.EnemyDamageMultiplier = Dmg;
-        C.EnemySpeedMultiplier = Spd;
-        return C;
-        };
-
-    CycleConfigs.Add(Make(20, 10, 3.0f, 1.0f, 1.0f));
-    CycleConfigs.Add(Make(25, 15, 2.5f, 1.1f, 1.05f));
-    CycleConfigs.Add(Make(30, 20, 2.0f, 1.2f, 1.1f));
-    CycleConfigs.Add(Make(35, 25, 1.8f, 1.4f, 1.15f));
-    CycleConfigs.Add(Make(40, 30, 1.5f, 1.6f, 1.2f));
-    CycleConfigs.Add(Make(45, 30, 1.5f, 1.8f, 1.25f));
+    PrimaryActorTick.bCanEverTick = false;
 
 }
 
@@ -66,113 +51,189 @@ void ACC_CycleManager::BindToEnemyManager()
 
 void ACC_CycleManager::OnEnemyKilled(AActor* KilledEnemy)
 {
-    if (!bCycleActive) return;
+    if (!bTrackingActive) return;
 
-    ++KillsThisCycle;
+    ++KillsThisStage;
     ++TotalKills;
 
-    OnKillCountUpdated.Broadcast(KillsThisCycle, GetKillsRequired());
-
-    UE_LOG(LogTemp, Log, TEXT("[CycleManager] Counted confirmed kill for %s %d / %d"),
-        *GetNameSafe(KilledEnemy),KillsThisCycle, GetKillsRequired());
-
-    CheckCycleCompletion();
-}
-
-// ============================================================
-//  사이클 제어
-// ============================================================
-
-void ACC_CycleManager::StartFirstCycle()
-{
-    StartCycle(1);
-}
-
-void ACC_CycleManager::StartNextCycle()
-{
-    StartCycle(CurrentCycle + 1);
-}
-
-void ACC_CycleManager::StartCycle(int32 CycleNumber)
-{
-    CurrentCycle = CycleNumber;
-    KillsThisCycle = 0;
-    bCycleActive = true;
-
-    FCycleConfig Config = GetCurrentCycleConfig();
-
-    // 제한 시간 설정 (0이면 킬 수 기반)
-    if (Config.TimeLimit > 0.f)
+    bool bWasPersistent = false;
+    if (KilledEnemy && KilledEnemy->GetClass()->ImplementsInterface(UCC_EnemyAIInterface::StaticClass()))
     {
-        GetWorldTimerManager().SetTimer(
-            TimeLimitHandle, this,
-            &ACC_CycleManager::OnTimeLimitReached,
-            Config.TimeLimit, false);
+        bWasPersistent = ICC_EnemyAIInterface::Execute_IsPersistentEnemy(KilledEnemy);
     }
 
-    OnCycleStarted.Broadcast(CurrentCycle);
+    BossProgress += bWasPersistent ? PersistentKillWeight : NormalKillWeight;
+
+    OnKillCountUpdated.Broadcast(KillsThisStage, GetKillsRequired());
+
+    UE_LOG(LogTemp, Log,
+        TEXT("[CycleManager] Kill counted (%s, Persistent=%s) — %d/%d this stage, BossProgress %.1f/%.1f"),
+        *GetNameSafe(KilledEnemy), bWasPersistent ? TEXT("true") : TEXT("false"),
+        KillsThisStage, GetKillsRequired(), BossProgress, BossProgressThreshold);
+
+    CheckCubeClearThreshold();
+    CheckProgressMilestones();
+    CheckBossSpawnCondition();
+}
+
+void ACC_CycleManager::OnBossDestroyed(AActor* DestroyedActor)
+{
+    bBossActive = false;
+    CurrentBoss = nullptr;
+    bTrackingActive = false; // 게임 클리어 후 킬 카운트 의미 없음
+
+    UE_LOG(LogTemp, Warning, TEXT("[CycleManager] === Boss destroyed — GAME CLEAR ==="));
+
+    OnGameCleared.Broadcast();
+}
+
+void ACC_CycleManager::StartCubeClearTracking()
+{
+    CurrentStage = 1;
+    KillsThisStage = 0;
+    TotalKills = 0;
+    BossProgress = 0.0f;
+    bBossActive = false;
+    bTrackingActive = true;
+
+    for (FBossProgressMilestone& Milestone : ProgressMilestones)
+    {
+        Milestone.bTriggered = false;
+    }
+
     OnKillCountUpdated.Broadcast(0, GetKillsRequired());
 
-    UE_LOG(LogTemp, Warning, TEXT("[CycleManager] Cycle %d started — KillsRequired: %d, MaxEnemies: %d"),
-        CurrentCycle, GetKillsRequired(), Config.MaxEnemies);
-}
-
-void ACC_CycleManager::CheckCycleCompletion()
-{
-    if (KillsThisCycle < GetKillsRequired()) return;
-
-    bCycleActive = false;
-    GetWorldTimerManager().ClearTimer(TimeLimitHandle);
-
     UE_LOG(LogTemp, Warning,
-        TEXT("[CycleManager] === Cube %d CLEARED ==="), CurrentCycle);
-
-    OnCubeCleared.Broadcast(CurrentCycle);
+        TEXT("[CycleManager] Cube Clear tracking started — Stage %d, KillsRequired: %d"),
+        CurrentStage, GetKillsRequired());
 }
 
-void ACC_CycleManager::OnTimeLimitReached()
+FCubeClearStageConfig ACC_CycleManager::GetCurrentStageConfig() const
 {
-    if (!bCycleActive) return;
+    const int32 Stage = FMath::Max(CurrentStage, 1);
+    const float X = static_cast<float>(Stage);
+    const int32 StageOffset = Stage - 1; // Fallback 선형 공식용
 
-    bCycleActive = false;
+    FCubeClearStageConfig Config;
 
-    UE_LOG(LogTemp, Warning, TEXT("[CycleManager] Cycle %d — Time limit reached"), CurrentCycle);
+    Config.KillsRequired = KillsRequiredCurve
+        ? FMath::RoundToInt(KillsRequiredCurve->GetFloatValue(X))
+        : FallbackBaseKillsRequired + FallbackKillsIncreasePerStage * StageOffset;
 
-    OnCubeCleared.Broadcast(CurrentCycle);
-}
+    Config.MaxEnemies = MaxEnemiesCurve
+        ? FMath::RoundToInt(MaxEnemiesCurve->GetFloatValue(X))
+        : FallbackBaseMaxEnemies + FallbackMaxEnemiesIncreasePerStage * StageOffset;
 
-// ============================================================
-//  조회
-// ============================================================
+    Config.SpawnInterval = SpawnIntervalCurve
+        ? SpawnIntervalCurve->GetFloatValue(X)
+        : FMath::Max(0.2f, FallbackBaseSpawnInterval - FallbackSpawnIntervalDecreasePerStage * StageOffset);
 
-FCycleConfig ACC_CycleManager::GetCurrentCycleConfig() const
-{
-    int32 Index = CurrentCycle - 1;
+    Config.EnemyDamageMultiplier = EnemyDamageMultiplierCurve
+        ? EnemyDamageMultiplierCurve->GetFloatValue(X)
+        : FallbackBaseDamageMultiplier + FallbackDamageMultiplierIncreasePerStage * StageOffset;
 
-    if (CycleConfigs.IsValidIndex(Index))
-    {
-        return CycleConfigs[Index];
-    }
+    Config.EnemySpeedMultiplier = EnemySpeedMultiplierCurve
+        ? EnemySpeedMultiplierCurve->GetFloatValue(X)
+        : FMath::Min(FallbackBaseSpeedMultiplier + FallbackSpeedMultiplierIncreasePerStage * StageOffset,
+            FallbackMaxSpeedMultiplier);
 
-    // 배열 초과 시 마지막 항목에 누적 배율 적용
-    FCycleConfig Last = CycleConfigs.Last();
-    int32 Overflow = Index - (CycleConfigs.Num() - 1);
-
-    Last.KillsRequired += KillsIncreasePerCycle * Overflow;
-    Last.EnemyDamageMultiplier += DamageMultiplierIncreasePerCycle * Overflow;
-    Last.EnemySpeedMultiplier = FMath::Min(Last.EnemySpeedMultiplier + 0.05f * Overflow, 2.0f);
-
-    return Last;
+    return Config;
 }
 
 float ACC_CycleManager::GetKillProgress() const
 {
     int32 Required = GetKillsRequired();
     if (Required <= 0) return 1.0f;
-    return FMath::Clamp((float)KillsThisCycle / Required, 0.f, 1.f);
+    return FMath::Clamp((float)KillsThisStage / Required, 0.f, 1.f);
 }
 
 int32 ACC_CycleManager::GetKillsRequired() const
 {
-    return GetCurrentCycleConfig().KillsRequired;
+    return GetCurrentStageConfig().KillsRequired;
+}
+
+float ACC_CycleManager::GetBossProgressRatio() const
+{
+    if (BossProgressThreshold <= 0.f) return 1.0f;
+    return FMath::Clamp(BossProgress / BossProgressThreshold, 0.f, 1.f);
+}
+
+void ACC_CycleManager::CheckCubeClearThreshold()
+{
+    if (KillsThisStage < GetKillsRequired()) return;
+
+    KillsThisStage = 0;
+    ++CurrentStage;
+
+    UE_LOG(LogTemp, Warning,
+        TEXT("[CycleManager] === Cube Clear achieved — advancing to stage %d ==="), CurrentStage);
+
+    OnCubeClearAchieved.Broadcast(CurrentStage);
+    OnKillCountUpdated.Broadcast(0, GetKillsRequired());
+}
+
+void ACC_CycleManager::CheckBossSpawnCondition()
+{
+    if (bBossActive) return;
+    if (BossProgress < BossProgressThreshold) return;
+
+    SpawnBoss();
+}
+
+void ACC_CycleManager::CheckProgressMilestones()
+{
+    if (ProgressMilestones.Num() == 0 || BossProgressThreshold <= 0.f) return;
+
+    const float CurrentRatio = BossProgress / BossProgressThreshold;
+
+    for (FBossProgressMilestone& Milestone : ProgressMilestones)
+    {
+        if (Milestone.bTriggered) continue;
+        if (CurrentRatio < Milestone.TriggerRatio) continue;
+
+        Milestone.bTriggered = true;
+
+        UE_LOG(LogTemp, Log,
+            TEXT("[CycleManager] Progress milestone reached: %s at %.0f%% BossProgress"),
+            *Milestone.EventID.ToString(), CurrentRatio * 100.f);
+
+        OnProgressMilestoneReached.Broadcast(Milestone.EventID, CurrentRatio);
+    }
+}
+
+void ACC_CycleManager::SpawnBoss()
+{
+    if (!BossClass)
+    {
+        UE_LOG(LogTemp, Warning,
+            TEXT("[CycleManager] BossProgress threshold reached but BossClass is not set — spawn skipped."));
+        return;
+    }
+
+    FVector SpawnLocation = GetActorLocation();
+    if (ACC_CubeWorldManager* WorldManager = ACC_CubeWorldManager::Get(this))
+    {
+        if (ACC_Cube* ActiveCube = WorldManager->GetActiveCube())
+        {
+            SpawnLocation = ActiveCube->GetCubeCenter() + FVector(0.f, 0.f, BossSpawnHeightOffset);
+        }
+    }
+
+    FActorSpawnParameters Params;
+    Params.Owner = this;
+    Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+
+    CurrentBoss = GetWorld()->SpawnActor<AActor>(BossClass, SpawnLocation, FRotator::ZeroRotator, Params);
+    if (!CurrentBoss)
+    {
+        UE_LOG(LogTemp, Error, TEXT("[CycleManager] Failed to spawn Boss!"));
+        return;
+    }
+
+    bBossActive = true;
+    CurrentBoss->OnDestroyed.AddDynamic(this, &ACC_CycleManager::OnBossDestroyed);
+
+    UE_LOG(LogTemp, Warning, TEXT("[CycleManager] Boss spawned at %s"), *SpawnLocation.ToString());
+
+    OnBossSpawned.Broadcast(CurrentBoss);
 }

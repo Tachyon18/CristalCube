@@ -68,6 +68,14 @@ enum class ECubeState : uint8
     Unloaded UMETA(DisplayName = "Unloaded")   // �޸𸮿� ����
 };
 
+UENUM(BlueprintType)
+enum class ECubeLifeState : uint8
+{
+    Inactive    UMETA(DisplayName = "Inactive"),    // 방문했지만 정리 안 된 채 떠남 (Frozen, 위협 남아있음) — 초기값
+    Active      UMETA(DisplayName = "Active"),      // 지금 플레이어가 있는 곳
+    Stabilized  UMETA(DisplayName = "Stabilized")   // Cube Lock까지 완전히 클리어 → 임시 안전지대
+};
+
 //==============================================================================
 // ENEMY BEHAVIOR SYSTEM
 // ==============================================================================

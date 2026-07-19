@@ -15,6 +15,7 @@
 #include "../Characters/CC_PlayerCharacter.h"
 #include "../Gameplay/CC_ExperienceGem.h"
 #include "../Gameplay/CC_Cube.h"
+#include "../Gameplay/CC_VisualComponent.h"
 #include "NiagaraFunctionLibrary.h"
 #include "NiagaraComponent.h"
 
@@ -38,6 +39,8 @@ ACC_EnemyBase::ACC_EnemyBase()
 
     EnemyMovement = CreateDefaultSubobject<UCC_EnemyMovementComponent>(TEXT("EnemyMovement"));
     EnemyMovement->MaxSpeed = MoveSpeed;
+
+    VisualComponent = CreateDefaultSubobject<UCC_VisualComponent>(TEXT("VisualComponent"));
 
     CurrentHealth = MaxHealth;
 
@@ -324,23 +327,9 @@ void ACC_EnemyBase::SetPersistentEnemy_Implementation(bool bPersistentState)
         }
     }
 
-    if (bPersistent)
+    if (VisualComponent)
     {
-        if (PersistentAuraEffect && !PersistentAuraComponent && MeshComp)
-        {
-            PersistentAuraComponent = UNiagaraFunctionLibrary::SpawnSystemAttached(
-                PersistentAuraEffect, MeshComp, NAME_None,
-                FVector(0, 0, 50.f), FRotator::ZeroRotator,
-                EAttachLocation::SnapToTarget, true);
-        }
-    }
-    else
-    {
-        if (PersistentAuraComponent)
-        {
-            PersistentAuraComponent->DestroyComponent();
-            PersistentAuraComponent = nullptr;
-        }
+        VisualComponent->SetPersistentVisualState(bPersistent, MeshComp);
     }
 
     OnPersistentStateChanged(bPersistent);
@@ -371,6 +360,9 @@ void ACC_EnemyBase::InitShape()
         { EEnemyShapeType::Sphere,   TEXT("/Engine/BasicShapes/Sphere.Sphere")       },
         { EEnemyShapeType::Cylinder, TEXT("/Engine/BasicShapes/Cylinder.Cylinder")   },
         { EEnemyShapeType::Cone,     TEXT("/Engine/BasicShapes/Cone.Cone")           },
+        { EEnemyShapeType::Octahedron, TEXT("/Game/Develop/Mesh/SM_Octahedron.SM_Octahedron") },
+		{ EEnemyShapeType::Tetrahedron, TEXT("/Game/Develop/Mesh/SM_Tetrahedron.SM_Tetrahedron") }
+
     };
 
     MeshComp->SetRelativeScale3D(ShapeScale);

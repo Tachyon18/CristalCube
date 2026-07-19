@@ -56,6 +56,9 @@ protected:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
     class UCC_EnemyMovementComponent* EnemyMovement;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	class UCC_VisualComponent* VisualComponent;
+
     /** 이 Enemy의 도형 타입 — BP 드롭다운으로 선택 */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Shape")
     EEnemyShapeType ShapeType = EEnemyShapeType::Cube;
@@ -106,12 +109,6 @@ protected:
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Persistent")
     bool bPersistent = false;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Persistent|Visual")
-    class UNiagaraSystem* PersistentAuraEffect = nullptr;
-
-    UPROPERTY()
-    class UNiagaraComponent* PersistentAuraComponent = nullptr;
 
     UFUNCTION(BlueprintImplementableEvent, Category = "Enemy|Persistent")
     void OnPersistentStateChanged(bool bNewState);

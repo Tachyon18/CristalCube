@@ -28,7 +28,7 @@ ACC_Cube::ACC_Cube()
 	FloorMesh->SetupAttachment(RootComponent);
 	FloorMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 
-	CubeState = ECubeState::Unloaded;
+	CubeState = ECubeLifeState::Inactive;
 
 	ScatterComponent = CreateDefaultSubobject<UCC_CubeScatterComponent>(TEXT("ScatterComponent"));
 	ScatterComponent->SetOwnerCube(this);
@@ -385,7 +385,7 @@ void ACC_Cube::InitializeCube(FIntPoint Coordinate)
 	UE_LOG(LogTemp, Error, TEXT("[InitializeCube] Received Coordinate: (%d,%d)"),
 		Coordinate.X, Coordinate.Y);
 	CubeCoordinate = Coordinate;
-	CubeState = ECubeState::Active;
+	CubeState = ECubeLifeState::Active;
 
 	UE_LOG(LogTemp, Log, TEXT("[Cube] Initializing at CubeSize is :(%f)"), CubeSize);
 
@@ -497,6 +497,21 @@ void ACC_Cube::RegisterActor(AActor* Actor)
 
 	ManagedActors.Add(Actor);
 
+	// Spawner 연결 시점에 NormalLockTarget 스냅샷 (WaveSize 딱 한 번만 읽고, 이후 실시간 참조 안 함)
+	if (ACC_EnemySpawner* Spawner = Cast<ACC_EnemySpawner>(Actor))
+	{
+		CubeLockTarget = Spawner->GetWaveSize();
+		UE_LOG(LogTemp, Log, TEXT("[Cube %d,%d] CubeLockTarget snapshotted: %d"),
+			CubeCoordinate.X, CubeCoordinate.Y, CubeLockTarget);
+	}
+	// Enemy 판별은 타입(Pawn 여부)이 아니라 실제 "Enemy인가" 인터페이스로 —
+	// Gem/향후 다른 Actor 기반 픽업이 섞여도 안전
+	else if (Actor->GetClass()->ImplementsInterface(UCC_EnemyAIInterface::StaticClass()))
+	{
+		++NormalRegisteredCount;
+		CheckCubeLockCondition();
+	}
+
 	UE_LOG(LogTemp, Log, TEXT("[Cube %d,%d] Registered actor: %s (Total: %d)"),
 		CubeCoordinate.X, CubeCoordinate.Y, *Actor->GetName(), ManagedActors.Num());
 }
@@ -508,8 +523,54 @@ void ACC_Cube::UnregisterActor(AActor* Actor)
 
 	ManagedActors.Remove(Actor);
 
+	if (Actor->GetClass()->ImplementsInterface(UCC_EnemyAIInterface::StaticClass()))
+	{
+		NormalRegisteredCount = FMath::Max(0, NormalRegisteredCount - 1);
+		CheckCubeLockCondition();
+	}
+
 	UE_LOG(LogTemp, Log, TEXT("[Cube %d,%d] Unregistered actor: %s (Total: %d)"),
 		CubeCoordinate.X, CubeCoordinate.Y, *Actor->GetName(), ManagedActors.Num());
+}
+
+void ACC_Cube::CheckCubeLockCondition()
+{
+	if (CubeLockTarget <= 0) return;
+	if (CubeState != ECubeLifeState::Active) return;
+
+	ACC_CubeWorldManager* Manager = ACC_CubeWorldManager::Get(this);
+	if (!Manager) return;
+
+	const int32 Combined = NormalRegisteredCount + Manager->PersistentEnemyCount;
+	const bool bQuotaMet = (Combined >= CubeLockTarget);
+
+	if (bQuotaMet)
+	{
+		if (Manager->IsCubeLocked()) return; // 이미 잠긴 상태 — 새 그레이스 불필요
+
+		if (!GetWorldTimerManager().IsTimerActive(LockGraceTimerHandle))
+		{
+			const float Grace = FMath::Max(MinLockGraceSeconds,
+				BaseLockGraceSeconds - Manager->PersistentEnemyCount * GraceReductionPerPersistent);
+
+			GetWorldTimerManager().SetTimer(
+				LockGraceTimerHandle, this, &ACC_Cube::OnLockGraceExpired, Grace, false);
+
+			UE_LOG(LogTemp, Warning,
+				TEXT("[Cube %d,%d] Lock quota met (%d+%d/%d) — grace timer started (%.1fs, Persistent=%d)"),
+				CubeCoordinate.X, CubeCoordinate.Y, NormalRegisteredCount, Manager->PersistentEnemyCount,
+				CubeLockTarget, Grace, Manager->PersistentEnemyCount);
+		}
+	}
+	else
+	{
+		if (GetWorldTimerManager().IsTimerActive(LockGraceTimerHandle))
+		{
+			GetWorldTimerManager().ClearTimer(LockGraceTimerHandle);
+			UE_LOG(LogTemp, Log, TEXT("[Cube %d,%d] Lock quota no longer met — grace timer cancelled"),
+				CubeCoordinate.X, CubeCoordinate.Y);
+		}
+	}
 }
 
 bool ACC_Cube::IsActorInCube(AActor* Actor) const
@@ -525,10 +586,13 @@ bool ACC_Cube::IsActorInCube(AActor* Actor) const
 
 void ACC_Cube::Freeze()
 {
-	if (CubeState == ECubeState::Frozen)
+	if (IsFrozen())
 		return;
 
-	CubeState = ECubeState::Frozen;
+	CubeState = ECubeLifeState::Inactive;
+
+	// CubeLock(Normal) 그레이스가 도는 중이었다면 취소 — 떠나는 순간 유예도 함께 사라짐
+	GetWorldTimerManager().ClearTimer(LockGraceTimerHandle);
 
 	// Hide and disable the entire cube
 	SetActorHiddenInGame(true);
@@ -604,10 +668,10 @@ void ACC_Cube::Freeze()
 
 void ACC_Cube::Unfreeze()
 {
-	if (CubeState != ECubeState::Frozen)
+	if (!IsFrozen())
 		return;
 
-	CubeState = ECubeState::Active;
+	CubeState = ECubeLifeState::Active;
 
 	// Show and enable the entire cube
 	SetActorHiddenInGame(false);
@@ -675,6 +739,8 @@ void ACC_Cube::Unfreeze()
 		MoodComponent->ApplyMood(0);
 	}
 
+	CheckCubeLockCondition();
+
 	UE_LOG(LogTemp, Warning, TEXT("[Cube %d,%d] UNFROZEN (%d actors)"),
 		CubeCoordinate.X, CubeCoordinate.Y, ManagedActors.Num());
 }
@@ -736,7 +802,7 @@ void ACC_Cube::DrawDebugInfo()
 	if (!GetWorld())
 		return;
 
-	FColor Color = (CubeState == ECubeState::Active) ? FColor::Green : FColor::Red;
+	FColor Color = (CubeState == ECubeLifeState::Active) ? FColor::Green : (CubeState == ECubeLifeState::Stabilized) ? FColor::Cyan : FColor::Red;
 
 	//DrawDebugBox(GetWorld(), Bounds.GetCenter(), Bounds.GetExtent(),
 	//	Color, false, -1.0f, 0, 50.0f);
@@ -774,10 +840,26 @@ void ACC_Cube::DrawDebugInfo()
 
 void ACC_Cube::HandleSpawnerWaveCleared(ACC_EnemySpawner* Spawner)
 {
-	if (bWaveCleared) return;
+	if (CubeState == ECubeLifeState::Stabilized) return;
 
-	bWaveCleared = true;
+	if (ACC_CubeWorldManager* Manager = ACC_CubeWorldManager::Get(this))
+	{
+		Manager->ResolveCubeLock();
+	}
+
+	CubeState = ECubeLifeState::Stabilized;
 
 	UE_LOG(LogTemp, Warning, TEXT("[Cube] (%d,%d) Spawner wave cleared — local wave-model bookkeeping only."),
 		CubeCoordinate.X, CubeCoordinate.Y);
+}
+
+void ACC_Cube::OnLockGraceExpired()
+{
+	ACC_CubeWorldManager* Manager = ACC_CubeWorldManager::Get(this);
+	if (!Manager) return;
+
+	if (NormalRegisteredCount + Manager->PersistentEnemyCount < CubeLockTarget) return;
+	if (CubeState != ECubeLifeState::Active) return;
+
+	Manager->TriggerCubeLock();
 }

@@ -7,6 +7,7 @@
 #include "CristalCubeStruct.h"
 #include "CC_CubeWorldManager.generated.h"
 
+class ACC_EnemySpawner;
 
 UCLASS()
 class CRISTALCUBE_API ACC_CubeWorldManager : public AActor
@@ -53,6 +54,13 @@ public:
     /** 큐브 클래스*/
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cube|Grid")
     TSubclassOf<class ACC_Cube> CubeClass;
+
+    /** Cube마다 자동으로 붙일 기본 EnemySpawner 클래스.
+     *  레벨에 수동 배치된 Spawner가 근처(LinkRadius 이내)에 없는 Cube에 한해
+     *  이 클래스로 그 자리에서 즉석 스폰함. EnemyClass 등 세부 설정은
+     *  CubeClass와 동일한 패턴으로 이 BP 자체의 Class Defaults에 미리 넣어둘 것. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cube|Content")
+    TSubclassOf<ACC_EnemySpawner> DefaultEnemySpawnerClass;
 
     /** 좌표별 테마 할당 DataTable (행 구조: FCubeThemeAssignmentRow) */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cube|Theme")
@@ -116,8 +124,19 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Cube|Persistent")
     void UnregisterPersistentEnemy(AActor* Enemy);
 
-    void CheckLockCondition();
+    UFUNCTION(BlueprintPure, Category = "Cube|Persistent")
+    bool IsCubeLocked() const { return bCubeLocked; }
+
+    /** CubeLock 발동 — 트리거 시점 PersistentEnemyCount를 그대로 스냅샷해서 보상 계산에 사용 */
+    void TriggerCubeLock();
+
+    /** CubeLock 해제 — 스냅샷한 Persistent 수에 비례해 보너스 지급 (0이었으면 보너스도 자동 0) */
+    void ResolveCubeLock();
+
     void TeleportPersistentEnemiesToCube(ACC_Cube* TargetCube);
+
+    /** 정리 안 된 채 스킵할 때 Persistent Enemy를 직접 새로 소환 (11.5절, 승격 방식 폐기) */
+    void SummonPersistentEnemies(int32 Count);
 
 	//========================================
 	// Cube Reward System
@@ -128,6 +147,8 @@ public:
 
     // Lock 발동 시점의 Persistent 수를 기억 — 해제 시 "얼마나 힘들게 풀었는지" 계산용
     int32 LockTriggerPersistentCount = 0;
+
+
 
     // ========================================
     // Data Structures

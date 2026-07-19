@@ -183,10 +183,10 @@ bool ACC_CubeSystemTester::Test_FreezeSystem()
 
     // Freeze Å×½ºÆ®
     TestCube->Unfreeze();
-    bool bActiveState = (TestCube->CubeState == ECubeState::Active);
+    bool bActiveState = (TestCube->CubeState == ECubeLifeState::Active);
 
     TestCube->Freeze();
-    bool bFrozenState = (TestCube->CubeState == ECubeState::Frozen);
+    bool bFrozenState = (TestCube->CubeState == ECubeLifeState::Inactive);
 
     bool bPassed = bActiveState && bFrozenState;
     FString Message = FString::Printf(TEXT("Active: %s, Frozen: %s"),

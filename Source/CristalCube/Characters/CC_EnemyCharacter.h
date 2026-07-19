@@ -284,11 +284,8 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "AI")
 	bool bIsFrozen = false;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Persistent|Visual")
-	class UNiagaraSystem* PersistentAuraEffect = nullptr;
-
-	UPROPERTY()
-	class UNiagaraComponent* PersistentAuraComponent = nullptr;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Enemy|Persistent|Visual")
+	class UCC_VisualComponent* VisualComponent = nullptr;
 
 	UFUNCTION(BlueprintImplementableEvent, Category = "Enemy|Persistent")
 	void OnPersistentStateChanged(bool bNewState);

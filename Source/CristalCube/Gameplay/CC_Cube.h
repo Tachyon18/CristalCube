@@ -169,7 +169,7 @@ public:
 
 	/** 현재 상태 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Cube")
-	ECubeState CubeState;
+	ECubeLifeState CubeState;
 
 	/** 이 큐브가 관리하는 Actor들 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Cube")
@@ -200,6 +200,30 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Cube")
 	void UnregisterActor(AActor* Actor);
 
+	/** 잠금 판정 목표치 (=NormalRegisteredCount + PersistentEnemyCount 합산 임계값). 연결된 Spawner의 WaveSize 스냅샷 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Cube|Lock")
+	int32 CubeLockTarget = 0;
+
+	/** 현재 이 Cube에 등록된(=생존) Normal Enemy 수 — RegisterActor/UnregisterActor로 실시간 갱신 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Cube|Lock")
+	int32 NormalRegisteredCount = 0;
+
+	/** NormalLockTarget 도달 후 실제 Lock까지의 유예 시간(초) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cube|Lock")
+	float BaseLockGraceSeconds = 5.0f;
+	
+	/** Persistent Enemy 1마리당 그레이스에서 깎이는 시간(초) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cube|Lock")
+	float GraceReductionPerPersistent = 0.3f;
+
+	/** 그레이스 최소 하한(초) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cube|Lock")
+	float MinLockGraceSeconds = 1.0f;
+
+	/** 통합 CubeLock 조건 재평가 — 그레이스 시작/취소 담당. WorldManager도 Persistent 수 변동 시 이걸 호출 */
+	UFUNCTION()
+	void CheckCubeLockCondition();
+
 	/** Actor가 이 큐브 내부에 있는지 확인 */
 	UFUNCTION(BlueprintCallable, Category = "Cube")
 	bool IsActorInCube(AActor* Actor) const;
@@ -214,7 +238,7 @@ public:
 
 	/** Frozen 여부인지 확인 */
 	UFUNCTION(BlueprintCallable, Category = "Cube")
-	bool IsFrozen() const { return CubeState == ECubeState::Frozen; }
+	bool IsFrozen() const { return CubeState != ECubeLifeState::Active; }
 
 	UFUNCTION()
 	void OnBoundaryOverlap(UPrimitiveComponent* OverlappedComp, AActor* OtherActor,
@@ -239,9 +263,6 @@ protected:
 
 public:
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Cube")
-	bool bWaveCleared = false;
-
 	UFUNCTION()
 	void HandleSpawnerWaveCleared(class ACC_EnemySpawner* Spawner);
 
@@ -249,4 +270,7 @@ protected:
 
 	float ManagedActorsCleanupTimer = 0.f;
 
+	FTimerHandle LockGraceTimerHandle;
+
+	void OnLockGraceExpired();
 };

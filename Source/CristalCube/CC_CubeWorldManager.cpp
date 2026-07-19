@@ -104,7 +104,7 @@ void ACC_CubeWorldManager::Tick(float DeltaTime)
 				TEXT("[Manager] Defensive cleanup removed %d stale PersistentEnemyList entries (Count now: %d)"),
 				Removed, PersistentEnemyCount);
 
-			CheckLockCondition();  // 유령 카운트로 인한 영구 Lock 자동 해제
+			if (ActiveCube) ActiveCube->CheckCubeLockCondition();  // 유령 카운트로 인한 영구 Lock 자동 해제
 		}
 	}
 }
@@ -140,7 +140,7 @@ void ACC_CubeWorldManager::RegisterPersistentEnemy(AActor* Enemy)
 	UE_LOG(LogTemp, Log, TEXT("[Manager] Persistent enemy registered. Total: %d"),
 		PersistentEnemyCount);
 
-	CheckLockCondition();
+	if (ActiveCube) ActiveCube->CheckCubeLockCondition();
 }
 
 void ACC_CubeWorldManager::UnregisterPersistentEnemy(AActor* Enemy)
@@ -152,25 +152,32 @@ void ACC_CubeWorldManager::UnregisterPersistentEnemy(AActor* Enemy)
 	UE_LOG(LogTemp, Log, TEXT("[Manager] Persistent enemy unregistered. Total: %d"),
 		PersistentEnemyCount);
 
-	CheckLockCondition();
+	if (ActiveCube) ActiveCube->CheckCubeLockCondition();
 }
 
-void ACC_CubeWorldManager::CheckLockCondition()
+void ACC_CubeWorldManager::TriggerCubeLock()
 {
-	if (!bCubeLocked && PersistentEnemyCount >= LockThreshold)
-	{
-		bCubeLocked = true;
-		LockTriggerPersistentCount = PersistentEnemyCount;
-		if (ActiveCube)  ActiveCube->SetLockWall(true);
-		UE_LOG(LogTemp, Warning, TEXT("[Manager] Cube LOCKED! Count: %d"), PersistentEnemyCount);
-	}
-	else if (bCubeLocked && PersistentEnemyCount < LockThreshold)
-	{
-		bCubeLocked = false;
-		if (ActiveCube) ActiveCube->SetLockWall(false);
-		UE_LOG(LogTemp, Warning, TEXT("[Manager] Cube UNLOCKED! Count: %d"), PersistentEnemyCount);
+	if (bCubeLocked) return;
 
-		// Lock Clear 보너스 — 얼마나 힘들게 쌓인 Lock이었는지에 비례
+	bCubeLocked = true;
+	LockTriggerPersistentCount = PersistentEnemyCount;
+
+	if (ActiveCube) ActiveCube->SetLockWall(true);
+
+	UE_LOG(LogTemp, Warning, TEXT("[Manager] CubeLock triggered! (Normal=%d, Persistent=%d)"),
+		ActiveCube ? ActiveCube->NormalRegisteredCount : -1, PersistentEnemyCount);
+
+}
+
+void ACC_CubeWorldManager::ResolveCubeLock()
+{
+	if (!bCubeLocked) return;
+
+	bCubeLocked = false;
+	if (ActiveCube) ActiveCube->SetLockWall(false);
+
+	if (LockTriggerPersistentCount > 0)
+	{
 		if (ACharacter* Player = GetPlayerCharacter())
 		{
 			if (ACC_PlayerState* PS = Player->GetPlayerState<ACC_PlayerState>())
@@ -179,6 +186,8 @@ void ACC_CubeWorldManager::CheckLockCondition()
 			}
 		}
 	}
+
+	UE_LOG(LogTemp, Warning, TEXT("[Manager] CubeLock resolved. (Bonus from %d persistent)"), LockTriggerPersistentCount);
 }
 
 void ACC_CubeWorldManager::TeleportPersistentEnemiesToCube(ACC_Cube* TargetCube)
@@ -244,6 +253,52 @@ void ACC_CubeWorldManager::TeleportPersistentEnemiesToCube(ACC_Cube* TargetCube)
 			TEXT("[Manager] Teleported %d persistent enemies to Cube (%d,%d)"),
 			TeleportedCount, TargetCube->CubeCoordinate.X, TargetCube->CubeCoordinate.Y);
 	}
+}
+
+void ACC_CubeWorldManager::SummonPersistentEnemies(int32 Count)
+{
+	if (!ActiveCube || Count <= 0) return;
+
+	ACC_EnemySpawner* LinkedSpawner = nullptr;
+	for (AActor* Actor : ActiveCube->ManagedActors)
+	{
+		if (ACC_EnemySpawner* Spawner = Cast<ACC_EnemySpawner>(Actor))
+		{
+			LinkedSpawner = Spawner;
+			break;
+		}
+	}
+
+	if (!LinkedSpawner || !LinkedSpawner->GetEnemyClass())
+	{
+		UE_LOG(LogTemp, Warning,
+			TEXT("[Manager] SummonPersistentEnemies: no linked Spawner/EnemyClass for Cube (%d,%d) — skipped."),
+			ActiveCube->CubeCoordinate.X, ActiveCube->CubeCoordinate.Y);
+		return;
+	}
+
+	const FVector SpawnCenter = ActiveCube->GetCubeCenter();
+
+	for (int32 i = 0; i < Count; ++i)
+	{
+		FVector Offset(FMath::RandRange(-300.f, 300.f), FMath::RandRange(-300.f, 300.f), 0.f);
+
+		FActorSpawnParameters Params;
+		Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+
+		APawn* NewEnemy = GetWorld()->SpawnActor<APawn>(
+			LinkedSpawner->GetEnemyClass(), SpawnCenter + Offset, FRotator::ZeroRotator, Params);
+
+		if (NewEnemy && NewEnemy->GetClass()->ImplementsInterface(UCC_EnemyAIInterface::StaticClass()))
+		{
+			// 내부에서 RegisterPersistentEnemy()까지 처리됨 (CC_EnemyCharacter::SetPersistentEnemy_Implementation)
+			ICC_EnemyAIInterface::Execute_SetPersistentEnemy(NewEnemy, true);
+		}
+	}
+
+	UE_LOG(LogTemp, Log,
+		TEXT("[Manager] Summoned %d persistent enemies directly (Cube %d,%d left un-cleared)."),
+		Count, ActiveCube->CubeCoordinate.X, ActiveCube->CubeCoordinate.Y);
 }
 
 int32 ACC_CubeWorldManager::GetTotalManagedActorsCount() const
@@ -495,7 +550,60 @@ void ACC_CubeWorldManager::SetupCubeContent(ACC_Cube* NewCube)
 	UE_LOG(LogTemp, Log, TEXT("[Manager] SetupCubeContent — Cube (%d,%d)"),
 		NewCube->CubeCoordinate.X, NewCube->CubeCoordinate.Y);
 
+	// 1순위: 레벨에 수동 배치된 Spawner 중 이 Cube 근처의 것을 연결
+// (특정 Cube에 특수 스폰 연출을 주고 싶을 때를 위한 하드포인트 — 계속 지원)
 	LinkSpawnersToNearestCube(NewCube);
+
+	// 이미 연결됐는지 확인
+	bool bAlreadyLinked = false;
+	TArray<AActor*> Spawners;
+	UGameplayStatics::GetAllActorsOfClass(GetWorld(), ACC_EnemySpawner::StaticClass(), Spawners);
+	for (AActor* A : Spawners)
+	{
+		if (ACC_EnemySpawner* Spawner = Cast<ACC_EnemySpawner>(A))
+		{
+			if (Spawner->GetOwnerCube() == NewCube)
+			{
+				bAlreadyLinked = true;
+				break;
+			}
+		}
+	}
+
+	// 2순위: 근처에 연결된 게 없으면 — 그리드 모양/커스텀 레이아웃과 무관하게
+	// 이 Cube 전용 Spawner를 그 자리에서 즉석 스폰
+	if (!bAlreadyLinked)
+	{
+		if (!DefaultEnemySpawnerClass)
+		{
+			UE_LOG(LogTemp, Warning,
+				TEXT("[Manager] Cube (%d,%d) has no linked Spawner and DefaultEnemySpawnerClass is unset — this Cube will have no enemies."),
+				NewCube->CubeCoordinate.X, NewCube->CubeCoordinate.Y);
+			return;
+		}
+
+		FActorSpawnParameters Params;
+		Params.Owner = this;
+
+		ACC_EnemySpawner* NewSpawner = GetWorld()->SpawnActor<ACC_EnemySpawner>(
+			DefaultEnemySpawnerClass, NewCube->GetCubeCenter(), FRotator::ZeroRotator, Params);
+
+		if (NewSpawner)
+		{
+			NewSpawner->SetOwnerCube(NewCube);
+			NewCube->RegisterActor(NewSpawner);
+
+			UE_LOG(LogTemp, Log,
+				TEXT("[Manager] Cube (%d,%d) — no manual Spawner nearby, spawned default Spawner dynamically."),
+				NewCube->CubeCoordinate.X, NewCube->CubeCoordinate.Y);
+		}
+		else
+		{
+			UE_LOG(LogTemp, Error,
+				TEXT("[Manager] Failed to dynamically spawn EnemySpawner for Cube (%d,%d)!"),
+				NewCube->CubeCoordinate.X, NewCube->CubeCoordinate.Y);
+		}
+	}
 }
 
 void ACC_CubeWorldManager::RequestTransition(EBoundaryDirection Direction)
@@ -600,7 +708,23 @@ void ACC_CubeWorldManager::PerformTransition(FIntPoint NextCoord)
 		return;
 	}
 
-	// 2. Persistent Enemy 이전 — Freeze 전에 처리해야 소속 문제 없음
+	// 2. Persistent Enemy 직접소환 — 정리 안 된 채(Stabilized 아닌 채로) 떠나는 경우에만 (11.5절)
+	if (ActiveCube && ActiveCube->CubeState != ECubeLifeState::Stabilized)
+	{
+		int32 N = 0;
+		for (ACC_Cube* Cube : LoadedCubes)
+		{
+			if (!Cube || Cube == ActiveCube) continue;
+			if (Cube->CubeState == ECubeLifeState::Inactive) ++N;
+		}
+
+		if (N > 0)
+		{
+			SummonPersistentEnemies(N);
+		}
+	}
+
+	// 3. Persistent Enemy 이전 — Freeze 전에 처리해야 소속 문제 없음
 	TeleportPersistentEnemiesToCube(NextCube);
 
 	// 3. 이전 큐브 Freeze

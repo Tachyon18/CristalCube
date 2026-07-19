@@ -544,8 +544,18 @@ void ACC_EnemySpawner::Freeze_Implementation()
         return;
     }
 
-    // Stop spawning
     StopSpawning();
+
+    // Stop spawning
+    if (bWaveCleared)
+    {
+        bWaveCleared = false;
+        bHasWaveStarted = false;
+        TotalSpawnedThisWave = 0;
+        SpawnedEnemies.Reset();
+
+        CC_LOG_SPAWNER(Log, TEXT("[Spawner] Wave state reset on leaving cleared cube — will restart next visit."));
+    }
 
     bIsFrozen = true;
 

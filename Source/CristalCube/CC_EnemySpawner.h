@@ -208,6 +208,12 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Spawner")
 	bool GetIsAutoStart() const { return bAutoStart; }
 
+	UFUNCTION(BlueprintPure, Category = "Spawner|Wave")
+	int32 GetWaveSize() const { return WaveSize; }
+
+    UFUNCTION(BlueprintPure, Category = "Spawner|Setup")
+    TSubclassOf<APawn> GetEnemyClass() const { return EnemyClass; }
+
     //==========================================================================
     // FREEZABLE INTERFACE
     //==========================================================================

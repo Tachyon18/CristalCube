@@ -19,6 +19,7 @@
 #include "../CC_CollisionHelper.h"
 #include "../Gameplay/CC_ExperienceGem.h"
 #include "../Gameplay/CC_Cube.h"
+#include "../Gameplay/CC_VisualComponent.h"
 #include "NiagaraFunctionLibrary.h"
 #include "NiagaraComponent.h"
 
@@ -26,7 +27,6 @@
 ACC_EnemyCharacter::ACC_EnemyCharacter()
 {
 	PrimaryActorTick.bCanEverTick = true;
-
 
 	// Enemy defaults
 	MaxHealth = 50.0f;
@@ -63,6 +63,8 @@ ACC_EnemyCharacter::ACC_EnemyCharacter()
 	// Enemy type
 	EnemyType = TEXT("Basic");
 	bIsBoss = false;
+
+	VisualComponent = CreateDefaultSubobject<UCC_VisualComponent>(TEXT("VisualComponent"));
 }
 
 void ACC_EnemyCharacter::BeginPlay()
@@ -995,25 +997,11 @@ void ACC_EnemyCharacter::SetPersistentEnemy_Implementation(bool bPersistentState
 		}
 	}
 
-	// 베이스라인 비주얼 ? 셰입/클래스 무관, 공유 에셋 1개로 토글
-	if (bPersistent)
+	if (VisualComponent)
 	{
-		if (PersistentAuraEffect && !PersistentAuraComponent && GetMesh())
-		{
-			PersistentAuraComponent = UNiagaraFunctionLibrary::SpawnSystemAttached(
-				PersistentAuraEffect, GetMesh(), NAME_None,
-				FVector(0, 0, 50.f), FRotator::ZeroRotator,
-				EAttachLocation::SnapToTarget, true);
-		}
+		VisualComponent->SetPersistentVisualState(bPersistentState, GetMesh());
 	}
-	else
-	{
-		if (PersistentAuraComponent)
-		{
-			PersistentAuraComponent->DestroyComponent();
-			PersistentAuraComponent = nullptr;
-		}
-	}
+
 
 	OnPersistentStateChanged(bPersistent);
 }

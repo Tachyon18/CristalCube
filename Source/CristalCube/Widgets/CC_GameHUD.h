@@ -27,6 +27,9 @@ protected:
 	UPROPERTY(meta = (BindWidget))
 	UCC_GlassWidget* TimerPanel;
 
+	UPROPERTY(meta = (BindWidget))
+	class UCC_RewardBadgeWidget* RewardBadge;
+
 	UPROPERTY(EditAnywhere, meta = (BindWidget))
 	class UProgressBar* HealthBar;
 
@@ -53,8 +56,14 @@ public:
 	UFUNCTION(BlueprintCallable)
 	void PlayHitFlash();
 
+	UFUNCTION(BlueprintCallable)
+	void UpdatePendingRewardSlots(int32 Count);
+
 private:
 
 	FTimerHandle HitFlashTimer;
 	void ResetHitFlash();
+
+	UFUNCTION()
+	void HandleRewardBadgeClicked();
 };

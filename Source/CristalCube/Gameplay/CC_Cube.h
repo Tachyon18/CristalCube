@@ -171,6 +171,13 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Cube")
 	ECubeLifeState CubeState;
 
+	/** 이 Cube가 실제로 한 번이라도 Active(플레이어 방문)된 적 있는지.
+	 *  ECubeLifeState::Inactive는 "미방문 초기값"과 "방문 후 미정리 상태"를 겸하고 있어서(11.3절),
+	 *  SummonPersistentEnemies의 N 계산 / 축B NeglectTransitionCount 누적이 이 둘을 구분해야 할 때 사용.
+	 *  (11.3절에서 통합 논의했던 bHasBeenVisited의 좁은 목적 한정 부활) */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Cube")
+	bool bHasBeenVisited = false;
+
 	/** 이 큐브가 관리하는 Actor들 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Cube")
 	TArray<AActor*> ManagedActors;
@@ -203,6 +210,17 @@ public:
 	/** 잠금 판정 목표치 (=NormalRegisteredCount + PersistentEnemyCount 합산 임계값). 연결된 Spawner의 WaveSize 스냅샷 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Cube|Lock")
 	int32 CubeLockTarget = 0;
+
+	/** 이 Cube가 Inactive 상태인 동안 누적된 전역 전환(스킵) 횟수 — 축 B(방치 강화) 카운터 (3.2절/11.6절) */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Cube|Neglect")
+	int32 NeglectTransitionCount = 0;
+
+	/** 전환 1회당 방치 강화 배율 증가폭 (11.8절 확정값: 5%) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cube|Neglect")
+	float NeglectMultiplierPerTransition = 0.05f;
+
+	/** 다른 Cube에서 전환이 발생할 때마다 WorldManager가 호출 — 이 Cube가 Inactive 상태일 때만 누적 */
+	void AccumulateNeglect();
 
 	/** 현재 이 Cube에 등록된(=생존) Normal Enemy 수 — RegisterActor/UnregisterActor로 실시간 갱신 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Cube|Lock")
@@ -273,4 +291,7 @@ protected:
 	FTimerHandle LockGraceTimerHandle;
 
 	void OnLockGraceExpired();
+
+	/** Unfreeze 시 남은 Normal Enemy(ManagedActors)에게 누적 배율 적용 */
+	void ApplyNeglectMultiplierToManagedActors();
 };

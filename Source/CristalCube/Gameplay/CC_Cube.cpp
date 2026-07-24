@@ -533,6 +533,14 @@ void ACC_Cube::UnregisterActor(AActor* Actor)
 		CubeCoordinate.X, CubeCoordinate.Y, *Actor->GetName(), ManagedActors.Num());
 }
 
+void ACC_Cube::AccumulateNeglect()
+{
+	if (CubeState == ECubeLifeState::Inactive && bHasBeenVisited)
+	{
+		++NeglectTransitionCount;
+	}
+}
+
 void ACC_Cube::CheckCubeLockCondition()
 {
 	if (CubeLockTarget <= 0) return;
@@ -588,6 +596,15 @@ void ACC_Cube::Freeze()
 {
 	if (IsFrozen())
 		return;
+
+	// [신규] Stabilized(클리어 완료) 상태에서 떠나는 경우만 카운터 리셋
+	// — 4-1절 B안(웨이브 리셋)과 같은 타이밍. 그 외(미클리어 스킵)는 계속 누적.
+
+	const bool bWasStabilized = (CubeState == ECubeLifeState::Stabilized);
+	if (bWasStabilized)
+	{
+		NeglectTransitionCount = 0;
+	}
 
 	CubeState = ECubeLifeState::Inactive;
 
@@ -672,6 +689,7 @@ void ACC_Cube::Unfreeze()
 		return;
 
 	CubeState = ECubeLifeState::Active;
+	bHasBeenVisited = true;
 
 	// Show and enable the entire cube
 	SetActorHiddenInGame(false);
@@ -739,6 +757,8 @@ void ACC_Cube::Unfreeze()
 		MoodComponent->ApplyMood(0);
 	}
 
+	ApplyNeglectMultiplierToManagedActors();
+
 	CheckCubeLockCondition();
 
 	UE_LOG(LogTemp, Warning, TEXT("[Cube %d,%d] UNFROZEN (%d actors)"),
@@ -780,7 +800,20 @@ void ACC_Cube::OnBoundaryOverlap(UPrimitiveComponent* OverlappedComp, AActor* Ot
 		ACC_CubeWorldManager* Manager = Cast<ACC_CubeWorldManager>(FoundActors[0]);
 		if (Manager)
 		{
-			Manager->RequestTransition(Direction);
+			// [수정] PerformTransition은 Actor 스폰(SummonPersistentEnemies)/텔레포트/콜리전 토글까지
+			// 포함하는 무거운 로직인데, 지금처럼 물리 오버랩 콜백(OnComponentBeginOverlap) 안에서
+			// 그대로 실행하면 재진입 상태에서 World가 일시적으로 불안정해질 수 있음
+			// (SetPersistentVisualState의 GetWorldTimerManager() 널 크레시로 확인됨).
+			// 콜백 스택이 완전히 풀린 다음 틱으로 미뤄서 안전한 시점에 실행.
+			TWeakObjectPtr<ACC_CubeWorldManager> WeakManager = Manager;
+			EBoundaryDirection CapturedDirection = Direction;
+			GetWorldTimerManager().SetTimerForNextTick([WeakManager, CapturedDirection]()
+			{
+				if (WeakManager.IsValid())
+				{
+					WeakManager->RequestTransition(CapturedDirection);
+				}
+			});
 		}
 	}
 }
@@ -862,4 +895,27 @@ void ACC_Cube::OnLockGraceExpired()
 	if (CubeState != ECubeLifeState::Active) return;
 
 	Manager->TriggerCubeLock();
+}
+
+void ACC_Cube::ApplyNeglectMultiplierToManagedActors()
+{
+	if (NeglectTransitionCount <= 0) return;
+
+	const float Multiplier = 1.0f + NeglectTransitionCount * NeglectMultiplierPerTransition;
+
+	int32 AppliedCount = 0;
+	for (AActor* Actor : ManagedActors)
+	{
+		if (!IsValid(Actor)) continue;
+		if (Actor->GetClass()->ImplementsInterface(UCC_EnemyAIInterface::StaticClass()))
+		{
+			ICC_EnemyAIInterface::Execute_ApplyStatMultiplier(Actor, Multiplier);
+			++AppliedCount;
+		}
+	}
+
+	UE_LOG(LogTemp, Log,
+		TEXT("[Cube %d,%d] Neglect multiplier x%.2f applied to %d enemies (%d transitions accumulated)"),
+		CubeCoordinate.X, CubeCoordinate.Y, Multiplier, AppliedCount, NeglectTransitionCount);
+
 }

@@ -47,7 +47,11 @@ void UCC_VisualComponent::SetPersistentVisualState(bool bPersistentState, UMeshC
 	// 색/발광 — MID 생성은 최초 1회만
 	if (!PersistentMID)
 	{
-		if (UMaterialInterface* BaseMat = TargetMesh->GetMaterial(0))
+		UMaterialInterface* BaseMat = PersistentBaseMaterialOverride
+			? PersistentBaseMaterialOverride
+			: TargetMesh->GetMaterial(0);
+
+		if (BaseMat)
 		{
 			PersistentMID = UMaterialInstanceDynamic::Create(BaseMat, this);
 			TargetMesh->SetMaterial(0, PersistentMID);
@@ -58,10 +62,13 @@ void UCC_VisualComponent::SetPersistentVisualState(bool bPersistentState, UMeshC
 	{
 		PersistentBlendTarget = bPersistentState ? 1.0f : 0.0f;
 
-		if (AActor* Owner = GetOwner())
+		AActor* Owner = GetOwner();
+		UWorld* World = Owner ? Owner->GetWorld() : nullptr;
+
+		if (World)
 		{
-			Owner->GetWorldTimerManager().ClearTimer(PersistentBlendTimerHandle);
-			Owner->GetWorldTimerManager().SetTimer(
+			World->GetTimerManager().ClearTimer(PersistentBlendTimerHandle);
+			World->GetTimerManager().SetTimer(
 				PersistentBlendTimerHandle, this,
 				&UCC_VisualComponent::UpdatePersistentBlend,
 				0.05f, true);

@@ -53,6 +53,11 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cube Clear")
     float CubeEnergyPerCubeClear = 15.0f;
 
+    /** Cube Clear마다 자동으로 회복되는 비율 (0.0~1.0) — HealFull을 대체하는 부수 효과.
+     *  픽 카드가 아니라 매 CubeClear마다 무조건 적용됨. [임시값, 밸런싱 대상] */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cube Clear", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+    float CubeClearAutoHealPercent = 0.15f;
+
     /** 아직 선택 안 된 보상 슬롯 수 — 하단 코너 UI(WBP, 추후 작업)가 이 값을 읽어 표시 */
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Cube Clear")
     int32 PendingRewardSlots = 0;
@@ -61,9 +66,16 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Cube Clear")
     void RefreshCubeClearRewardBar();
 
-    /** 보상 선택 완료 후 호출 (WBP_CubeClear 등에서 바인딩) */
+    /** RewardBadge 클릭 시 호출 — 카드 패널 오픈 (Phase C에서 실제 구현 예정, 지금은 로그만) */
     UFUNCTION(BlueprintCallable, Category = "Cube Clear")
-    void OnCubeClearRewardSelected(FCubeClearReward SelectedReward);
+    void OnRewardBadgeClicked();
+
+    /** 카드 패널 위젯 클래스 — WBP_CubeClearReward 지정 */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cube Clear")
+    TSubclassOf<class UCC_CubeClearRewardWidget> CubeClearRewardWidgetClass;
+
+    UPROPERTY()
+    class UCC_CubeClearRewardWidget* CurrentCubeClearRewardWidget = nullptr;
 
     /** 보상 풀에서 랜덤 N개 선택 */
     UFUNCTION(BlueprintCallable, Category = "Cube Clear")
@@ -101,6 +113,11 @@ public:
 private:
     void SpawnCycleManager();
     void ApplyCubeClearReward(const FCubeClearReward& SelectedReward);
+
+    UFUNCTION()
+    void HandleCubeClearRewardPicked(FCubeClearReward SelectedReward);
+
+    void CloseCubeClearRewardPanel();
 
     UFUNCTION()
     void OnCubeClearAchieved(int32 StageNumber);

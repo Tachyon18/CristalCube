@@ -32,6 +32,7 @@ ACC_EnemyCharacter::ACC_EnemyCharacter()
 	MaxHealth = 50.0f;
 	CurrentHealth = MaxHealth;
 	MoveSpeed = 300.0f;  // Slower than player
+	BaseMaxHealth = MaxHealth;
 
 	if(UCapsuleComponent* Capsule = GetCapsuleComponent())
 	{
@@ -70,6 +71,9 @@ ACC_EnemyCharacter::ACC_EnemyCharacter()
 void ACC_EnemyCharacter::BeginPlay()
 {
 	Super::BeginPlay();
+
+	BaseAttackDamage = EnemyStats.AttackDamage;
+	BaseExpGemAmount = ExpGemAmount;
 
 	if (!GetController())
 	{
@@ -1028,4 +1032,23 @@ void ACC_EnemyCharacter::ResetMovementState_Implementation()
 		EnemyState = EEnemyState::Moving;
 		bIsAttacking = false;
 	}
+}
+
+void ACC_EnemyCharacter::ApplyStatMultiplier_Implementation(float Multiplier)
+{
+	if (Multiplier <= 0.f || BaseMaxHealth <= 0.f) return;
+
+	const float Ratio = (CurrentStatMultiplier > 0.f) ? (Multiplier / CurrentStatMultiplier) : Multiplier;
+
+	MaxHealth = BaseMaxHealth * Multiplier;
+	CurrentHealth = FMath::Clamp(CurrentHealth * Ratio, 1.f, MaxHealth);
+
+	EnemyStats.AttackDamage = BaseAttackDamage * Multiplier;
+	ExpGemAmount = BaseExpGemAmount * Multiplier;
+
+	CurrentStatMultiplier = Multiplier;
+
+	UE_LOG(LogTemp, Log, TEXT("[%s] Stat multiplier applied: x%.2f (HP %.0f/%.0f, DMG %.1f, EXP %.1f)"),
+		*GetName(), Multiplier, CurrentHealth, MaxHealth, EnemyStats.AttackDamage, ExpGemAmount);
+
 }

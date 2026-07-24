@@ -63,4 +63,9 @@ public:
     UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Enemy|AI")
     void ResetMovementState();
     virtual void ResetMovementState_Implementation() = 0;
+
+    /** 축 B(방치 강화)/향후 축 C 등 외부 배율 적용 — Base 스탯 기준 절대 재계산(누적 곱 아님, 반복 호출 안전) */
+    UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Enemy|Stats")
+    void ApplyStatMultiplier(float Multiplier);
+    virtual void ApplyStatMultiplier_Implementation(float Multiplier) = 0;
 };

@@ -15,6 +15,7 @@
 #include "../CC_WeaponManagerSubsystem.h"
 #include "../CC_SearchingComponent.h"
 #include "../CC_GameModeBase.h"
+#include "../CC_PlayerController.h"
 #include "../Widgets/CC_GameHUD.h"
 #include "../Widgets/CC_LevelUpWidget.h"
 #include "../CC_TileTrackerComponent.h"
@@ -906,12 +907,13 @@ void ACC_PlayerCharacter::OnPlayerTileChanged(int32 OldTileIndex, int32 NewTileI
 
 void ACC_PlayerCharacter::UpdateGameHUD()
 {
-	if (!CurrentGameHUD) return;
+	ACC_PlayerController* PC = Cast<ACC_PlayerController>(GetController());
+	UCC_GameHUD* HUD = PC ? PC->GetGameHUD() : nullptr;
+	if (!HUD) return;
 
-	CurrentGameHUD->UpdateHealth(CurrentHealth, MaxHealth);
-	CurrentGameHUD->UpdateExp(Experience, ExperienceToNextLevel, Level);
-	CurrentGameHUD->UpdateTimer(GameTime);
-
+	HUD->UpdateHealth(CurrentHealth, MaxHealth);
+	HUD->UpdateExp(Experience, ExperienceToNextLevel, Level);
+	HUD->UpdateTimer(GameTime);
 }
 
 float ACC_PlayerCharacter::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser)

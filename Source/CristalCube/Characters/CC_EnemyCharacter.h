@@ -231,6 +231,13 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats")
 	FCristalCubeEnemyStats EnemyStats;
 
+	/** BeginPlay 시점 기준 스탯 — MaxHealth/BaseMaxHealth는 ACC_Character가 이미 갖고 있으므로 재사용 */
+	float BaseAttackDamage = 0.f;
+	float BaseExpGemAmount = 0.f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Enemy|Stats")
+	float CurrentStatMultiplier = 1.0f;
+
 	// Attack cooldown timer
 	FTimerHandle AttackCooldownTimer;
 
@@ -333,4 +340,5 @@ public:
 
 	virtual void SetPersistentEnemy_Implementation(bool bPersistentState) override;
 	virtual void ResetMovementState_Implementation() override;
+	virtual void ApplyStatMultiplier_Implementation(float Multiplier) override;
 };

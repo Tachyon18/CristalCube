@@ -708,20 +708,31 @@ void ACC_CubeWorldManager::PerformTransition(FIntPoint NextCoord)
 		return;
 	}
 
+	// [신규] 축 B(방치 강화) 카운터 갱신 — 이번 전환 대상(NextCube) 제외,
+	// 나머지 Inactive 상태 Cube 전부에 누적 (11.6절)
+	++GlobalTransitionCount;
+	for (ACC_Cube* Cube : LoadedCubes)
+	{
+		if (!Cube || Cube == NextCube) continue;
+		Cube->AccumulateNeglect();
+	}
+
+
 	// 2. Persistent Enemy 직접소환 — 정리 안 된 채(Stabilized 아닌 채로) 떠나는 경우에만 (11.5절)
 	if (ActiveCube && ActiveCube->CubeState != ECubeLifeState::Stabilized)
 	{
 		int32 N = 0;
+
+		++N;
+
+		// 이전부터 이미 방치된 채로 남아있던 다른 Cube들
 		for (ACC_Cube* Cube : LoadedCubes)
 		{
-			if (!Cube || Cube == ActiveCube) continue;
-			if (Cube->CubeState == ECubeLifeState::Inactive) ++N;
+			if (!Cube || Cube == ActiveCube || Cube == NextCube) continue;
+			if (Cube->CubeState == ECubeLifeState::Inactive && Cube->bHasBeenVisited) ++N;
 		}
 
-		if (N > 0)
-		{
-			SummonPersistentEnemies(N);
-		}
+		SummonPersistentEnemies(N);
 	}
 
 	// 3. Persistent Enemy 이전 — Freeze 전에 처리해야 소속 문제 없음

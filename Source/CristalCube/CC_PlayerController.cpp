@@ -6,6 +6,7 @@
 #include "EnhancedInputSubsystems.h"
 #include "InputMappingContext.h"
 #include "InputAction.h"
+#include "Widgets/CC_GameHUD.h"
 #include "Kismet/GameplayStatics.h"
 #include "SkillSystem/CC_SkillSystem.h"
 #include "Characters/CC_PlayerCharacter.h"
@@ -318,4 +319,16 @@ void ACC_PlayerController::ReleaseBeam()
     }
 
     bIsChargingBeam = false;
+}
+
+void ACC_PlayerController::CreateGameHUD()
+{
+    if (CurrentGameHUD || !GameHUDClass) return;
+
+    CurrentGameHUD = CreateWidget<UCC_GameHUD>(this, GameHUDClass);
+    if (CurrentGameHUD)
+    {
+        CurrentGameHUD->AddToViewport();
+        CC_LOG_PLAYER(Log, "Game HUD created (owned by PlayerController)");
+    }
 }

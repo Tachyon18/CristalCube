@@ -104,6 +104,15 @@ protected:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Stats")
     FCristalCubeEnemyStats EnemyStats;
 
+    /** BeginPlay 시점 기준 스탯 — ApplyStatMultiplier가 매번 이 값 기준으로 재계산 */
+    float BaseMaxHealth = 0.f;
+    float BaseAttackDamage = 0.f;
+    float BaseExpGemAmount = 0.f;
+
+    /** 현재 적용된 배율 (디버그/조회용, HP 비율 보존 계산에도 사용) */
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Enemy|Stats")
+    float CurrentStatMultiplier = 1.0f;
+
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Reward")
     float ExpGemAmount = 5.0f;
 
@@ -242,6 +251,7 @@ public:
     virtual bool IsPersistentEnemy_Implementation() const override { return bPersistent; }
     virtual void SetPersistentEnemy_Implementation(bool bPersistentState) override;
     virtual void ResetMovementState_Implementation() override;
+    virtual void ApplyStatMultiplier_Implementation(float Multiplier) override;
 
     //==========================================================================
     // 공용

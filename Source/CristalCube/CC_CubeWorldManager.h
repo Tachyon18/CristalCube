@@ -211,6 +211,10 @@ public:
     // Transition System
     // ========================================
 
+        /** 전역 Cube 전환(스킵) 누적 횟수 — 축 B 카운팅 기준(11.6절), 향후 11.10절 BossProgress TimeBaseline 등에도 재사용 가능 */
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Cube|Neglect")
+    int32 GlobalTransitionCount = 0;
+
     /** ť�� ��ȯ ��û */
     UFUNCTION(BlueprintCallable, Category = "Cube|Transition")
     void RequestTransition(EBoundaryDirection Direction);

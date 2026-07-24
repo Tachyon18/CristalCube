@@ -79,6 +79,8 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Input", meta = (ClampMin = "10.0", ClampMax = "200.0"))
 	float MinMouseDistance = 50.0f;
 
+
+
 protected:
 
 	FVector2D CurrentMoveInput;
@@ -120,5 +122,23 @@ protected:
 
 	UFUNCTION()
 	void ReleaseBeam();
+
+public:
+
+	//==============================================================================
+	// Game HUD
+	//==============================================================================
+
+	UPROPERTY(EditDefaultsOnly, Category = "UI")
+	TSubclassOf<class UCC_GameHUD> GameHUDClass;
+
+	UPROPERTY()
+	class UCC_GameHUD* CurrentGameHUD;
+
+	UFUNCTION(BlueprintPure, Category = "UI")
+	UCC_GameHUD* GetGameHUD() const { return CurrentGameHUD; }
+
+protected:
+	void CreateGameHUD();
 
 };

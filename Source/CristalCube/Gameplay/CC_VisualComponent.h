@@ -24,6 +24,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Visual|Persistent")
 	class UNiagaraSystem* PersistentAuraEffect = nullptr;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Visual|Persistent")
+	class UMaterialInterface* PersistentBaseMaterialOverride = nullptr;
+
 	/** PersistentBlend 파라미터를 목표치로 보간하는 시간(초) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Visual|Persistent")
 	float PersistentBlendTransitionSeconds = 0.5f;

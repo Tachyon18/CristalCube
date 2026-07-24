@@ -5,8 +5,11 @@
 #include "Characters/CC_PlayerCharacter.h"
 #include "Blueprint/UserWidget.h"
 #include "Kismet/GameplayStatics.h"
+#include "CC_PlayerController.h"
 #include "CC_PlayerState.h"
 #include "SkillSystem/CC_SkillBase.h"
+#include "Widgets/CC_GameHUD.h"
+#include "Widgets/CC_CubeClearRewardWidget.h"
 #include "TimerManager.h"
 
 ACC_MainGameMode::ACC_MainGameMode()
@@ -61,20 +64,6 @@ void ACC_MainGameMode::ApplyCubeClearReward(const FCubeClearReward& SelectedRewa
         }
         break;
 
-    case ECubeClearRewardType::HealFull:
-        if (Player)
-        {
-            
-        }
-        break;
-
-    case ECubeClearRewardType::SkillGrant:
-        if (PS)
-        {
-            PS->GrantSkillByRowName(SelectedReward.DataRowName);
-        }
-        break;
-
     case ECubeClearRewardType::AddonGrant:
         if (PS)
         {
@@ -96,19 +85,7 @@ void ACC_MainGameMode::ApplyCubeClearReward(const FCubeClearReward& SelectedRewa
     case ECubeClearRewardType::AddonUpgrade:
         if (PS)
         {
-            TArray<UCC_SkillBase*> Candidates;
-            for (UCC_SkillBase* Skill : PS->GetAllSkills())
-            {
-                if (Skill && Skill->HasAddon(SelectedReward.TargetAddonType))
-                {
-                    Candidates.Add(Skill);
-                }
-            }
-            if (Candidates.Num() > 0)
-            {
-                Candidates[FMath::RandRange(0, Candidates.Num() - 1)]->ApplyAddonModifier(
-                    SelectedReward.TargetAddonType, SelectedReward.AddonUpgradeDelta);
-            }
+            PS->AddAddonPoints(SelectedReward.TargetAddonType, SelectedReward.AddonPointAmount);
         }
         break;
 
@@ -120,6 +97,42 @@ void ACC_MainGameMode::ApplyCubeClearReward(const FCubeClearReward& SelectedRewa
         *SelectedReward.DisplayName.ToString());
 }
 
+void ACC_MainGameMode::HandleCubeClearRewardPicked(FCubeClearReward SelectedReward)
+{
+    ApplyCubeClearReward(SelectedReward);
+
+    PendingRewardSlots = FMath::Max(0, PendingRewardSlots - 1);
+    RefreshCubeClearRewardBar();
+
+    if (PendingRewardSlots > 0 && CurrentCubeClearRewardWidget)
+    {
+        // 패널 안 닫고 다음 3장으로 즉시 이어감
+        CurrentCubeClearRewardWidget->SetRewardChoices(GetRandomCubeClearRewards(3));
+    }
+    else
+    {
+        CloseCubeClearRewardPanel();
+    }
+}
+
+void ACC_MainGameMode::CloseCubeClearRewardPanel()
+{
+    if (CurrentCubeClearRewardWidget)
+    {
+        CurrentCubeClearRewardWidget->RemoveFromParent();
+        CurrentCubeClearRewardWidget = nullptr;
+    }
+
+    UGameplayStatics::SetGamePaused(GetWorld(), false);
+
+    APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0);
+    if (PC)
+    {
+        PC->bShowMouseCursor = false;
+        PC->SetInputMode(FInputModeGameOnly());
+    }
+}
+
 void ACC_MainGameMode::OnCubeClearAchieved(int32 StageNumber)
 {
     APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0);
@@ -127,6 +140,12 @@ void ACC_MainGameMode::OnCubeClearAchieved(int32 StageNumber)
     if (!PS) return;
 
     PS->AddCubeEnergy(CubeEnergyPerCubeClear);
+
+    // HealFull 대체 — 픽 카드가 아니라 CubeClear마다 자동으로 붙는 부분회복
+    if (ACC_PlayerCharacter* Player = Cast<ACC_PlayerCharacter>(PC->GetPawn()))
+    {
+        Player->Heal(Player->GetMaxHealth() * CubeClearAutoHealPercent);
+    }
 
     const int32 NewPicks = PS->ConsumeCubeClearPicks();
     PendingRewardSlots += NewPicks;
@@ -152,16 +171,40 @@ void ACC_MainGameMode::OnGameCleared()
 
 void ACC_MainGameMode::RefreshCubeClearRewardBar()
 {
-    // 실제 하단 코너 UI 갱신은 WBP 쪽에서 PendingRewardSlots를 읽어 구현 예정 (Track 5).
-    // 예전 버전의 무한재귀 + 미정의 SelectedReward 참조 버그 제거 — 지금은 알림 역할만.
+    APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0);
+    if (ACC_PlayerController* CCPC = Cast<ACC_PlayerController>(PC))
+    {
+        if (UCC_GameHUD* HUD = CCPC->GetGameHUD())
+        {
+            HUD->UpdatePendingRewardSlots(PendingRewardSlots);
+        }
+    }
 }
 
-void ACC_MainGameMode::OnCubeClearRewardSelected(FCubeClearReward SelectedReward)
+void ACC_MainGameMode::OnRewardBadgeClicked()
 {
-    ApplyCubeClearReward(SelectedReward);
+    if (PendingRewardSlots <= 0) return;
+    if (CurrentCubeClearRewardWidget) return; // 이미 열려있으면 중복 오픈 방지
 
-    PendingRewardSlots = FMath::Max(0, PendingRewardSlots - 1);
-    RefreshCubeClearRewardBar();
+    if (!CubeClearRewardWidgetClass)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[MainGameMode] CubeClearRewardWidgetClass not set!"));
+        return;
+    }
+
+    APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0);
+    if (!PC) return;
+
+    CurrentCubeClearRewardWidget = CreateWidget<UCC_CubeClearRewardWidget>(PC, CubeClearRewardWidgetClass);
+    if (!CurrentCubeClearRewardWidget) return;
+
+    CurrentCubeClearRewardWidget->SetRewardChoices(GetRandomCubeClearRewards(3));
+    CurrentCubeClearRewardWidget->OnCubeClearRewardSelected.AddDynamic(this, &ACC_MainGameMode::HandleCubeClearRewardPicked);
+    CurrentCubeClearRewardWidget->AddToViewport(10);
+
+    UGameplayStatics::SetGamePaused(GetWorld(), true);
+    PC->bShowMouseCursor = true;
+    PC->SetInputMode(FInputModeUIOnly());
 }
 
 TArray<FCubeClearReward> ACC_MainGameMode::GetRandomCubeClearRewards(int32 Count)

@@ -52,6 +52,9 @@ void ACC_EnemyBase::BeginPlay()
 	Super::BeginPlay();
 	
     CurrentHealth = MaxHealth;
+    BaseMaxHealth = MaxHealth;
+    BaseAttackDamage = EnemyStats.AttackDamage;
+    BaseExpGemAmount = ExpGemAmount;
     Tags.AddUnique(FName("Enemy"));
 
     FindPlayer();
@@ -346,6 +349,25 @@ void ACC_EnemyBase::ResetMovementState_Implementation()
     MoveTarget = GetActorLocation();
     EnemyState = EEnemyState::Moving;
     bIsAttacking = false;
+}
+
+void ACC_EnemyBase::ApplyStatMultiplier_Implementation(float Multiplier)
+{
+    if (Multiplier <= 0.f || BaseMaxHealth <= 0.f) return;
+
+    const float Ratio = (CurrentStatMultiplier > 0.f) ? (Multiplier / CurrentStatMultiplier) : Multiplier;
+
+    MaxHealth = BaseMaxHealth * Multiplier;
+    CurrentHealth = FMath::Clamp(CurrentHealth * Ratio, 1.f, MaxHealth);
+
+    EnemyStats.AttackDamage = BaseAttackDamage * Multiplier;
+    ExpGemAmount = BaseExpGemAmount * Multiplier;
+
+    CurrentStatMultiplier = Multiplier;
+
+    UE_LOG(LogTemp, Log, TEXT("[%s] Stat multiplier applied: x%.2f (HP %.0f/%.0f, DMG %.1f, EXP %.1f)"),
+        *GetName(), Multiplier, CurrentHealth, MaxHealth, EnemyStats.AttackDamage, ExpGemAmount);
+
 }
 
 void ACC_EnemyBase::InitShape()

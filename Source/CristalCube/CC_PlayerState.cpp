@@ -5,6 +5,7 @@
 #include "SkillSystem/CC_SkillBase.h"
 #include "SkillSystem/CC_SkillSystem.h"
 #include "SkillSystem/CC_SkillLibrarySubsystem.h"
+#include "CristalCubeStruct.h"
 #include "CC_LogHelper.h"
 
 ACC_PlayerState::ACC_PlayerState()
@@ -303,4 +304,21 @@ int32 ACC_PlayerState::ConsumeCubeClearPicks()
     const int32 Total = 1 + PendingBonusPicks;  // Cube Clear당 최소 1장 보장
     PendingBonusPicks = 0;
     return Total;
+}
+
+void ACC_PlayerState::AddAddonPoints(ESkillAddonType AddonType, int32 Amount)
+{
+    if (AddonType == ESkillAddonType::None || Amount <= 0) return;
+
+    int32& Points = AddonUnspentPoints.FindOrAdd(AddonType);
+    Points += Amount;
+
+    UE_LOG(LogTemp, Log, TEXT("[PlayerState] Addon points +%d for %s (total: %d)"),
+        Amount, *UEnum::GetValueAsString(AddonType), Points);
+}
+
+int32 ACC_PlayerState::GetAddonUnspentPoints(ESkillAddonType AddonType) const
+{
+    const int32* Points = AddonUnspentPoints.Find(AddonType);
+    return Points ? *Points : 0;
 }

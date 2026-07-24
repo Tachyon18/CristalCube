@@ -593,12 +593,10 @@ struct FElementColorData
 UENUM(BlueprintType)
 enum class ECubeClearRewardType : uint8
 {
-    WeaponUpgrade   UMETA(DisplayName = "Weapon Upgrade"),   // 무기 강화
-    SkillGrant      UMETA(DisplayName = "Skill Grant"),      // 스킬 획득
     StatBoost       UMETA(DisplayName = "Stat Boost"),       // 스탯 부스트 (영구)
-    HealFull        UMETA(DisplayName = "Full Heal"),        // 체력 완전 회복
-    AddonGrant      UMETA(DisplayName = "Addon Grant"),
-    AddonUpgrade    UMETA(DisplayName = "Addon Upgrade"),
+    AddonGrant      UMETA(DisplayName = "Addon Grant"),      // 보유 스킬 중 하나에 새 애드온 부여
+    AddonUpgrade    UMETA(DisplayName = "Addon Upgrade"),    // 애드온 포인트 지급 (은행 적립, 소진은 8번 UI)
+
 };
 
 USTRUCT(BlueprintType)
@@ -608,15 +606,16 @@ struct FCubeClearReward
 
     /** 보상 종류 */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Reward")
-    ECubeClearRewardType RewardType = ECubeClearRewardType::WeaponUpgrade;
+    ECubeClearRewardType RewardType = ECubeClearRewardType::StatBoost;
 
     /** AddonGrant / AddonUpgrade 용 — 대상 애드온 타입 */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Reward|Addon")
     ESkillAddonType TargetAddonType = ESkillAddonType::None;
 
-    /** AddonUpgrade 용 — 적용할 강화 수치 (해당 애드온 타입에 대응되는 필드만 사용됨) */
+    /** AddonUpgrade 용 — 지급할 포인트 수. 실제 속성 배분(ValuePerPoint 적용)은
+    *  SkillInventory 확장 UI(마스터 우선순위 8번)에서 처리 — 여기선 은행에 적립만 함. */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Reward|Addon")
-    FSkillPassiveProperties AddonUpgradeDelta;
+    int32 AddonPointAmount = 1;
 
     /** UI 표시 이름 */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Reward")
@@ -637,10 +636,6 @@ struct FCubeClearReward
     /** StatBoost 용 — 강화 수치 */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Reward|Stat")
     float StatValue = 0.0f;
-
-    /** WeaponUpgrade / SkillGrant 용 — DataTable 행 이름 */
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Reward|Data")
-    FName DataRowName = NAME_None;
 };
 
 // Bast Weapon Data

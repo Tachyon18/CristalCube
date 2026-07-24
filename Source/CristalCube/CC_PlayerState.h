@@ -160,4 +160,21 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Cube Energy")
     int32 ConsumeCubeClearPicks();
 
+    //==========================================================================
+    // ADDON POINT BANK (CubeClear "포인트제" 강화, SkillSystem.md 2026-07-23 설계)
+    //==========================================================================
+
+    /** Addon 타입별 미소진 포인트. CubeClear AddonUpgrade 보상이 여기 적립.
+     *  실제 속성별 배분(소진)은 SkillInventory 확장 UI(마스터 우선순위 8번)에서 처리 예정 —
+     *  지금은 은행 역할만 한다. */
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Skills|Addon Points")
+    TMap<ESkillAddonType, int32> AddonUnspentPoints;
+
+    /** 지정한 Addon 타입에 포인트 N개를 은행에 적립 */
+    UFUNCTION(BlueprintCallable, Category = "Skills|Addon Points")
+    void AddAddonPoints(ESkillAddonType AddonType, int32 Amount);
+
+    /** 은행에 적립된 포인트 조회 (UI 표시용) */
+    UFUNCTION(BlueprintPure, Category = "Skills|Addon Points")
+    int32 GetAddonUnspentPoints(ESkillAddonType AddonType) const;
 };

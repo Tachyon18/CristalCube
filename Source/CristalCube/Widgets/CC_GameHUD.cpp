@@ -5,10 +5,18 @@
 #include "CC_GlassWidget.h"
 #include "Components/ProgressBar.h"
 #include "Components/TextBlock.h"
+#include "CC_RewardBadgeWidget.h"
+#include "Kismet/GameplayStatics.h"
+#include "../CC_MainGameMode.h"
 
 void UCC_GameHUD::NativeConstruct()
 {
 	Super::NativeConstruct();
+
+    if (RewardBadge)
+    {
+        RewardBadge->OnRewardBadgeClicked.AddDynamic(this, &UCC_GameHUD::HandleRewardBadgeClicked);
+    }
 }
 
 void UCC_GameHUD::UpdateHealth(float CurrentHealth, float MaxHealth)
@@ -57,9 +65,25 @@ void UCC_GameHUD::PlayHitFlash()
     );
 }
 
+void UCC_GameHUD::UpdatePendingRewardSlots(int32 Count)
+{
+    if (RewardBadge)
+    {
+        RewardBadge->SetPendingCount(Count);
+    }
+}
+
 void UCC_GameHUD::ResetHitFlash()
 {
     if(StatsPanel)
 	    StatsPanel->SetTheme(StatsPanel->DefaultTheme);
+}
+
+void UCC_GameHUD::HandleRewardBadgeClicked()
+{
+    if (ACC_MainGameMode* GameMode = Cast<ACC_MainGameMode>(UGameplayStatics::GetGameMode(this)))
+    {
+        GameMode->OnRewardBadgeClicked();
+    }
 }
 

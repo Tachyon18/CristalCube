@@ -8,6 +8,7 @@
 #include "CC_PlayerController.h"
 #include "CC_PlayerState.h"
 #include "SkillSystem/CC_SkillBase.h"
+#include "SkillSystem/CC_SkillLibrarySubsystem.h"
 #include "Widgets/CC_GameHUD.h"
 #include "Widgets/CC_CubeClearRewardWidget.h"
 #include "TimerManager.h"

@@ -106,6 +106,61 @@ TArray<FName> UCC_SkillLibrarySubsystem::GetStartingSkillRowNames()
     return Result;
 }
 
+TArray<FName> UCC_SkillLibrarySubsystem::GetRandomUnownedSkillNames(const TArray<FName>& OwnedSkillIDs, int32 Count)
+{
+    TArray<FName> Result;
+    if (!SkillDataTable || Count <= 0) return Result;
+
+    TArray<FSkillTableRow*> AllRows;
+    SkillDataTable->GetAllRows<FSkillTableRow>(TEXT("GetRandomUnownedSkillNames"), AllRows);
+    TArray<FName> AllNames = SkillDataTable->GetRowNames();
+
+    // 미보유 스킬만 후보 풀로 추림
+    TArray<FName> PoolNames;
+    TArray<FSkillTableRow*> PoolRows;
+    for (int32 i = 0; i < AllRows.Num(); ++i)
+    {
+        if (!AllRows.IsValidIndex(i)) continue;
+        if (OwnedSkillIDs.Contains(AllNames[i])) continue;
+
+        PoolNames.Add(AllNames[i]);
+        PoolRows.Add(AllRows[i]);
+    }
+
+    Count = FMath::Min(Count, PoolNames.Num());
+
+    for (int32 Picked = 0; Picked < Count; ++Picked)
+    {
+        float TotalWeight = 0.0f;
+        for (FSkillTableRow* Row : PoolRows)
+        {
+            if (Row) TotalWeight += Row->DropWeight;
+        }
+        if (TotalWeight <= 0.0f) break;
+
+        float RandomValue = FMath::FRandRange(0.0f, TotalWeight);
+        float CurrentWeight = 0.0f;
+        int32 SelectedIndex = 0;
+
+        for (int32 i = 0; i < PoolRows.Num(); ++i)
+        {
+            if (!PoolRows[i]) continue;
+            CurrentWeight += PoolRows[i]->DropWeight;
+            if (RandomValue <= CurrentWeight)
+            {
+                SelectedIndex = i;
+                break;
+            }
+        }
+
+        Result.Add(PoolNames[SelectedIndex]);
+        PoolNames.RemoveAt(SelectedIndex);
+        PoolRows.RemoveAt(SelectedIndex);
+    }
+
+    return Result;
+}
+
 FSkillTableRow* UCC_SkillLibrarySubsystem::GetSkillRowPtr(FName SkillRowName)
 {
     if (!SkillDataTable)

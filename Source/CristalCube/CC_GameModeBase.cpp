@@ -3,7 +3,10 @@
 
 #include "CC_GameModeBase.h"
 #include "Kismet/GameplayStatics.h"
+#include "SkillSystem/CC_SkillBase.h"
+#include "SkillSystem/CC_SkillLibrarySubsystem.h"
 #include "Characters/CC_PlayerCharacter.h"
+#include "CC_PlayerState.h"
 #include "CC_CubeWorldManager.h"
 #include "CC_PlayerController.h"
 
@@ -99,9 +102,154 @@ void ACC_GameModeBase::RestartCurrentLevel()
 	UGameplayStatics::OpenLevel(this, FName(*GetWorld()->GetName()));
 }
 
+TArray<FLevelUpCandidate> ACC_GameModeBase::GetRandomLevelUpCandidates(int32 Count)
+{
+    TArray<FLevelUpCandidate> Result;
+
+    APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0);
+    ACC_PlayerState* PS = PC ? PC->GetPlayerState<ACC_PlayerState>() : nullptr;
+    UCC_SkillLibrarySubsystem* SkillLibrary = GetGameInstance()
+        ? GetGameInstance()->GetSubsystem<UCC_SkillLibrarySubsystem>() : nullptr;
+
+    if (!PS || !SkillLibrary) return Result;
+
+    TArray<FName> OwnedSkillIDs;
+    for (UCC_SkillBase* Skill : PS->GetAllSkills())
+    {
+        if (Skill) OwnedSkillIDs.Add(Skill->GetSkillID());
+    }
+
+    TArray<FName> UsedSkillGrantNames;
+    TArray<ESkillAddonType> UsedAddonTypes;
+    TArray<FName> UsedCoreSkillIDs;
+
+    for (int32 i = 0; i < Count; ++i)
+    {
+        TArray<ELevelUpCandidateType> ValidCategories;
+
+        const bool bSkillGrantValid = PS->CanGrantMoreSkills()
+            && (SkillLibrary->GetAllSkillRowNames().Num() - OwnedSkillIDs.Num() - UsedSkillGrantNames.Num() > 0);
+        if (bSkillGrantValid) ValidCategories.Add(ELevelUpCandidateType::SkillGrant);
+
+        const bool bAddonPointValid = UsedAddonTypes.Num() < 4;
+        if (bAddonPointValid) ValidCategories.Add(ELevelUpCandidateType::AddonPoint);
+
+        const bool bCorePointValid = (OwnedSkillIDs.Num() - UsedCoreSkillIDs.Num()) > 0;
+        if (bCorePointValid) ValidCategories.Add(ELevelUpCandidateType::CorePoint);
+
+        if (ValidCategories.Num() == 0) break;
+
+        const ELevelUpCandidateType Category = ValidCategories[FMath::RandRange(0, ValidCategories.Num() - 1)];
+
+        FLevelUpCandidate Candidate;
+        Candidate.CandidateType = Category;
+
+        switch (Category)
+        {
+        case ELevelUpCandidateType::SkillGrant:
+        {
+            TArray<FName> ExcludeList = OwnedSkillIDs;
+            ExcludeList.Append(UsedSkillGrantNames);
+            TArray<FName> Picked = SkillLibrary->GetRandomUnownedSkillNames(ExcludeList, 1);
+            if (Picked.Num() == 0) continue;
+
+            Candidate.SkillRowName = Picked[0];
+            UsedSkillGrantNames.Add(Picked[0]);
+
+            FSkillDisplayData DisplayData;
+            if (SkillLibrary->GetSkillDisplayData(Picked[0], DisplayData))
+            {
+                Candidate.DisplayName = DisplayData.DisplayName;
+                Candidate.Icon = DisplayData.Icon;
+            }
+            break;
+        }
+        case ELevelUpCandidateType::AddonPoint:
+        {
+            TArray<ESkillAddonType> AllAddonTypes = {
+                ESkillAddonType::Explosion, ESkillAddonType::Chain,
+                ESkillAddonType::Penetrate, ESkillAddonType::MultiShot
+            };
+            AllAddonTypes.RemoveAll([&](ESkillAddonType T) { return UsedAddonTypes.Contains(T); });
+            if (AllAddonTypes.Num() == 0) continue;
+
+            const ESkillAddonType Picked = AllAddonTypes[FMath::RandRange(0, AllAddonTypes.Num() - 1)];
+            Candidate.TargetAddonType = Picked;
+            Candidate.PointAmount = 1;
+            UsedAddonTypes.Add(Picked);
+
+            FAddonTableRow AddonRow;
+            if (SkillLibrary->GetAddonDisplayDataByType(Picked, AddonRow))
+            {
+                Candidate.DisplayName = AddonRow.DisplayName;
+                Candidate.Description = AddonRow.Description;
+                Candidate.Icon = AddonRow.Icon;
+            }
+            break;
+        }
+        case ELevelUpCandidateType::CorePoint:
+        {
+            TArray<FName> AvailableOwned = OwnedSkillIDs;
+            AvailableOwned.RemoveAll([&](FName ID) { return UsedCoreSkillIDs.Contains(ID); });
+            if (AvailableOwned.Num() == 0) continue;
+
+            const FName Picked = AvailableOwned[FMath::RandRange(0, AvailableOwned.Num() - 1)];
+            Candidate.TargetSkillID = Picked;
+            Candidate.PointAmount = 1;
+            UsedCoreSkillIDs.Add(Picked);
+
+            FSkillDisplayData SkillData;
+            if (SkillLibrary->GetSkillDisplayData(Picked, SkillData))
+            {
+                Candidate.DisplayName = FText::Format(
+                    NSLOCTEXT("LevelUp", "CorePointName", "코어 강화 - {0}"), SkillData.DisplayName);
+                Candidate.Description = NSLOCTEXT("LevelUp", "CorePointDesc",
+                    "선택한 스킬의 고유 수치를 강화할 포인트를 얻습니다.");
+                Candidate.Icon = SkillData.Icon;
+            }
+            break;
+        }
+        default:
+            break;
+        }
+
+        Result.Add(Candidate);
+    }
+
+    return Result;
+}
+
+void ACC_GameModeBase::ApplyLevelUpCandidate(const FLevelUpCandidate& SelectedCandidate)
+{
+    APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0);
+    ACC_PlayerState* PS = PC ? PC->GetPlayerState<ACC_PlayerState>() : nullptr;
+    if (!PS) return;
+
+    switch (SelectedCandidate.CandidateType)
+    {
+    case ELevelUpCandidateType::SkillGrant:
+        PS->GrantSkillByRowName(SelectedCandidate.SkillRowName);
+        break;
+
+    case ELevelUpCandidateType::AddonPoint:
+        PS->AddAddonPoints(SelectedCandidate.TargetAddonType, SelectedCandidate.PointAmount);
+        break;
+
+    case ELevelUpCandidateType::CorePoint:
+        PS->AddSkillCorePoints(SelectedCandidate.TargetSkillID, SelectedCandidate.PointAmount);
+        break;
+
+    default:
+        break;
+    }
+
+    UE_LOG(LogTemp, Log, TEXT("[GameModeBase] LevelUp candidate applied: %s"),
+        *SelectedCandidate.DisplayName.ToString());
+}
 // =============================================================
 // 편의 접근자
 // =============================================================
+
 
 ACC_PlayerCharacter* ACC_GameModeBase::GetPlayerCharacter() const
 {

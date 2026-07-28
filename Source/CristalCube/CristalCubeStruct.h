@@ -638,6 +638,54 @@ struct FCubeClearReward
     float StatValue = 0.0f;
 };
 
+//==============================================================================
+// LEVEL UP REWARD SYSTEM (마스터 우선순위 7번, 2026-07-28 설계)
+//==============================================================================
+
+UENUM(BlueprintType)
+enum class ELevelUpCandidateType : uint8
+{
+    SkillGrant      UMETA(DisplayName = "Skill Grant"),      // 새 스킬 획득 (미보유, 슬롯 여유 시)
+    AddonPoint      UMETA(DisplayName = "Addon Point"),      // 애드온 포인트 지급 (CubeReward와 은행 공유)
+    CorePoint       UMETA(DisplayName = "Core Point"),       // 스킬 코어 포인트 지급 (SkillID 단위 은행, 신규)
+};
+
+USTRUCT(BlueprintType)
+struct FLevelUpCandidate
+{
+    GENERATED_BODY()
+
+    /** 후보 종류 */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LevelUp")
+    ELevelUpCandidateType CandidateType = ELevelUpCandidateType::SkillGrant;
+
+    /** SkillGrant 용 — SkillLibrary DataTable의 RowName */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LevelUp|SkillGrant")
+    FName SkillRowName = NAME_None;
+
+    /** AddonPoint 용 — 대상 애드온 타입 */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LevelUp|AddonPoint")
+    ESkillAddonType TargetAddonType = ESkillAddonType::None;
+
+    /** CorePoint 용 — 대상 보유 스킬의 SkillID */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LevelUp|CorePoint")
+    FName TargetSkillID = NAME_None;
+
+    /** AddonPoint / CorePoint 공용 — 지급 포인트 수. 현재는 항상 1. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LevelUp")
+    int32 PointAmount = 1;
+
+    /** UI 표시용 */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LevelUp|UI")
+    FText DisplayName;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LevelUp|UI")
+    FText Description;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LevelUp|UI")
+    UTexture2D* Icon = nullptr;
+};
+
 // Bast Weapon Data
 USTRUCT(BlueprintType)
 struct FWeaponData : public FTableRowBase

@@ -322,3 +322,20 @@ int32 ACC_PlayerState::GetAddonUnspentPoints(ESkillAddonType AddonType) const
     const int32* Points = AddonUnspentPoints.Find(AddonType);
     return Points ? *Points : 0;
 }
+
+void ACC_PlayerState::AddSkillCorePoints(FName SkillID, int32 Amount)
+{
+    if (SkillID.IsNone() || Amount <= 0) return;
+
+    int32& Points = SkillCoreUnspentPoints.FindOrAdd(SkillID);
+    Points += Amount;
+
+    UE_LOG(LogTemp, Log, TEXT("[PlayerState] Skill core points +%d for %s (total: %d)"),
+        Amount, *SkillID.ToString(), Points);
+}
+
+int32 ACC_PlayerState::GetSkillCoreUnspentPoints(FName SkillID) const
+{
+    const int32* Points = SkillCoreUnspentPoints.Find(SkillID);
+    return Points ? *Points : 0;
+}

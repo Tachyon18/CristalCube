@@ -8,7 +8,6 @@
 #include "Components/Button.h"
 #include "Components/TextBlock.h"
 #include "Components/Image.h"
-#include "../CC_WeaponManagerSubsystem.h"
 
 void UCC_LevelUpWidget::NativeConstruct()
 {
@@ -24,88 +23,66 @@ void UCC_LevelUpWidget::NativeConstruct()
     if (Choice3Button) Choice3Button->OnClicked.AddDynamic(this, &UCC_LevelUpWidget::OnChoice3Clicked);
 }
 
-void UCC_LevelUpWidget::SetWeaponChoices(const TArray<FName>& InWeaponNames)
+void UCC_LevelUpWidget::SetLevelUpChoices(const TArray<FLevelUpCandidate>& InCandidates)
 {
-    WeaponChoices = InWeaponNames;
+    Candidates = InCandidates;
 
-    UCC_WeaponManagerSubsystem* WeaponManager = GetWorld()->GetGameInstance()->GetSubsystem<UCC_WeaponManagerSubsystem>();
-    if (!WeaponManager)
+    if (Candidates.IsValidIndex(0) && Choice1Name && Choice1Description)
     {
-        UE_LOG(LogTemp, Error, TEXT("[LevelUpUI] WeaponManager not found!"));
-        return;
-    }
-
-    if (WeaponChoices.IsValidIndex(0))
-    {
-        FWeaponData* WeaponData = WeaponManager->GetWeaponDataPtr(WeaponChoices[0]);
-        if (WeaponData && Choice1Name && Choice1Description)
+        Choice1Name->SetText(Candidates[0].DisplayName);
+        Choice1Description->SetText(Candidates[0].Description);
+        if (Choice1Icon && Candidates[0].Icon)
         {
-            Choice1Name->SetText(WeaponData->WeaponName);
-            Choice1Description->SetText(WeaponData->Description);
-
-            if (Choice1Icon && WeaponData->Icon)
-            {
-                Choice1Icon->SetBrushFromTexture(WeaponData->Icon);
-            }
-        }
-
-
-    }
-
-    if (WeaponChoices.IsValidIndex(1))
-    {
-        FWeaponData* WeaponData = WeaponManager->GetWeaponDataPtr(WeaponChoices[1]);
-        if (WeaponData && Choice2Name && Choice2Description)
-        {
-            Choice2Name->SetText(WeaponData->WeaponName);
-            Choice2Description->SetText(WeaponData->Description);
-
-			if (Choice2Icon && WeaponData->Icon)
-			{
-				Choice2Icon->SetBrushFromTexture(WeaponData->Icon);
-			}
+            Choice1Icon->SetBrushFromTexture(Candidates[0].Icon);
         }
     }
 
-    if (WeaponChoices.IsValidIndex(2))
+    if (Candidates.IsValidIndex(1) && Choice2Name && Choice2Description)
     {
-        FWeaponData* WeaponData = WeaponManager->GetWeaponDataPtr(WeaponChoices[2]);
-        if (WeaponData && Choice3Name && Choice3Description)
+        Choice2Name->SetText(Candidates[1].DisplayName);
+        Choice2Description->SetText(Candidates[1].Description);
+        if (Choice2Icon && Candidates[1].Icon)
         {
-            Choice3Name->SetText(WeaponData->WeaponName);
-            Choice3Description->SetText(WeaponData->Description);
+            Choice2Icon->SetBrushFromTexture(Candidates[1].Icon);
+        }
+    }
 
-            if (Choice3Icon && WeaponData->Icon)
-            {
-                Choice3Icon->SetBrushFromTexture(WeaponData->Icon);
-            }
+    if (Candidates.IsValidIndex(2) && Choice3Name && Choice3Description)
+    {
+        Choice3Name->SetText(Candidates[2].DisplayName);
+        Choice3Description->SetText(Candidates[2].Description);
+        if (Choice3Icon && Candidates[2].Icon)
+        {
+            Choice3Icon->SetBrushFromTexture(Candidates[2].Icon);
         }
     }
 }
 
+
 void UCC_LevelUpWidget::OnChoice1Clicked()
 {
-    SelectWeapon(0);
+    SelectCandidate(0);
 }
 
 void UCC_LevelUpWidget::OnChoice2Clicked()
 {
-    SelectWeapon(1);
+    SelectCandidate(1);
 }
 
 void UCC_LevelUpWidget::OnChoice3Clicked()
 {
-    SelectWeapon(2);
+    SelectCandidate(2);
 }
 
-void UCC_LevelUpWidget::SelectWeapon(int32 ChoiceIndex)
+void UCC_LevelUpWidget::SelectCandidate(int32 ChoiceIndex)
 {
-    if (WeaponChoices.IsValidIndex(ChoiceIndex))
+    if (Candidates.IsValidIndex(ChoiceIndex))
     {
-        FName SelectedWeapon = WeaponChoices[ChoiceIndex];
+        const FLevelUpCandidate& Selected = Candidates[ChoiceIndex];
 
-        UE_LOG(LogTemp, Log, TEXT("[LevelUpUI] Selected: %s"), *SelectedWeapon.ToString());
+        UE_LOG(LogTemp, Log, TEXT("[LevelUpUI] Selected: %s"), *Selected.DisplayName.ToString());
 
-        OnWeaponSelected.Broadcast(SelectedWeapon);
+        OnLevelUpCandidateSelected.Broadcast(Selected);
     }
 }
+

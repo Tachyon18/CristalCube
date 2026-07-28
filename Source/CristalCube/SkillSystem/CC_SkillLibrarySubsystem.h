@@ -83,6 +83,11 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Skill Library")
     TArray<FName> GetStartingSkillRowNames();
 
+    /** 지정한 SkillID 목록(보유 스킬)을 제외한 나머지에서 DropWeight 가중 랜덤 N개(중복 없이) 추출.
+     *  LevelUp SkillGrant 후보 생성용. */
+    UFUNCTION(BlueprintCallable, Category = "Skill Library")
+    TArray<FName> GetRandomUnownedSkillNames(const TArray<FName>& OwnedSkillIDs, int32 Count);
+
     FSkillTableRow* GetSkillRowPtr(FName SkillRowName);
 
 protected:

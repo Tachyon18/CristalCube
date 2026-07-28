@@ -4,9 +4,10 @@
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
+#include "../CristalCubeStruct.h"
 #include "CC_LevelUpWidget.generated.h"
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnWeaponSelected, FName, WeaponName);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnLevelUpCandidateSelected, FLevelUpCandidate, SelectedCandidate);
 /**
  * 
  */
@@ -21,11 +22,11 @@ public:
 
 public:
 
-	UFUNCTION(BlueprintCallable, Category = "LevelUp")
-	void SetWeaponChoices(const TArray<FName>& InWeaponNames);
+    UFUNCTION(BlueprintCallable, Category = "LevelUp")
+    void SetLevelUpChoices(const TArray<FLevelUpCandidate>& InCandidates);
 
-	UPROPERTY(BlueprintAssignable, Category = "LevelUp")
-	FOnWeaponSelected OnWeaponSelected;
+    UPROPERTY(BlueprintAssignable, Category = "LevelUp")
+    FOnLevelUpCandidateSelected OnLevelUpCandidateSelected;
 
 protected:
 
@@ -51,8 +52,8 @@ protected:
 
 protected:
 
-    TArray<FName> WeaponChoices;
+    TArray<FLevelUpCandidate> Candidates;
 
-    void SelectWeapon(int32 ChoiceIndex);
+    void SelectCandidate(int32 ChoiceIndex);
 
 };

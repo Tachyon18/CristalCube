@@ -15,6 +15,7 @@
 #include "../CC_WeaponManagerSubsystem.h"
 #include "../CC_SearchingComponent.h"
 #include "../CC_GameModeBase.h"
+#include "../CC_MainGameMode.h"
 #include "../CC_PlayerController.h"
 #include "../Widgets/CC_GameHUD.h"
 #include "../Widgets/CC_LevelUpWidget.h"
@@ -974,12 +975,12 @@ void ACC_PlayerCharacter::ShowLevelUpUI()
 		return;
 	}
 
-	if(WeaponManager)
+	if (ACC_GameModeBase* GM = Cast<ACC_GameModeBase>(UGameplayStatics::GetGameMode(this)))
 	{
-		TArray<FName> Options = WeaponManager->GetRandomWeaponNames(WeaponManager->GetAllWeaponNames(), 3);
-		CurrentLevelUpUI->SetWeaponChoices(Options);
+		TArray<FLevelUpCandidate> Candidates = GM->GetRandomLevelUpCandidates(3);
+		CurrentLevelUpUI->SetLevelUpChoices(Candidates);
 
-		CurrentLevelUpUI->OnWeaponSelected.AddDynamic(this, &ACC_PlayerCharacter::OnWeaponSelected);
+		CurrentLevelUpUI->OnLevelUpCandidateSelected.AddDynamic(this, &ACC_PlayerCharacter::OnLevelUpCandidateSelected);
 	}
 
 	CurrentLevelUpUI->AddToViewport(10);
@@ -1025,35 +1026,16 @@ void ACC_PlayerCharacter::HideLevelUpUI()
 	UE_LOG(LogTemp, Log, TEXT("[Player] Level Up UI hidden"));
 }
 
-void ACC_PlayerCharacter::OnWeaponSelected(FName WeaponName)
+void ACC_PlayerCharacter::OnLevelUpCandidateSelected(FLevelUpCandidate SelectedCandidate)
 {
-	UE_LOG(LogTemp, Warning, TEXT("[Player] Weapon Selected: %s"), *WeaponName.ToString());
+	UE_LOG(LogTemp, Warning, TEXT("[Player] LevelUp candidate selected: %s"), *SelectedCandidate.DisplayName.ToString());
 
-	if (WeaponManager)
+	if (ACC_GameModeBase* GM = Cast<ACC_GameModeBase>(UGameplayStatics::GetGameMode(this)))
 	{
-		FWeaponData* WeaponData = WeaponManager->GetWeaponDataPtr(WeaponName);
-		if (WeaponData && WeaponData->WeaponClass)
-		{
-			CreateAndEquipWeapon(WeaponData->WeaponClass);
-		}
+		GM->ApplyLevelUpCandidate(SelectedCandidate);
 	}
 
 	HideLevelUpUI();
-}
-
-void ACC_PlayerCharacter::ApplyWeaponUpgrade(FName WeaponID)
-{
-	UCC_WeaponManagerSubsystem* WeaponMgr = GetGameInstance()
-		->GetSubsystem<UCC_WeaponManagerSubsystem>();
-
-	FWeaponData* Data = WeaponMgr->GetWeaponDataPtr(WeaponID);
-
-	if (Data && Data->WeaponClass)
-	{
-		CreateAndEquipWeapon(Data->WeaponClass);
-	}
-
-	UGameplayStatics::SetGamePaused(GetWorld(), false);
 }
 
 void ACC_PlayerCharacter::ApplyStats()

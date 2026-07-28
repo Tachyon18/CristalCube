@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/GameModeBase.h"
+#include "CristalCubeStruct.h"
 #include "CC_GameModeBase.generated.h"
 
 UENUM(BlueprintType)
@@ -97,6 +98,16 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "Game State")
     virtual void TriggerGameOver();
+
+    // ========== Level Up (L_GameMode / L_TestRoom 공유) ==========
+
+    /** LevelUp 카드 후보 3장 생성 — SkillGrant/AddonPoint/CorePoint 완전 랜덤 혼합 */
+    UFUNCTION(BlueprintCallable, Category = "Level Up")
+    TArray<FLevelUpCandidate> GetRandomLevelUpCandidates(int32 Count = 3);
+
+    /** 선택된 LevelUp 후보 적용 */
+    UFUNCTION(BlueprintCallable, Category = "Level Up")
+    void ApplyLevelUpCandidate(const FLevelUpCandidate& SelectedCandidate);
 
     // ========== 편의 접근자 ==========
 

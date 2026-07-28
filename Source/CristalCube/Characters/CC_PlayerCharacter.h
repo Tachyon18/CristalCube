@@ -337,10 +337,7 @@ public:
 	void HideLevelUpUI();
 
 	UFUNCTION(BlueprintCallable)
-	void OnWeaponSelected(FName WeaponName);
-
-	UFUNCTION(BlueprintCallable)
-	void ApplyWeaponUpgrade(FName WeaponID);
+	void OnLevelUpCandidateSelected(FLevelUpCandidate SelectedCandidate);
 
 	/** Returns CameraBoom subobject */
 	FORCEINLINE USpringArmComponent* GetCameraBoom() const { return CameraBoom; }

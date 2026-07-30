@@ -49,6 +49,20 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
 	UInputAction* DashAction;
 
+	// 스킬 슬롯 1~6 — MaxSkillSlots(기본 6)와 대응
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input|Skills")
+	UInputAction* SkillAction1;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input|Skills")
+	UInputAction* SkillAction2;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input|Skills")
+	UInputAction* SkillAction3;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input|Skills")
+	UInputAction* SkillAction4;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input|Skills")
+	UInputAction* SkillAction5;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input|Skills")
+	UInputAction* SkillAction6;
+
 protected:
 
 	void HandleMove(const struct FInputActionValue& Value);
@@ -57,6 +71,13 @@ protected:
 	void HandleSecondaryAttack(const FInputActionValue& Value);
 
 	void HandleDash(const FInputActionValue& Value);
+
+	void HandleCastSkill1(const FInputActionValue& Value);
+	void HandleCastSkill2(const FInputActionValue& Value);
+	void HandleCastSkill3(const FInputActionValue& Value);
+	void HandleCastSkill4(const FInputActionValue& Value);
+	void HandleCastSkill5(const FInputActionValue& Value);
+	void HandleCastSkill6(const FInputActionValue& Value);
 
 protected:
 
@@ -67,6 +88,9 @@ protected:
 
 	UFUNCTION(BlueprintPure, Category = "Input")
 	FVector GetMouseDirection() const;
+
+	/** 실제 발동 공통 로직. 마우스 월드 좌표를 TargetLocation으로 사용. */
+	void CastSkillAtSlot(int32 SlotIndex);
 
 protected:
 
@@ -108,6 +132,16 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Input")
 	void SetMinMouseDistance(float NewDistance);
+
+	//==============================================================================
+	// DEBUG / TEST CONSOLE COMMANDS
+	//==============================================================================
+
+	/** 테스트용 — 콘솔(~)에서 "GrantExp 300" 형태로 호출. 인자 생략 시 100 지급.
+	 *  AddExperience() 내부에 이미 while 루프로 다중 레벨업 처리가 있어서
+	 *  큰 값을 한 번에 줘도 정상적으로 여러 번 LevelUp이 발생함. */
+	UFUNCTION(Exec, Category = "Debug")
+	void GrantExp(float Amount = 100.0f);
 
 protected:
 

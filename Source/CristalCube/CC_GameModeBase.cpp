@@ -139,7 +139,16 @@ TArray<FLevelUpCandidate> ACC_GameModeBase::GetRandomLevelUpCandidates(int32 Cou
 
         if (ValidCategories.Num() == 0) break;
 
-        const ELevelUpCandidateType Category = ValidCategories[FMath::RandRange(0, ValidCategories.Num() - 1)];
+        // 안전장치: 보유 스킬이 하나도 없는데 이번 뽑기에서 아직 SkillGrant가
+        // 한 장도 안 나왔다면 이번 슬롯은 강제로 SkillGrant.
+        // (시작 스킬이 정상 배선됐다면 사실상 발동 안 함 — 데이터테이블 세팅 실수 등
+        // 예외 상황에서 "공격 스킬 없이 포인트 카드만 뜨는" 사태 방지용 방어선.)
+        const bool bForceSkillGrant =
+            OwnedSkillIDs.Num() == 0 && UsedSkillGrantNames.Num() == 0 && bSkillGrantValid;
+
+        const ELevelUpCandidateType Category = bForceSkillGrant
+            ? ELevelUpCandidateType::SkillGrant
+            : ValidCategories[FMath::RandRange(0, ValidCategories.Num() - 1)];
 
         FLevelUpCandidate Candidate;
         Candidate.CandidateType = Category;

@@ -13,6 +13,17 @@ void UCC_GlassWidget::NativeConstruct()
 	SetTheme(DefaultTheme);
 }
 
+void UCC_GlassWidget::NativePreConstruct()
+{
+	Super::NativePreConstruct();
+
+	// Designer 탭 미리보기 전용 — PIE 없이도 Details 패널에서 값 바꾸면 바로 반영됨.
+	// InitMaterials()가 PanelMaterial/GlassTintLayer 등 BindWidget 참조에 의존하므로
+	// 여기서도 동일하게 먼저 호출해야 함.
+	InitMaterials();
+	SetTheme(DefaultTheme);
+}
+
 void UCC_GlassWidget::SetTheme(EGlassTheme Theme)
 {
 	if (Theme == EGlassTheme::Custom)

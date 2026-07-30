@@ -86,6 +86,11 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Skills")
     UCC_SkillBase* GrantSkillByRowName(FName SkillRowName);
 
+    /** 시작 스킬 자동 장착 — InitializeSkillLibrary() 내부에서 호출.
+    *  DT_Skill에서 bIsStartingSkill=true로 표시된 로우를 전부 장착 시도. */
+    UFUNCTION(BlueprintCallable, Category = "Skills")
+    void EquipStartingSkills();
+
     /** 두 슬롯의 스킬 위치를 교환. 인덱스 무효/동일하면 무시. */
     UFUNCTION(BlueprintCallable, Category = "Skills")
     bool SwapSlots(int32 SlotA, int32 SlotB);

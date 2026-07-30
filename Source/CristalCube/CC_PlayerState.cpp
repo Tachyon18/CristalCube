@@ -189,6 +189,8 @@ void ACC_PlayerState::InitializeSkillLibrary()
     {
         SkillLibrary->LoadAddonDataTable(AddonDataTable);
     }
+
+    EquipStartingSkills();
 }
 
 UCC_SkillBase* ACC_PlayerState::GrantSkillByRowName(FName SkillRowName)
@@ -208,6 +210,30 @@ UCC_SkillBase* ACC_PlayerState::GrantSkillByRowName(FName SkillRowName)
     }
 
     return GrantSkill(Row->SkillClass);
+}
+
+void ACC_PlayerState::EquipStartingSkills()
+{
+    if (!SkillLibrary)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[PlayerState] EquipStartingSkills: SkillLibrary not initialized"));
+        return;
+    }
+
+    TArray<FName> StartingNames = SkillLibrary->GetStartingSkillRowNames();
+    if (StartingNames.Num() == 0)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[PlayerState] EquipStartingSkills: no bIsStartingSkill rows found in DT_Skill"));
+        return;
+    }
+
+    for (const FName& RowName : StartingNames)
+    {
+        GrantSkillByRowName(RowName);
+    }
+
+    UE_LOG(LogTemp, Log, TEXT("[PlayerState] EquipStartingSkills: %d starting skill(s) granted"), StartingNames.Num());
+
 }
 
 bool ACC_PlayerState::SwapSlots(int32 SlotA, int32 SlotB)

@@ -19,6 +19,7 @@
 #include "../CC_PlayerController.h"
 #include "../Widgets/CC_GameHUD.h"
 #include "../Widgets/CC_LevelUpWidget.h"
+#include "../Widgets/CC_SkillInventoryWidget.h"
 #include "../CC_TileTrackerComponent.h"
 #include "../SkillSystem/CC_SkillSystem.h"
 #include "../CC_CollisionHelper.h"
@@ -116,7 +117,16 @@ void ACC_PlayerCharacter::BeginPlay()
 			UpdateGameHUD();
 			UE_LOG(LogTemp, Log, TEXT("[Player] Game HUD created"));
 		}
-		
+	}
+
+	if (SkillInventoryWidgetClass)
+	{
+		CurrentSkillInventoryWidget = CreateWidget<UCC_SkillInventoryWidget>(GetWorld(), SkillInventoryWidgetClass);
+		if (CurrentSkillInventoryWidget)
+		{
+			CurrentSkillInventoryWidget->AddToViewport();
+			UE_LOG(LogTemp, Log, TEXT("[Player] Skill Inventory Widget created"));
+		}
 	}
 
 	if (TileTrackerComponent)
@@ -898,6 +908,8 @@ void ACC_PlayerCharacter::LevelUp()
 	UE_LOG(LogTemp, Log, TEXT("Level Up! Now level %d"), Level);
 
 	UpdateGameHUD();
+
+	++PendingLevelUpCount;
 	ShowLevelUpUI();
 }
 
@@ -1035,7 +1047,25 @@ void ACC_PlayerCharacter::OnLevelUpCandidateSelected(FLevelUpCandidate SelectedC
 		GM->ApplyLevelUpCandidate(SelectedCandidate);
 	}
 
-	HideLevelUpUI();
+	PendingLevelUpCount = FMath::Max(0, PendingLevelUpCount - 1);
+
+	// 현재 위젯을 먼저 정리 ? ShowLevelUpUI()의 CurrentLevelUpUI 가드 때문에
+	// 지우지 않으면 다음 레벨업 카드가 안 뜬다.
+	if (CurrentLevelUpUI)
+	{
+		CurrentLevelUpUI->RemoveFromParent();
+		CurrentLevelUpUI = nullptr;
+	}
+
+	if (PendingLevelUpCount > 0)
+	{
+		// 아직 처리 안 된 레벨업이 남아있음 ? 게임은 계속 멈춘 채로 다음 카드 바로 표시
+		ShowLevelUpUI();
+	}
+	else
+	{
+		HideLevelUpUI();
+	}
 }
 
 void ACC_PlayerCharacter::ApplyStats()

@@ -24,6 +24,8 @@ public:
 
 	virtual void NativeConstruct() override;
 
+	virtual void NativePreConstruct() override;
+
     // ── 테마 API ─────────────────────────────────────────────
 
     /** 프리셋 테마 적용. 런타임 중 언제든 호출 가능 */

@@ -2,7 +2,7 @@
 
 
 #include "CC_SkillInventoryWidget.h"
-#include "CC_SkillInventorySlotWidget.h"
+#include "CC_SkillSlotWidget.h"
 #include "../SkillSystem/CC_SkillLibrarySubsystem.h"
 #include "../CC_PlayerState.h"
 #include "../SkillSystem/CC_SkillBase.h"
@@ -44,6 +44,21 @@ void UCC_SkillInventoryWidget::NativeDestruct()
     }
 
     Super::NativeDestruct();
+}
+
+void UCC_SkillInventoryWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
+{
+    Super::NativeTick(MyGeometry, InDeltaTime);
+
+    if (!BoundPlayerState) return;
+
+    for (int32 i = 0; i < Slots.Num(); ++i)
+    {
+        if (UCC_SkillBase* Skill = BoundPlayerState->GetSkillAtSlot(i))
+        {
+            Slots[i]->SetCooldownProgress(Skill->GetCooldownProgress());
+        }
+    }
 }
 
 void UCC_SkillInventoryWidget::RefreshInventory()

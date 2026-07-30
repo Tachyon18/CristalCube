@@ -152,7 +152,10 @@ public:
 	// Getters
 	UFUNCTION(BlueprintCallable, Category = "Weapon")
 	UCC_SearchingComponent* GetSearchingComponent() const { return SearchingComponent; }
-	
+
+	UFUNCTION(BlueprintPure, Category = "Skills")
+	UCC_SkillSystem* GetSkillSystem() const { return SkillSystem; }
+
 	UFUNCTION(BlueprintPure, Category = "Weapon")
 	ACC_Weapon* GetCurrentWeapon() const { return CurrentWeapon; }
 
@@ -255,6 +258,11 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Level")
 	float Experience = 0.0f;
 
+	/** while(AddExperience) 루프에서 한 번에 여러 레벨이 오른 경우,
+	 *  LevelUp 카드 선택 UI를 한 번에 하나씩 순차로 띄우기 위한 대기 카운트. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Level")
+	int32 PendingLevelUpCount = 0;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Level")
 	float ExperienceToNextLevel;
 
@@ -288,6 +296,12 @@ protected:
 
 	UPROPERTY()
 	UCC_GameHUD* CurrentGameHUD;
+
+	UPROPERTY(EditDefaultsOnly, Category = "UI")
+	TSubclassOf<class UCC_SkillInventoryWidget> SkillInventoryWidgetClass;
+
+	UPROPERTY()
+	class UCC_SkillInventoryWidget* CurrentSkillInventoryWidget;
 
 	UPROPERTY(EditDefaultsOnly, Category = "UI")
 	TSubclassOf<class UCC_LevelUpWidget> LevelUpUIClass;

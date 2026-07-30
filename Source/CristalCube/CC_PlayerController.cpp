@@ -8,8 +8,11 @@
 #include "InputAction.h"
 #include "Widgets/CC_GameHUD.h"
 #include "Kismet/GameplayStatics.h"
+#include "SkillSystem/CC_SkillBase.h"
 #include "SkillSystem/CC_SkillSystem.h"
 #include "Characters/CC_PlayerCharacter.h"
+#include "CC_PlayerState.h"
+
 
 
 ACC_PlayerController::ACC_PlayerController()
@@ -117,6 +120,13 @@ void ACC_PlayerController::SetupInputComponent()
             EnhancedInputComponent->BindAction(DashAction, ETriggerEvent::Started, this, &ACC_PlayerController::HandleDash);
         }
 
+        if (SkillAction1) EnhancedInputComponent->BindAction(SkillAction1, ETriggerEvent::Started, this, &ACC_PlayerController::HandleCastSkill1);
+        if (SkillAction2) EnhancedInputComponent->BindAction(SkillAction2, ETriggerEvent::Started, this, &ACC_PlayerController::HandleCastSkill2);
+        if (SkillAction3) EnhancedInputComponent->BindAction(SkillAction3, ETriggerEvent::Started, this, &ACC_PlayerController::HandleCastSkill3);
+        if (SkillAction4) EnhancedInputComponent->BindAction(SkillAction4, ETriggerEvent::Started, this, &ACC_PlayerController::HandleCastSkill4);
+        if (SkillAction5) EnhancedInputComponent->BindAction(SkillAction5, ETriggerEvent::Started, this, &ACC_PlayerController::HandleCastSkill5);
+        if (SkillAction6) EnhancedInputComponent->BindAction(SkillAction6, ETriggerEvent::Started, this, &ACC_PlayerController::HandleCastSkill6);
+
 		InputComponent->BindAction("BeamCharge", IE_Pressed, this, &ACC_PlayerController::StartBeamCharge);
 		InputComponent->BindAction("BeamCharge", IE_Released, this, &ACC_PlayerController::ReleaseBeam);
 
@@ -182,6 +192,13 @@ void ACC_PlayerController::HandleDash(const FInputActionValue& Value)
     }
 }
 
+void ACC_PlayerController::HandleCastSkill1(const FInputActionValue& Value) { CastSkillAtSlot(0); }
+void ACC_PlayerController::HandleCastSkill2(const FInputActionValue& Value) { CastSkillAtSlot(1); }
+void ACC_PlayerController::HandleCastSkill3(const FInputActionValue& Value) { CastSkillAtSlot(2); }
+void ACC_PlayerController::HandleCastSkill4(const FInputActionValue& Value) { CastSkillAtSlot(3); }
+void ACC_PlayerController::HandleCastSkill5(const FInputActionValue& Value) { CastSkillAtSlot(4); }
+void ACC_PlayerController::HandleCastSkill6(const FInputActionValue& Value) { CastSkillAtSlot(5); }
+
 FVector ACC_PlayerController::GetMouseWorldPosition() const
 {
     FVector WorldLocation, WorldDirection;
@@ -244,6 +261,31 @@ FVector ACC_PlayerController::GetMouseDirection() const
     return FVector::ForwardVector;
 }
 
+void ACC_PlayerController::CastSkillAtSlot(int32 SlotIndex)
+{
+    if (!ControlledCharacter)
+    {
+        ControlledCharacter = Cast<ACC_PlayerCharacter>(GetPawn());
+    }
+    if (!ControlledCharacter) return;
+
+    ACC_PlayerState* PS = GetPlayerState<ACC_PlayerState>();
+    UCC_SkillSystem* SS = ControlledCharacter->GetSkillSystem();
+    if (!PS || !SS) return;
+
+    UCC_SkillBase* Skill = PS->GetSkillAtSlot(SlotIndex);
+    if (!Skill) return;   // 빈 슬롯 ? 조용히 무시
+
+    const FVector TargetLocation = GetMouseWorldPosition();
+    const bool bCast = Skill->TryCast(SS, TargetLocation);
+
+    if (!bCast)
+    {
+        // 쿨다운 중이거나 발동 실패 ? 나중에 GameHUD 쿨다운 링/사운드 피드백 여기 연결
+        CC_LOG_PLAYER(VeryVerbose, "Skill slot %d not ready", SlotIndex);
+    }
+}
+
 void ACC_PlayerController::SetMouseRotationSpeed(float NewSpeed)
 {
       MouseRotationSpeed = FMath::Clamp(NewSpeed, 1.0f, 30.0f);
@@ -254,6 +296,24 @@ void ACC_PlayerController::SetMinMouseDistance(float NewDistance)
 {
     MinMouseDistance = FMath::Clamp(NewDistance, 10.0f, 200.0f);
 	CC_LOG_PLAYER(Log, "Min mouse distance set to: %.2f", MinMouseDistance);
+}
+
+void ACC_PlayerController::GrantExp(float Amount)
+{
+    // PIE 시작 직후 등 캐싱 타이밍을 놓쳤을 경우를 대비한 방어적 재조회
+    if (!ControlledCharacter)
+    {
+        ControlledCharacter = Cast<ACC_PlayerCharacter>(GetPawn());
+    }
+
+    if (!ControlledCharacter)
+    {
+        CC_LOG_PLAYER(Warning, "GrantExp failed - no ControlledCharacter to grant experience to");
+        return;
+    }
+
+    ControlledCharacter->AddExperience(Amount);
+    CC_LOG_PLAYER(Log, "GrantExp: +%.1f XP granted via console", Amount);
 }
 
 void ACC_PlayerController::StartBeamCharge()

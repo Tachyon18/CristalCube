@@ -5,6 +5,9 @@
 #include "../CC_LogHelper.h"
 #include "CC_SkillEffector.h"
 #include "CC_SkillInstance.h"
+#include "Addon/CC_ExplosionAddon.h"
+#include "Addon/CC_ChainAddon.h"
+#include "Addon/CC_DamageOverTimeAddon.h"
 #include "../WeaponSystems/CC_Projectile.h"
 #include "../Characters/CC_Character.h"
 #include "../Gameplay/CC_EnemyAIInterface.h"
@@ -689,19 +692,44 @@ void UCC_SkillSystem::ProcessAddons(const FSkillDefinition& Skill, FSkillExecuti
 		switch (Addon)
 		{
 		case ESkillAddonType::Explosion:
-			ApplyExplosion(Skill, Context, HitLocation);
+		{
+
+			//ApplyExplosion(Skill, Context, HitLocation);
+
+			UCC_ExplosionAddon* TestExplosion = NewObject<UCC_ExplosionAddon>(this);
+			TestExplosion->Data = Skill.Passives.ExplosionData;
+			TestExplosion->OnHit_Implementation(this, Skill, Context, HitTarget, HitLocation);
+
 			break;
+		}
 
 		case ESkillAddonType::Chain:
 			if (HitTarget)
 			{
-				ApplyChain(Skill, Context, HitTarget);
+				//ApplyChain(Skill, Context, HitTarget);
+
+				UCC_ChainAddon* TestChain = NewObject<UCC_ChainAddon>(this);
+				TestChain->Data = Skill.Passives.ChainData;
+				TestChain->OnHit_Implementation(this, Skill, Context, HitTarget, HitLocation);
+
 			}
 			break;
 
 			// Penetrate / MultiShot은 SkillEffector / ExecuteProjectile에서 처리
 		case ESkillAddonType::Penetrate:
 		case ESkillAddonType::MultiShot:
+		case ESkillAddonType::DamageOverTime:
+
+			if (HitTarget)
+			{
+				// 임시 ? 기존 ApplyDamageOverTime() 대신 신규 클래스로 검증
+				UCC_DamageOverTimeAddon* TestDot = NewObject<UCC_DamageOverTimeAddon>(this);
+				TestDot->Data = Skill.Passives.DamageOverTimeData;
+				TestDot->OnHit_Implementation(this, Skill, Context, HitTarget, HitLocation);
+			}
+
+			break;
+
 		default:
 			break;
 		}
@@ -1027,7 +1055,9 @@ AActor* UCC_SkillSystem::FindNearestEnemy(FVector Origin, float Radius, const TA
 			continue;
 		}
 
-		if (ICC_EnemyAIInterface::Execute_GetIsFrozen(Enemy)) continue;
+		bool bIsFrozen = Enemy->GetClass()->ImplementsInterface(UCC_EnemyAIInterface::StaticClass())
+			&& ICC_EnemyAIInterface::Execute_GetIsFrozen(Enemy);
+		if (bIsFrozen) continue;
 
 		float Distance = FVector::Dist(Origin, Enemy->GetActorLocation());
 		if (Distance < NearestDistance)
@@ -1053,7 +1083,9 @@ TArray<AActor*> UCC_SkillSystem::FindEnemiesInRadius(FVector Origin, float Radiu
 			continue;
 		}
 
-		if (ICC_EnemyAIInterface::Execute_GetIsFrozen(Enemy)) continue;
+		bool bIsFrozen = Enemy->GetClass()->ImplementsInterface(UCC_EnemyAIInterface::StaticClass())
+			&& ICC_EnemyAIInterface::Execute_GetIsFrozen(Enemy);
+		if (bIsFrozen) continue;
 
 		float Distance = FVector::Dist(Origin, Enemy->GetActorLocation());
 		if (Distance <= Radius)

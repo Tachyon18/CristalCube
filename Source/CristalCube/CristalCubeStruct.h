@@ -261,7 +261,17 @@ enum class ESkillAddonType : uint8
     Explosion       UMETA(DisplayName = "Explosion"),      // 충돌 시 폭발
     Chain           UMETA(DisplayName = "Chain"),          // 다음 적으로 연쇄
     Penetrate       UMETA(DisplayName = "Penetrate"),      // 관통
-    MultiShot       UMETA(DisplayName = "MultiShot")       // 다중 발사
+    MultiShot       UMETA(DisplayName = "MultiShot"),       // 다중 발사
+
+    // --- 신규 실험 대상 (bImplemented=false로 카탈로그만 우선 등록) ---
+    Shockwave       UMETA(DisplayName = "Shockwave"),        // 파동 생성
+    Homing          UMETA(DisplayName = "Homing"),           // 호밍 미사일
+    ElementalBurst  UMETA(DisplayName = "Elemental Burst"),  // 속성 즉시 타격
+    ElementalApply  UMETA(DisplayName = "Elemental Apply"),  // 속성 추가 부여
+    DamageOverTime  UMETA(DisplayName = "Damage Over Time"), // 지속 피해
+    Carpet          UMETA(DisplayName = "Carpet"),           // Carpet형
+    Echo            UMETA(DisplayName = "Echo"),             // 공명
+    SelfEmpower     UMETA(DisplayName = "Self Empower")      // 강화(사용시마다)
 };
 
 //------------------------------------------------------------------------------
@@ -341,6 +351,82 @@ struct FMultiShotAddonData
     float SpreadAngle = 60.0f;
 };
 
+USTRUCT(BlueprintType)
+struct FDamageOverTimeAddonData
+{
+    GENERATED_BODY()
+
+    // 총 지속시간
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|DamageOverTime")
+    float TotalDuration = 1.5f;
+
+    // 틱 간격
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|DamageOverTime")
+    float TickInterval = 0.25f;
+
+    // 틱당 데미지 (Context.CurrentDamage와는 별개 — DoT는 원래 히트 데미지보다 낮은 게 보통이라 독립 수치로 관리)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|DamageOverTime")
+    float TickDamage = 3.0f;
+
+    // 재적용 시 새 인스턴스로 쌓을지, Refresh만 할지
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|DamageOverTime")
+    bool bStackable = false;
+};
+
+USTRUCT(BlueprintType)
+struct FShockwaveAddonData
+{
+    GENERATED_BODY()
+
+    // 최종 도달 반경
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|Shockwave")
+    float MaxRadius = 500.0f;
+
+    // 반경 0 → MaxRadius까지 도달하는 데 걸리는 시간 (확산 속도 대신 시간으로 관리하는 게 튜닝 편함)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|Shockwave")
+    float ExpandDuration = 0.4f;
+
+    // 파동이 "지나가는 순간"에만 데미지를 주는 얇은 링 판정 두께
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|Shockwave")
+    float RingThickness = 60.0f;
+
+    // 원본 피격 대상(파동을 발생시킨 그 적)은 파동 자체 데미지에서 제외할지
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|Shockwave")
+    bool bExcludeOriginTarget = true;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|Shockwave")
+    UNiagaraSystem* ShockwaveEffect = nullptr;
+};
+
+
+
+USTRUCT()
+struct FActiveStatusEffect
+{
+    GENERATED_BODY()
+
+    UPROPERTY()
+    FName EffectID = NAME_None;
+
+    UPROPERTY()
+    float TickDamage = 0.0f;
+
+    UPROPERTY()
+    float TickInterval = 0.5f;
+
+    UPROPERTY()
+    float TimeSinceLastTick = 0.0f;
+
+    UPROPERTY()
+    float RemainingDuration = 0.0f;
+
+    UPROPERTY()
+    bool bStackable = false;
+
+    UPROPERTY()
+    TWeakObjectPtr<AActor> Instigator;
+};
+
 //------------------------------------------------------------------------------
 // Element Types - 원소 속성
 //------------------------------------------------------------------------------
@@ -388,6 +474,12 @@ struct FSkillPassiveProperties
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Passive|Addon Data")
     FMultiShotAddonData MultiShotData;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Passive|Addon Data")
+	FDamageOverTimeAddonData DamageOverTimeData;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Passive|Addon Data")
+	FShockwaveAddonData ShockwaveData;
 };
 
 //------------------------------------------------------------------------------

@@ -59,6 +59,9 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	class UCC_VisualComponent* VisualComponent;
 
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+    class UCC_StatusEffectComponent* StatusEffectComponent;
+
     /** 이 Enemy의 도형 타입 — BP 드롭다운으로 선택 */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Shape")
     EEnemyShapeType ShapeType = EEnemyShapeType::Cube;

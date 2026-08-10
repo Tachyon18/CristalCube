@@ -140,7 +140,6 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Enemy|Movement")
 	bool GetMovementEnabled() const { return bMovementEnabled; }
 
-
 protected:
 	//==========================================================================
 	// COMBAT

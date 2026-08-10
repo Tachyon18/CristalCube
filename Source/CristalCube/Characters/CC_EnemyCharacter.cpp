@@ -20,6 +20,7 @@
 #include "../Gameplay/CC_ExperienceGem.h"
 #include "../Gameplay/CC_Cube.h"
 #include "../Gameplay/CC_VisualComponent.h"
+#include "../Gameplay/CC_StatusEffectComponent.h"
 #include "NiagaraFunctionLibrary.h"
 #include "NiagaraComponent.h"
 
@@ -66,6 +67,7 @@ ACC_EnemyCharacter::ACC_EnemyCharacter()
 	bIsBoss = false;
 
 	VisualComponent = CreateDefaultSubobject<UCC_VisualComponent>(TEXT("VisualComponent"));
+
 }
 
 void ACC_EnemyCharacter::BeginPlay()

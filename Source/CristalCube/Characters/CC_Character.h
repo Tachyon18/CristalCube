@@ -28,6 +28,9 @@ public:
 
 protected:
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "StatusEffect")
+	class UCC_StatusEffectComponent* StatusEffectComponent = nullptr;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats")
 	float MaxHealth;
 
@@ -67,7 +70,8 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Stats")
 	float GetHealthPercentage() const { return MaxHealth > 0.0f ? (CurrentHealth / MaxHealth) : 0.0f; }
 
-
+	UFUNCTION(BlueprintPure, Category = "Enemy|StatusEffect")
+	UCC_StatusEffectComponent* GetStatusEffectComponent() const { return StatusEffectComponent; }
 
 protected:
 

@@ -13,9 +13,10 @@
 #include "../CC_CubeWorldManager.h"
 #include "../CC_CollisionHelper.h"
 #include "../Characters/CC_PlayerCharacter.h"
-#include "../Gameplay/CC_ExperienceGem.h"
-#include "../Gameplay/CC_Cube.h"
-#include "../Gameplay/CC_VisualComponent.h"
+#include "CC_ExperienceGem.h"
+#include "CC_Cube.h"
+#include "CC_VisualComponent.h"
+#include "CC_StatusEffectComponent.h" 
 #include "NiagaraFunctionLibrary.h"
 #include "NiagaraComponent.h"
 
@@ -41,6 +42,7 @@ ACC_EnemyBase::ACC_EnemyBase()
     EnemyMovement->MaxSpeed = MoveSpeed;
 
     VisualComponent = CreateDefaultSubobject<UCC_VisualComponent>(TEXT("VisualComponent"));
+	StatusEffectComponent = CreateDefaultSubobject<UCC_StatusEffectComponent>(TEXT("StatusEffectComponent"));
 
     CurrentHealth = MaxHealth;
 

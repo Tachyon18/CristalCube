@@ -2,6 +2,7 @@
 
 
 #include "CC_Character.h"
+#include "../Gameplay/CC_StatusEffectComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 
 // Sets default values
@@ -18,6 +19,8 @@ ACC_Character::ACC_Character()
 
 	// Apply core movement speed
 	GetCharacterMovement()->MaxWalkSpeed = MoveSpeed;
+
+	StatusEffectComponent = CreateDefaultSubobject<UCC_StatusEffectComponent>(TEXT("StatusEffectComponent"));
 }
 
 // Called when the game starts or when spawned

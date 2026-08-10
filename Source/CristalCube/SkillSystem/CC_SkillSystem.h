@@ -152,7 +152,7 @@ public:
 
 	void SpawnChainEffect(UNiagaraSystem* Effect, FVector StartLocation, FVector TargetLocation);
 
-protected:
+public:
 
 	//==========================================================================
 	// UTILITY FUNCTIONS
@@ -199,6 +199,8 @@ protected:
 	 * 사운드 재생
 	 */
 	void PlaySound(USoundBase* Sound, FVector Location);
+	
+protected:
 
 	//==========================================================================
 	// PROPERTIES

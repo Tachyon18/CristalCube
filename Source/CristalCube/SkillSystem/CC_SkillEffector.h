@@ -67,6 +67,12 @@ public:
 	UPROPERTY(BlueprintReadOnly, Category = "Skill Effector")
 	FSkillDefinition SkillDef;
 
+	// 이 Effector의 히트가 ProcessAddons()를 재실행할 때 시작할 인덱스.
+	// 일반 투사체는 0(전체 재처리). Homing Addon이 스폰한 2차 발사체는
+	// AddonIndex + 1로 설정되어 "자신을 스폰한 Addon보다 뒤"만 연쇄된다.
+	UPROPERTY(BlueprintReadWrite, Category = "Skill Effector")
+	int32 AddonStartIndex = 0;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gameplay")
 	float EffectDuration = 3.0f;
 

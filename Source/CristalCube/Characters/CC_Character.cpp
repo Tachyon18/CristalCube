@@ -3,6 +3,7 @@
 
 #include "CC_Character.h"
 #include "../Gameplay/CC_StatusEffectComponent.h"
+#include "../Gameplay/CC_ElementalStatusComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 
 // Sets default values
@@ -21,6 +22,7 @@ ACC_Character::ACC_Character()
 	GetCharacterMovement()->MaxWalkSpeed = MoveSpeed;
 
 	StatusEffectComponent = CreateDefaultSubobject<UCC_StatusEffectComponent>(TEXT("StatusEffectComponent"));
+	ElementalStatusComponent = CreateDefaultSubobject<UCC_ElementalStatusComponent>(TEXT("ElementalStatusComponent"));
 }
 
 // Called when the game starts or when spawned

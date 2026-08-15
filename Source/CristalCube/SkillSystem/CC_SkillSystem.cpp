@@ -7,7 +7,14 @@
 #include "CC_SkillInstance.h"
 #include "Addon/CC_ExplosionAddon.h"
 #include "Addon/CC_ChainAddon.h"
+#include "Addon/CC_ShockwaveAddon.h"
+#include "Addon/CC_MagicMissileAddon.h"
+#include "Addon/CC_ElementalApplyAddon.h"
+#include "Addon/CC_ElementalBurstAddon.h"
 #include "Addon/CC_DamageOverTimeAddon.h"
+#include "Addon/CC_SigilAddon.h"
+#include "Addon/CC_EchoAddon.h"
+#include "Addon/CC_SelfEmpowerAddon.h"
 #include "../WeaponSystems/CC_Projectile.h"
 #include "../Characters/CC_Character.h"
 #include "../Gameplay/CC_EnemyAIInterface.h"
@@ -85,6 +92,8 @@ void UCC_SkillSystem::ExecuteSkill(const FSkillDefinition& Skill, FVector Target
 	Context.Direction = (TargetLocation - Context.StartLocation).GetSafeNormal();
 	Context.CurrentDamage = Skill.BaseDamage * Skill.Passives.DamageMultiplier;
 
+	ProcessCastAddons(Skill, Context);
+
 	UE_LOG(LogTemp, Log, TEXT("Executing Skill : %s, Core : %d"), *Skill.SkillID.ToString(),
 		(int32)Skill.CoreType);
 
@@ -138,6 +147,22 @@ void UCC_SkillSystem::ExecuteSkillOnTarget(const FSkillDefinition& Skill, AActor
 	}
 
 	ExecuteSkill(Skill, TargetActor->GetActorLocation());
+}
+
+void UCC_SkillSystem::ExecuteSkillWithContext(const FSkillDefinition& Skill, FSkillExecutionContext Context, FVector TargetLocation)
+{
+	Context.TargetLocation = TargetLocation;
+	Context.Direction = (TargetLocation - Context.StartLocation).GetSafeNormal();
+
+	switch (Skill.CoreType)
+	{
+	case ESkillCoreType::Projectile: ExecuteProjectile(Skill, Context); break;
+	case ESkillCoreType::Instant:    ExecuteInstant(Skill, Context); break;
+	case ESkillCoreType::Area:       ExecuteArea(Skill, Context); break;
+	case ESkillCoreType::Beam:       ExecuteBeam(Skill, Context); break;
+	case ESkillCoreType::Rainfall:   ExecuteRainfall(Skill, Context); break;
+	default: break;
+	}
 }
 
 //==============================================================================
@@ -677,7 +702,7 @@ TArray<FVector> UCC_SkillSystem::CalculateDropLocations(FVector Center, float Ra
 // ADDON PROCESSING - STUBS
 //==============================================================================
 
-void UCC_SkillSystem::ProcessAddons(const FSkillDefinition& Skill, FSkillExecutionContext& Context, const FHitResult& Hit)
+void UCC_SkillSystem::ProcessAddons(const FSkillDefinition& Skill, FSkillExecutionContext& Context, const FHitResult& Hit, int32 StartIndex)
 {
 	AActor* HitTarget = Hit.GetActor();
 	FVector HitLocation = Hit.ImpactPoint;
@@ -687,8 +712,11 @@ void UCC_SkillSystem::ProcessAddons(const FSkillDefinition& Skill, FSkillExecuti
 		HitTarget = nullptr;
 	}
 
-	for (ESkillAddonType Addon : Skill.Addons)
+	for (int32 i = StartIndex; i < Skill.Addons.Num(); ++i)
 	{
+	
+		const ESkillAddonType Addon = Skill.Addons[i];
+
 		switch (Addon)
 		{
 		case ESkillAddonType::Explosion:
@@ -697,6 +725,7 @@ void UCC_SkillSystem::ProcessAddons(const FSkillDefinition& Skill, FSkillExecuti
 			//ApplyExplosion(Skill, Context, HitLocation);
 
 			UCC_ExplosionAddon* TestExplosion = NewObject<UCC_ExplosionAddon>(this);
+			TestExplosion->AddonIndex = i;
 			TestExplosion->Data = Skill.Passives.ExplosionData;
 			TestExplosion->OnHit_Implementation(this, Skill, Context, HitTarget, HitLocation);
 
@@ -709,27 +738,112 @@ void UCC_SkillSystem::ProcessAddons(const FSkillDefinition& Skill, FSkillExecuti
 				//ApplyChain(Skill, Context, HitTarget);
 
 				UCC_ChainAddon* TestChain = NewObject<UCC_ChainAddon>(this);
+				TestChain->AddonIndex = i;
 				TestChain->Data = Skill.Passives.ChainData;
 				TestChain->OnHit_Implementation(this, Skill, Context, HitTarget, HitLocation);
 
 			}
 			break;
 
+		case ESkillAddonType::Shockwave:
+		{
+			UCC_ShockwaveAddon* TestShockwave = NewObject<UCC_ShockwaveAddon>(this);
+			TestShockwave->AddonIndex = i;
+			TestShockwave->Data = Skill.Passives.ShockwaveData;
+			TestShockwave->OnHit_Implementation(this, Skill, Context, HitTarget, HitLocation);
+			break;
+		}
 			// Penetrate / MultiShot은 SkillEffector / ExecuteProjectile에서 처리
 		case ESkillAddonType::Penetrate:
 		case ESkillAddonType::MultiShot:
+			break;
+
+		case ESkillAddonType::MagicMissile:
+
+			if (HitTarget)
+			{
+				UCC_MagicMissileAddon* TestMagicMissile = NewObject<UCC_MagicMissileAddon>(this);
+				TestMagicMissile->AddonIndex = i;
+				TestMagicMissile->Data = Skill.Passives.MagicMissileData;
+				TestMagicMissile->OnHit_Implementation(this, Skill, Context, HitTarget, HitLocation);
+			}
+
+			break;
+
+		case ESkillAddonType::ElementalApply:
+
+			if (HitTarget)
+			{
+				UCC_ElementalApplyAddon* TestElementalApply = NewObject<UCC_ElementalApplyAddon>(this);
+				TestElementalApply->AddonIndex = i;
+				TestElementalApply->Data = Skill.Passives.ElementalApplyData;
+				TestElementalApply->OnHit_Implementation(this, Skill, Context, HitTarget, HitLocation);
+			}
+
+			break;
+
+		case ESkillAddonType::ElementalBurst:
+
+			if(HitTarget)
+			{
+				UCC_ElementalBurstAddon* TestElementalBurst = NewObject<UCC_ElementalBurstAddon>(this);
+				TestElementalBurst->AddonIndex = i;
+				TestElementalBurst->Data = Skill.Passives.ElementalBurstData;
+				TestElementalBurst->OnHit_Implementation(this, Skill, Context, HitTarget, HitLocation);
+			}
+
+			break;
+
 		case ESkillAddonType::DamageOverTime:
 
 			if (HitTarget)
 			{
 				// 임시 ? 기존 ApplyDamageOverTime() 대신 신규 클래스로 검증
 				UCC_DamageOverTimeAddon* TestDot = NewObject<UCC_DamageOverTimeAddon>(this);
+				TestDot->AddonIndex = i;
 				TestDot->Data = Skill.Passives.DamageOverTimeData;
 				TestDot->OnHit_Implementation(this, Skill, Context, HitTarget, HitLocation);
 			}
 
 			break;
 
+		case ESkillAddonType::Sigil:
+		{
+			UCC_SigilAddon* TestSigil = NewObject<UCC_SigilAddon>(this);
+			TestSigil->AddonIndex = i;
+			TestSigil->Data = Skill.Passives.SigilData;
+			TestSigil->OnHit_Implementation(this, Skill, Context, HitTarget, HitLocation);
+			
+			break;
+		}
+		default:
+			break;
+		}
+	}
+}
+
+void UCC_SkillSystem::ProcessCastAddons(const FSkillDefinition& Skill, FSkillExecutionContext& Context)
+{
+	for (int32 i = 0; i < Skill.Addons.Num(); ++i)
+	{
+		switch (Skill.Addons[i])
+		{
+		case ESkillAddonType::SelfEmpower:
+		{
+			UCC_SelfEmpowerAddon* TestEmpower = NewObject<UCC_SelfEmpowerAddon>(this);
+			TestEmpower->AddonIndex = i;
+			TestEmpower->Data = Skill.Passives.SelfEmpowerData;
+			TestEmpower->OnCast_Implementation(this, Skill, Context);
+			break;
+		}
+		case ESkillAddonType::Echo:
+		{
+			UCC_EchoAddon* TestEcho = NewObject<UCC_EchoAddon>(this);
+			TestEcho->AddonIndex = i;
+			TestEcho->Data = Skill.Passives.EchoData;
+			TestEcho->OnCast_Implementation(this, Skill, Context);
+			break;
+		}
 		default:
 			break;
 		}
@@ -956,7 +1070,7 @@ void UCC_SkillSystem::OnProjectileHit(ACC_SkillEffector* Effector, AActor* HitAc
 	FHitResult Hit;
 	Hit.HitObjectHandle = FActorInstanceHandle(HitActor);
 	Hit.ImpactPoint = HitActor->GetActorLocation();
-	ProcessAddons(Skill, Context, Hit);
+	ProcessAddons(Skill, Context, Hit, Effector->AddonStartIndex);
 
 	UE_LOG(LogTemp, Log, TEXT("[SkillSystem] Projectile hit processed for %s"), *HitActor->GetName());
 

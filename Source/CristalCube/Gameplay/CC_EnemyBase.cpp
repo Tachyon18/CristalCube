@@ -17,6 +17,7 @@
 #include "CC_Cube.h"
 #include "CC_VisualComponent.h"
 #include "CC_StatusEffectComponent.h" 
+#include "CC_ElementalStatusComponent.h"
 #include "NiagaraFunctionLibrary.h"
 #include "NiagaraComponent.h"
 
@@ -43,6 +44,7 @@ ACC_EnemyBase::ACC_EnemyBase()
 
     VisualComponent = CreateDefaultSubobject<UCC_VisualComponent>(TEXT("VisualComponent"));
 	StatusEffectComponent = CreateDefaultSubobject<UCC_StatusEffectComponent>(TEXT("StatusEffectComponent"));
+	ElementalStatusComponent = CreateDefaultSubobject<UCC_ElementalStatusComponent>(TEXT("ElementalStatusComponent"));  
 
     CurrentHealth = MaxHealth;
 

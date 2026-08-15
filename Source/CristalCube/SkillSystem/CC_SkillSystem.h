@@ -68,6 +68,8 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Skill System")
 	void ExecuteSkillOnTarget(const FSkillDefinition& Skill, AActor* TargetActor);
 
+	void ExecuteSkillWithContext(const FSkillDefinition& Skill, FSkillExecutionContext Context, FVector TargetLocation);
+
 protected:
 
 	//==========================================================================
@@ -124,7 +126,9 @@ public:
 	 * @param Context - 실행 컨텍스트
 	 * @param Hit - 충돌 정보
 	 */
-	void ProcessAddons(const FSkillDefinition& Skill, FSkillExecutionContext& Context, const FHitResult& Hit);
+	void ProcessAddons(const FSkillDefinition& Skill, FSkillExecutionContext& Context, const FHitResult& Hit, int32 StartIndex = 0);
+
+	void ProcessCastAddons(const FSkillDefinition& Skill, FSkillExecutionContext& Context);
 
 	/**
 	 * Explosion Addon - 폭발 범위 피해

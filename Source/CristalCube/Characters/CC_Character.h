@@ -31,6 +31,9 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "StatusEffect")
 	class UCC_StatusEffectComponent* StatusEffectComponent = nullptr;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "StatusEffect")
+	class UCC_ElementalStatusComponent* ElementalStatusComponent = nullptr;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats")
 	float MaxHealth;
 

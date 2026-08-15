@@ -28,5 +28,5 @@ void UCC_ChainAddon::OnHit_Implementation(UCC_SkillSystem* SkillSystem, const FS
     FHitResult ChainHit;
     ChainHit.ImpactPoint = NextTarget->GetActorLocation();
     ChainHit.HitObjectHandle = FActorInstanceHandle(NextTarget);
-    SkillSystem->ProcessAddons(Skill, Context, ChainHit);
+    SkillSystem->ProcessAddons(Skill, Context, ChainHit, AddonIndex + 1);
 }

@@ -13,5 +13,5 @@ void UCC_DamageOverTimeAddon::OnHit_Implementation(UCC_SkillSystem* SkillSystem,
     if (!StatusComp) return;
 
     StatusComp->ApplyDamageOverTime(Skill.SkillID, Data.TickDamage, Data.TotalDuration,
-        Data.TickInterval, Context.Caster, Data.bStackable);
+        Data.TickInterval, Context.Caster, Data.bStackable, Data.TickEffect);
 }

@@ -13,6 +13,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnCubeSystemReady);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCubeCleared, FIntPoint, Coordinate);
 
 class UNiagaraSystem;
+class UNiagaraComponent;
 class UCC_SkillBase;
 
 //==============================================================================
@@ -174,6 +175,21 @@ enum class ETargetingMode : uint8
     Self       UMETA(DisplayName = "Self")
 };
 
+
+//------------------------------------------------------------------------------
+// Element Types - 원소 속성
+//------------------------------------------------------------------------------
+UENUM(BlueprintType)
+enum class ESkillElementType : uint8
+{
+    None            UMETA(DisplayName = "None"),
+    Physical        UMETA(DisplayName = "Physical"),       // 물리
+    Fire            UMETA(DisplayName = "Fire"),           // 화염
+    Ice             UMETA(DisplayName = "Ice"),            // 얼음
+    Lightning       UMETA(DisplayName = "Lightning"),      // 번개
+    Poison          UMETA(DisplayName = "Poison")          // 독
+};
+
 /// <Skill System>
 /// 새로 작성된 모듈형 스킬 시스템 구조체, 프로토타입 버전
 
@@ -265,11 +281,11 @@ enum class ESkillAddonType : uint8
 
     // --- 신규 실험 대상 (bImplemented=false로 카탈로그만 우선 등록) ---
     Shockwave       UMETA(DisplayName = "Shockwave"),        // 파동 생성
-    Homing          UMETA(DisplayName = "Homing"),           // 호밍 미사일
-    ElementalBurst  UMETA(DisplayName = "Elemental Burst"),  // 속성 즉시 타격
+    MagicMissile    UMETA(DisplayName = "Magic Missile"),    // 매직 미사일
     ElementalApply  UMETA(DisplayName = "Elemental Apply"),  // 속성 추가 부여
+    ElementalBurst  UMETA(DisplayName = "Elemental Burst"),  // 속성 즉시 타격
     DamageOverTime  UMETA(DisplayName = "Damage Over Time"), // 지속 피해
-    Carpet          UMETA(DisplayName = "Carpet"),           // Carpet형
+    Sigil           UMETA(DisplayName = "Sigil"),            // 마법진형 장판 (명중 지점에 잔존)
     Echo            UMETA(DisplayName = "Echo"),             // 공명
     SelfEmpower     UMETA(DisplayName = "Self Empower")      // 강화(사용시마다)
 };
@@ -371,6 +387,10 @@ struct FDamageOverTimeAddonData
     // 재적용 시 새 인스턴스로 쌓을지, Refresh만 할지
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|DamageOverTime")
     bool bStackable = false;
+
+    // 틱마다 재생할 VFX (버닝/독 등 지속 피해 임팩트, 대상 위치에 Attach)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|DamageOverTime")
+    UNiagaraSystem* TickEffect = nullptr;
 };
 
 USTRUCT(BlueprintType)
@@ -398,7 +418,191 @@ struct FShockwaveAddonData
     UNiagaraSystem* ShockwaveEffect = nullptr;
 };
 
+USTRUCT(BlueprintType)
+struct FMagicMissileAddonData
+{
+    GENERATED_BODY()
 
+    // 추가 발사체 개수
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|Homing",
+        meta = (ClampMin = "1"))
+    int32 LaunchCount = 2;
+
+    // 발사체 유지 속도
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|Homing")
+    float ProjectileSpeed = 1200.0f;
+
+    // 명중 지점(HitLocation) 중심, 목표 지점을 흩뿌릴 반경 — X/Y만 랜덤, Z는 HitLocation 고정
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|MagicMissile")
+    float ScatterRadius = 250.0f;
+
+    // 캐스터 정수리 기준 추가 발사 높이 오프셋
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|MagicMissile")
+    float SpawnHeightOffset = 60.0f;
+
+    // 발사 간 간격 (순차 발사)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|MagicMissile",
+        meta = (ClampMin = "0.0"))
+    float LaunchInterval = 0.08f;
+
+    // 메인 히트 데미지(Context.CurrentDamage) 대비 배율
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|Homing",
+        meta = (ClampMin = "0.0"))
+    float DamageRatio = 0.5f;
+
+    // 발사체 수명 (초과 시 자동 소멸)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|Homing")
+    float LifeTime = 3.0f;
+
+    // null이면 Skill.ProjectileClass로 폴백
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|Homing")
+    TSubclassOf<class ACC_SkillEffector> MagicMissileEffectorClass;
+
+    // 사출 순간 재생 VFX (발사 위치)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|Homing")
+    UNiagaraSystem* LaunchEffect = nullptr;
+
+};
+
+USTRUCT(BlueprintType)
+struct FElementalApplyAddonData
+{
+    GENERATED_BODY()
+
+    // 명중 1회당 부여 스택 수
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|ElementalApply",
+        meta = (ClampMin = "1"))
+    int32 StackAmount = 1;
+
+    // 최대 축적 가능 스택
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|ElementalApply",
+        meta = (ClampMin = "1"))
+    int32 MaxStacks = 5;
+
+    // 지속시간 — 재적용 시 Refresh (스택은 누적, 시간은 갱신)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|ElementalApply")
+    float Duration = 4.0f;
+
+    // 부여 중 지속 재생 VFX (오라 성격)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|ElementalApply")
+    UNiagaraSystem* ApplyEffect = nullptr;
+
+    // NOTE: "부여된 원소가 걸려있는 동안 정확히 무슨 효과를 내는가"(Fire=지속 화상? Ice=둔화?
+    // Lightning=주기적 감전?)는 원소별로 성격이 전부 달라서 여기서 수치화하지 않음.
+    // UCC_ElementalStatusComponent::TickComponent() 안에 원소별 분기 지점을 비워두고,
+    // 각 원소 컨셉이 확정되는 대로 하나씩 채워나가는 구조로 설계함.
+};
+
+USTRUCT(BlueprintType)
+struct FElementalBurstAddonData
+{
+    GENERATED_BODY()
+
+    // 소모 스택 1당 데미지
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|ElementalBurst",
+        meta = (ClampMin = "0.0"))
+    float DamagePerStack = 15.0f;
+
+    // 터질 때 기존 원소 상태를 소모(제거)할지 여부
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|ElementalBurst")
+    bool bConsumeOnBurst = true;
+
+    // true면 대상에 걸린 원소가 있어야만 발동(없으면 조용히 무시).
+    // false면 걸린 게 없어도 스킬 자체 ElementType 기준 최소 1스택으로 취급해 발동.
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|ElementalBurst")
+    bool bRequireExistingElement = true;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|ElementalBurst")
+    UNiagaraSystem* BurstEffect = nullptr;
+};
+
+USTRUCT(BlueprintType)
+struct FSigilAddonData
+{
+    GENERATED_BODY()
+
+    // 장판 반경
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|Sigil")
+    float Radius = 250.0f;
+
+    // 장판 존속시간
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|Sigil")
+    float Duration = 3.0f;
+
+    // 데미지 틱 간격
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|Sigil")
+    float TickInterval = 0.5f;
+
+    // 틱당 데미지 (DamageOverTime과 동일하게 Context.CurrentDamage와는 독립된 수치)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|Sigil")
+    float TickDamage = 5.0f;
+
+    // 바닥 마법진 VFX (존속시간 내내 유지되는 지속 이펙트)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|Sigil")
+    UNiagaraSystem* SigilEffect = nullptr;
+};
+
+USTRUCT(BlueprintType)
+struct FEchoAddonData
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|Echo",
+        meta = (ClampMin = "0.0"))
+    float EchoDelay = 0.8f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|Echo",
+        meta = (ClampMin = "0.0"))
+    float DamageRatio = 0.6f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|Echo",
+        meta = (ClampMin = "1"))
+    int32 MaxEchoes = 1;
+};
+
+USTRUCT(BlueprintType)
+struct FSelfEmpowerAddonData
+{
+    GENERATED_BODY()
+
+    // 캐스트 1회당 증가 데미지 배율 (0.1 = +10%)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|SelfEmpower",
+        meta = (ClampMin = "0.0"))
+    float DamagePerStack = 0.1f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|SelfEmpower",
+        meta = (ClampMin = "1"))
+    int32 MaxStacks = 5;
+
+    // 이 시간 안에 재사용 안 하면 스택 소멸
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|SelfEmpower")
+    float StackDuration = 4.0f;
+};
+
+USTRUCT()
+struct FActiveElementalStatus
+{
+    GENERATED_BODY()
+
+    UPROPERTY()
+    ESkillElementType ElementType = ESkillElementType::None;
+
+    UPROPERTY()
+    int32 StackCount = 1;
+
+    UPROPERTY()
+    float RemainingDuration = 0.0f;
+
+    UPROPERTY()
+    float TimeSinceLastTick = 0.0f;
+
+    UPROPERTY()
+    TWeakObjectPtr<AActor> Instigator;
+
+    // 부여 중 지속 재생되는 VFX (오라 등) — DoT의 ActiveVFXComponent와 동일한 Attach/수명 패턴
+    UPROPERTY()
+    TWeakObjectPtr<UNiagaraComponent> ActiveVFXComponent;
+};
 
 USTRUCT()
 struct FActiveStatusEffect
@@ -425,21 +629,12 @@ struct FActiveStatusEffect
 
     UPROPERTY()
     TWeakObjectPtr<AActor> Instigator;
+
+    UPROPERTY()
+    TWeakObjectPtr<UNiagaraComponent> ActiveVFXComponent;
 };
 
-//------------------------------------------------------------------------------
-// Element Types - 원소 속성
-//------------------------------------------------------------------------------
-UENUM(BlueprintType)
-enum class ESkillElementType : uint8
-{
-    None            UMETA(DisplayName = "None"),
-    Physical        UMETA(DisplayName = "Physical"),       // 물리
-    Fire            UMETA(DisplayName = "Fire"),           // 화염
-    Ice             UMETA(DisplayName = "Ice"),            // 얼음
-    Lightning       UMETA(DisplayName = "Lightning"),      // 번개
-    Poison          UMETA(DisplayName = "Poison")          // 독
-};
+
 
 //------------------------------------------------------------------------------
 // Passive Properties - 수치 강화
@@ -480,6 +675,24 @@ struct FSkillPassiveProperties
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Passive|Addon Data")
 	FShockwaveAddonData ShockwaveData;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Passive|Addon Data")
+	FMagicMissileAddonData MagicMissileData;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Passive|Addon Data")
+    FElementalApplyAddonData ElementalApplyData;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Passive|Addon Data")
+    FElementalBurstAddonData ElementalBurstData;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Passive|Addon Data")
+	FSigilAddonData SigilData;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Passive|Addon Data")
+    FSelfEmpowerAddonData SelfEmpowerData;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Passive|Addon Data")
+    FEchoAddonData EchoData;
 };
 
 //------------------------------------------------------------------------------
@@ -598,6 +811,9 @@ struct FSkillExecutionContext
 
     UPROPERTY()
     float CurrentDamage = 0.0f;
+
+    UPROPERTY()
+    int32 CurrentEchoCount = 0;
 };
 
 //------------------------------------------------------------------------------

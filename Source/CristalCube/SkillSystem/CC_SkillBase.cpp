@@ -119,6 +119,37 @@ void UCC_SkillBase::ApplyAddonModifier(ESkillAddonType AddonType, const FSkillPa
         SkillDef.Passives.MultiShotData.AdditionalCount += Modifier.MultiShotData.AdditionalCount;
         SkillDef.Passives.MultiShotData.SpreadAngle += Modifier.MultiShotData.SpreadAngle;
         break;
+    case ESkillAddonType::Shockwave:
+        SkillDef.Passives.ShockwaveData.MaxRadius += Modifier.ShockwaveData.MaxRadius;
+        SkillDef.Passives.ShockwaveData.RingThickness += Modifier.ShockwaveData.RingThickness;
+        break;
+    case ESkillAddonType::MagicMissile:
+		SkillDef.Passives.MagicMissileData.LaunchCount += Modifier.MagicMissileData.LaunchCount;
+		SkillDef.Passives.MagicMissileData.DamageRatio += Modifier.MagicMissileData.DamageRatio;
+        break;
+    case ESkillAddonType::ElementalApply:
+        SkillDef.Passives.ElementalApplyData.StackAmount += Modifier.ElementalApplyData.StackAmount;
+        SkillDef.Passives.ElementalApplyData.Duration += Modifier.ElementalApplyData.Duration;
+        break;
+    case ESkillAddonType::ElementalBurst:
+        SkillDef.Passives.ElementalBurstData.DamagePerStack += Modifier.ElementalBurstData.DamagePerStack;
+        break;
+    case ESkillAddonType::DamageOverTime:
+        SkillDef.Passives.DamageOverTimeData.TickDamage += Modifier.DamageOverTimeData.TickDamage;
+        SkillDef.Passives.DamageOverTimeData.TotalDuration += Modifier.DamageOverTimeData.TotalDuration;
+        break;
+	case ESkillAddonType::Sigil:
+        SkillDef.Passives.SigilData.Radius += Modifier.SigilData.Radius;
+        SkillDef.Passives.SigilData.TickDamage += Modifier.SigilData.TickDamage;
+        break;
+    case ESkillAddonType::Echo:
+        SkillDef.Passives.EchoData.DamageRatio += Modifier.EchoData.DamageRatio;
+        SkillDef.Passives.EchoData.MaxEchoes += Modifier.EchoData.MaxEchoes;
+        break;
+    case ESkillAddonType::SelfEmpower:
+        SkillDef.Passives.SelfEmpowerData.DamagePerStack += Modifier.SelfEmpowerData.DamagePerStack;
+        SkillDef.Passives.SelfEmpowerData.MaxStacks += Modifier.SelfEmpowerData.MaxStacks;
+        break;
     default:
         break;
     }

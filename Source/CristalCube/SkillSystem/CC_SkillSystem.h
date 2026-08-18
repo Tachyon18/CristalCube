@@ -68,7 +68,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Skill System")
 	void ExecuteSkillOnTarget(const FSkillDefinition& Skill, AActor* TargetActor);
 
-	void ExecuteSkillWithContext(const FSkillDefinition& Skill, FSkillExecutionContext Context, FVector TargetLocation);
+	void ExecuteSkillWithContext(const FSkillDefinition& Skill, FSkillExecutionContext Context, FVector TargetLocation, int32 StartIndex = 0);
 
 protected:
 
@@ -128,7 +128,7 @@ public:
 	 */
 	void ProcessAddons(const FSkillDefinition& Skill, FSkillExecutionContext& Context, const FHitResult& Hit, int32 StartIndex = 0);
 
-	void ProcessCastAddons(const FSkillDefinition& Skill, FSkillExecutionContext& Context);
+	void ProcessCastAddons(const FSkillDefinition& Skill, FSkillExecutionContext& Context, int32 StartIndex = 0);
 
 	/**
 	 * Explosion Addon - 폭발 범위 피해
@@ -163,7 +163,7 @@ public:
 	//==========================================================================
 
 	UFUNCTION()
-	void OnProjectileHit(class ACC_SkillEffector* Effector, AActor* HitActor);
+	void OnProjectileHit(class ACC_SkillEffector* Effector, AActor* HitActor, FVector HitLocation);
 
 	UFUNCTION()
 	void OnCubeTransitioned(FIntPoint NewCoordinate);

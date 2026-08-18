@@ -434,7 +434,7 @@ struct FMagicMissileAddonData
 
     // 명중 지점(HitLocation) 중심, 목표 지점을 흩뿌릴 반경 — X/Y만 랜덤, Z는 HitLocation 고정
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|MagicMissile")
-    float ScatterRadius = 250.0f;
+    float ScatterRadius = 50.0f;
 
     // 캐스터 정수리 기준 추가 발사 높이 오프셋
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|MagicMissile")

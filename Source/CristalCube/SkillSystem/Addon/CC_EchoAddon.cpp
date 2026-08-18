@@ -18,14 +18,15 @@ void UCC_EchoAddon::OnCast_Implementation(UCC_SkillSystem* SkillSystem, const FS
     TWeakObjectPtr<UCC_SkillSystem> WeakSystem = SkillSystem;
     FVector EchoTargetLocation = Context.TargetLocation;
     float Delay = Data.EchoDelay;
+	const int32 SelfIndex = AddonIndex;  // 자기 자신부터 재처리 — MaxEchoes 반복과 순서 기반 재적용을 동시에 만족
 
     FTimerHandle EchoTimer;
     SkillSystem->GetWorld()->GetTimerManager().SetTimer(EchoTimer,
-        FTimerDelegate::CreateLambda([WeakSystem, SkillCopy, ContextCopy, EchoTargetLocation]()
+        FTimerDelegate::CreateLambda([WeakSystem, SkillCopy, ContextCopy, EchoTargetLocation, SelfIndex]()
             {
                 if (WeakSystem.IsValid())
                 {
-                    WeakSystem->ExecuteSkillWithContext(SkillCopy, ContextCopy, EchoTargetLocation);
+                    WeakSystem->ExecuteSkillWithContext(SkillCopy, ContextCopy, EchoTargetLocation, SelfIndex);
                 }
             }),
         Delay, false);

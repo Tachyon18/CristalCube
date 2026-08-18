@@ -12,6 +12,7 @@ void UCC_ShockwaveAddon::OnHit_Implementation(UCC_SkillSystem* SkillSystem, cons
     ACC_ShockwaveEffector* Wave = SkillSystem->GetWorld()->SpawnActor<ACC_ShockwaveEffector>(HitLocation, FRotator::ZeroRotator);
     if (Wave)
     {
-        Wave->Initialize(HitLocation, Context.CurrentDamage, Context.Caster, Data, HitTarget);
+        Wave->Initialize(HitLocation, Context.CurrentDamage, Context.Caster, Data, HitTarget,
+            SkillSystem, Skill, Context, AddonIndex + 1);
     }
 }

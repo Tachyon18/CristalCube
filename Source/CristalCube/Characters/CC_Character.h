@@ -31,6 +31,9 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "StatusEffect")
 	class UCC_StatusEffectComponent* StatusEffectComponent = nullptr;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "SkillEmpower")
+	class UCC_SkillEmpowerComponent* SkillEmpowerComponent = nullptr;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "StatusEffect")
 	class UCC_ElementalStatusComponent* ElementalStatusComponent = nullptr;
 

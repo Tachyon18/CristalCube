@@ -149,10 +149,12 @@ void UCC_SkillSystem::ExecuteSkillOnTarget(const FSkillDefinition& Skill, AActor
 	ExecuteSkill(Skill, TargetActor->GetActorLocation());
 }
 
-void UCC_SkillSystem::ExecuteSkillWithContext(const FSkillDefinition& Skill, FSkillExecutionContext Context, FVector TargetLocation)
+void UCC_SkillSystem::ExecuteSkillWithContext(const FSkillDefinition& Skill, FSkillExecutionContext Context, FVector TargetLocation, int32 StartIndex)
 {
 	Context.TargetLocation = TargetLocation;
 	Context.Direction = (TargetLocation - Context.StartLocation).GetSafeNormal();
+
+	ProcessCastAddons(Skill, Context, StartIndex);
 
 	switch (Skill.CoreType)
 	{
@@ -728,7 +730,7 @@ void UCC_SkillSystem::ProcessAddons(const FSkillDefinition& Skill, FSkillExecuti
 			TestExplosion->AddonIndex = i;
 			TestExplosion->Data = Skill.Passives.ExplosionData;
 			TestExplosion->OnHit_Implementation(this, Skill, Context, HitTarget, HitLocation);
-
+			
 			break;
 		}
 
@@ -741,7 +743,6 @@ void UCC_SkillSystem::ProcessAddons(const FSkillDefinition& Skill, FSkillExecuti
 				TestChain->AddonIndex = i;
 				TestChain->Data = Skill.Passives.ChainData;
 				TestChain->OnHit_Implementation(this, Skill, Context, HitTarget, HitLocation);
-
 			}
 			break;
 
@@ -822,9 +823,9 @@ void UCC_SkillSystem::ProcessAddons(const FSkillDefinition& Skill, FSkillExecuti
 	}
 }
 
-void UCC_SkillSystem::ProcessCastAddons(const FSkillDefinition& Skill, FSkillExecutionContext& Context)
+void UCC_SkillSystem::ProcessCastAddons(const FSkillDefinition& Skill, FSkillExecutionContext& Context, int32 StartIndex)
 {
-	for (int32 i = 0; i < Skill.Addons.Num(); ++i)
+	for (int32 i = StartIndex; i < Skill.Addons.Num(); ++i)
 	{
 		switch (Skill.Addons[i])
 		{
@@ -1049,7 +1050,7 @@ void UCC_SkillSystem::SpawnChainEffect(UNiagaraSystem* Effect, FVector StartLoca
 // UTILITY FUNCTIONS
 //==============================================================================
 
-void UCC_SkillSystem::OnProjectileHit(ACC_SkillEffector* Effector, AActor* HitActor)
+void UCC_SkillSystem::OnProjectileHit(ACC_SkillEffector* Effector, AActor* HitActor, FVector HitLocation)
 {
 	if (!Effector || !IsValid(Effector) || !IsValid(HitActor))
 	{
@@ -1069,7 +1070,7 @@ void UCC_SkillSystem::OnProjectileHit(ACC_SkillEffector* Effector, AActor* HitAc
 
 	FHitResult Hit;
 	Hit.HitObjectHandle = FActorInstanceHandle(HitActor);
-	Hit.ImpactPoint = HitActor->GetActorLocation();
+	Hit.ImpactPoint = HitLocation;
 	ProcessAddons(Skill, Context, Hit, Effector->AddonStartIndex);
 
 	UE_LOG(LogTemp, Log, TEXT("[SkillSystem] Projectile hit processed for %s"), *HitActor->GetName());

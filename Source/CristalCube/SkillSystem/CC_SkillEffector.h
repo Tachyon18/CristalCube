@@ -10,10 +10,11 @@
 
 // SkillSystem으로 충돌 이벤트를 위임하는 델리게이트
 // Effector는 충돌 및 판정 감지만, 판단·처리는 SkillSystem이 담당
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(
 	FOnEffectorHit,
 	ACC_SkillEffector*, Effector,
-	AActor*, HitActor
+	AActor*, HitActor,
+	FVector, HitLocation
 );
 
 UCLASS()

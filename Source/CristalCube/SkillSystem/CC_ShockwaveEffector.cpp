@@ -3,6 +3,7 @@
 
 #include "CC_ShockwaveEffector.h"
 #include "../Gameplay/CC_EnemyAIInterface.h"
+#include "CC_SkillSystem.h"
 #include "Kismet/GameplayStatics.h"
 #include "Engine/DamageEvents.h"
 #include "NiagaraFunctionLibrary.h"
@@ -20,13 +21,20 @@ ACC_ShockwaveEffector::ACC_ShockwaveEffector()
 	SetActorEnableCollision(false);
 }
 
-void ACC_ShockwaveEffector::Initialize(FVector InOrigin, float InDamage, AActor* InInstigator, const FShockwaveAddonData& InData, AActor* InExcludedTarget)
+void ACC_ShockwaveEffector::Initialize(FVector InOrigin, float InDamage, AActor* InInstigator, const FShockwaveAddonData& InData, AActor* InExcludedTarget, UCC_SkillSystem* InSkillSystem, const FSkillDefinition& InSkill, const FSkillExecutionContext& InContext, int32 InStartIndex)
 {
 	Origin = InOrigin;
 	Damage = InDamage;
 	DamageInstigator = InInstigator;
 	Data = InData;
 	ExcludedTarget = Data.bExcludeOriginTarget ? InExcludedTarget : nullptr;
+
+	SkillSystemRef = InSkillSystem;
+	SkillDef = InSkill;
+	BaseContext = InContext;
+	BaseContext.HitActors.Reset();
+	BaseContext.CurrentChainCount = 0;
+	AddonStartIndex = InStartIndex;
 
 	SetActorLocation(Origin);
 
@@ -90,6 +98,8 @@ void ACC_ShockwaveEffector::Tick(float DeltaTime)
 	TArray<AActor*> FoundEnemies;
 	UGameplayStatics::GetAllActorsWithTag(GetWorld(), FName("Enemy"), FoundEnemies);
 
+	UCC_SkillSystem* SkillSystem = SkillSystemRef.Get();
+
 	for (AActor* Enemy : FoundEnemies)
 	{
 		if (!Enemy || !IsValid(Enemy) || Enemy == ExcludedTarget.Get()) continue;
@@ -106,6 +116,20 @@ void ACC_ShockwaveEffector::Tick(float DeltaTime)
 		{
 			Enemy->TakeDamage(Damage, FDamageEvent(), nullptr, DamageInstigator.Get());
 			AlreadyHit.Add(Enemy);
+
+			if (SkillSystem)
+			{
+				// 이번에 파동 전선에 새로 맞은 것 자체가 '개별 타격' — 독립된 Context 사본으로 하위 Addon에 전달
+				FSkillExecutionContext TickContext = BaseContext;
+				TickContext.CurrentChainCount = 0;
+				TickContext.CurrentDamage = Damage;
+				TickContext.HitActors.Add(Enemy);
+
+				FHitResult TickHit;
+				TickHit.ImpactPoint = Enemy->GetActorLocation();
+				TickHit.HitObjectHandle = FActorInstanceHandle(Enemy);
+				SkillSystem->ProcessAddons(SkillDef, TickContext, TickHit, AddonStartIndex);
+			}
 		}
 	}
 

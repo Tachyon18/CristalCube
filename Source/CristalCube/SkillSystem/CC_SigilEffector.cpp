@@ -3,6 +3,7 @@
 
 #include "CC_SigilEffector.h"
 #include "../Gameplay/CC_EnemyAIInterface.h"
+#include "CC_SkillSystem.h"
 #include "Kismet/GameplayStatics.h"
 #include "Engine/DamageEvents.h"
 #include "NiagaraFunctionLibrary.h"
@@ -21,11 +22,18 @@ ACC_SigilEffector::ACC_SigilEffector()
 	SetActorEnableCollision(false);
 }
 
-void ACC_SigilEffector::Initialize(FVector InOrigin, AActor* InInstigator, const FSigilAddonData& InData)
+void ACC_SigilEffector::Initialize(FVector InOrigin, AActor* InInstigator, const FSigilAddonData& InData, UCC_SkillSystem* InSkillSystem, const FSkillDefinition& InSkill, const FSkillExecutionContext& InContext, int32 InStartIndex)
 {
 	Origin = InOrigin;
 	DamageInstigator = InInstigator;
 	Data = InData;
+
+	SkillSystemRef = InSkillSystem;
+	SkillDef = InSkill;
+	BaseContext = InContext;
+	BaseContext.HitActors.Reset();
+	BaseContext.CurrentChainCount = 0;
+	AddonStartIndex = InStartIndex;
 
 	SetActorLocation(Origin);
 
@@ -72,6 +80,8 @@ void ACC_SigilEffector::ApplyTick()
 	TArray<AActor*> FoundEnemies;
 	UGameplayStatics::GetAllActorsWithTag(GetWorld(), FName("Enemy"), FoundEnemies);
 
+	UCC_SkillSystem* SkillSystem = SkillSystemRef.Get();
+
 	for (AActor* Enemy : FoundEnemies)
 	{
 		if (!Enemy || !IsValid(Enemy)) continue;
@@ -82,9 +92,22 @@ void ACC_SigilEffector::ApplyTick()
 			continue;
 		}
 
-		if (FVector::Dist(Origin, Enemy->GetActorLocation()) <= Data.Radius)
+		if (FVector::Dist(Origin, Enemy->GetActorLocation()) > Data.Radius) continue;
+
+		Enemy->TakeDamage(Data.TickDamage, FDamageEvent(), nullptr, DamageInstigator.Get());
+
+		if (SkillSystem)
 		{
-			Enemy->TakeDamage(Data.TickDamage, FDamageEvent(), nullptr, DamageInstigator.Get());
+			// 이번 틱에 이 적이 맞은 것 자체가 '개별 타격' — 독립된 Context 사본으로 하위 Addon에 전달
+			FSkillExecutionContext TickContext = BaseContext;
+			TickContext.CurrentChainCount = 0;
+			TickContext.CurrentDamage = Data.TickDamage;
+			TickContext.HitActors.Add(Enemy);
+
+			FHitResult TickHit;
+			TickHit.ImpactPoint = Enemy->GetActorLocation();
+			TickHit.HitObjectHandle = FActorInstanceHandle(Enemy);
+			SkillSystem->ProcessAddons(SkillDef, TickContext, TickHit, AddonStartIndex);
 		}
 	}
 }

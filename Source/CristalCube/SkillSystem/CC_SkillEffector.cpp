@@ -189,9 +189,17 @@ void ACC_SkillEffector::OnOverlapBegin(UPrimitiveComponent* OverlappedComp, AAct
 
 	SkillContext.HitActors.Add(OtherActor);
 
+	// 실제 충돌 지점 — 스윕 정보가 유효하면 그대로 사용(적 콜리전 표면의 실제 피격 높이),
+	// 스윕이 아니거나 값이 비어있으면 기존처럼 액터 위치로 폴백
+	FVector ImpactLocation = OtherActor->GetActorLocation();
+	if (bFromSweep && !SweepResult.ImpactPoint.IsNearlyZero())
+	{
+		ImpactLocation = SweepResult.ImpactPoint;
+	}
+
 	UE_LOG(LogTemp, Warning, TEXT("[SkillEffector] Hit: %s"), *OtherActor->GetName());
 
-	OnEffectorHit.Broadcast(this, OtherActor);
+	OnEffectorHit.Broadcast(this, OtherActor, ImpactLocation);
 }
 
 void ACC_SkillEffector::ApplyDamageToActor(AActor* TargetActor)

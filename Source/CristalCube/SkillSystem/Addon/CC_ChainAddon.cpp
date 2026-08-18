@@ -6,27 +6,43 @@
 
 void UCC_ChainAddon::OnHit_Implementation(UCC_SkillSystem* SkillSystem, const FSkillDefinition& Skill, FSkillExecutionContext& Context, AActor* HitTarget, FVector HitLocation)
 {
-    if (!SkillSystem || Context.CurrentChainCount >= Data.ChainCount) return;
+    if (!SkillSystem) return;
 
-    FVector SearchOrigin = HitTarget ? HitTarget->GetActorLocation() : Context.StartLocation;
-    AActor* NextTarget = SkillSystem->FindNearestEnemy(SearchOrigin, Data.SearchRadius, Context.HitActors);
-    if (!NextTarget || !IsValidHitTarget(NextTarget)) return;
+    // 체인 전용 로컬 상태 — 원본 Context(Context 매개변수)는 절대 변경하지 않는다.
+    // 이렇게 해야 이 체인 시퀀스에서 쌓인 ChainCount/데미지 감쇠가
+    // 같은 원본 히트에서 파생되는 다른 형제 Addon(예: 원본 히트 자체의 Explosion)에 새어나가지 않는다.
+    FSkillExecutionContext ChainState = Context;
+    AActor* CurrentTarget = HitTarget;
 
-    Context.CurrentChainCount++;
-    Context.HitActors.Add(NextTarget);
-    SkillSystem->ApplyDamage(NextTarget, Context.CurrentDamage, Context.Caster);
-
-    UE_LOG(LogTemp, Warning, TEXT("[ChainDebug] Hop %d -> %s | ChainEffect valid: %s"),
-        Context.CurrentChainCount, *NextTarget->GetName(), Data.ChainEffect ? TEXT("YES") : TEXT("NO"));
-
-    if (Data.ChainEffect)
+    while (ChainState.CurrentChainCount < Data.ChainCount)
     {
-        SkillSystem->SpawnChainEffect(Data.ChainEffect, SearchOrigin, NextTarget->GetActorLocation());
-        UE_LOG(LogTemp, Warning, TEXT("[ChainDebug] SpawnChainEffect called"));
-    }
+        FVector SearchOrigin = CurrentTarget ? CurrentTarget->GetActorLocation() : ChainState.StartLocation;
+        AActor* NextTarget = SkillSystem->FindNearestEnemy(SearchOrigin, Data.SearchRadius, ChainState.HitActors);
+        if (!NextTarget || !IsValidHitTarget(NextTarget)) break;
 
-    FHitResult ChainHit;
-    ChainHit.ImpactPoint = NextTarget->GetActorLocation();
-    ChainHit.HitObjectHandle = FActorInstanceHandle(NextTarget);
-    SkillSystem->ProcessAddons(Skill, Context, ChainHit, AddonIndex + 1);
+        ChainState.CurrentChainCount++;
+        ChainState.HitActors.Add(NextTarget);
+        SkillSystem->ApplyDamage(NextTarget, ChainState.CurrentDamage, ChainState.Caster);
+
+        UE_LOG(LogTemp, Warning, TEXT("[ChainDebug] Hop %d -> %s | ChainEffect valid: %s"),
+            ChainState.CurrentChainCount, *NextTarget->GetName(), Data.ChainEffect ? TEXT("YES") : TEXT("NO"));
+
+        if (Data.ChainEffect)
+        {
+            SkillSystem->SpawnChainEffect(Data.ChainEffect, SearchOrigin, NextTarget->GetActorLocation());
+        }
+
+        FHitResult ChainHit;
+        ChainHit.ImpactPoint = NextTarget->GetActorLocation();
+        ChainHit.HitObjectHandle = FActorInstanceHandle(NextTarget);
+
+        // 이번 홉 자체가 '개별 타격' — 이 홉 전용 사본으로 하위 Addon(Explosion 등)에 전달.
+        // BranchContext는 여기서만 쓰고 버림 (ChainState나 원본 Context로 병합하지 않음)
+        FSkillExecutionContext BranchContext = ChainState;
+        SkillSystem->ProcessAddons(Skill, BranchContext, ChainHit, AddonIndex + 1);
+
+        // 다음 홉을 위해 데미지 감쇠 — ChainState(로컬)에만 반영
+        ChainState.CurrentDamage *= Data.DamageDecay;
+        CurrentTarget = NextTarget;
+    }
 }

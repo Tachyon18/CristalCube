@@ -3,6 +3,7 @@
 
 #include "CC_Character.h"
 #include "../Gameplay/CC_StatusEffectComponent.h"
+#include "../Gameplay/CC_SkillEmpowerComponent.h"
 #include "../Gameplay/CC_ElementalStatusComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 
@@ -22,6 +23,7 @@ ACC_Character::ACC_Character()
 	GetCharacterMovement()->MaxWalkSpeed = MoveSpeed;
 
 	StatusEffectComponent = CreateDefaultSubobject<UCC_StatusEffectComponent>(TEXT("StatusEffectComponent"));
+	SkillEmpowerComponent = CreateDefaultSubobject<UCC_SkillEmpowerComponent>(TEXT("SkillEmpowerComponent"));
 	ElementalStatusComponent = CreateDefaultSubobject<UCC_ElementalStatusComponent>(TEXT("ElementalStatusComponent"));
 }
 

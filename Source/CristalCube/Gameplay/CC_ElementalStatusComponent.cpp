@@ -50,34 +50,18 @@ void UCC_ElementalStatusComponent::TickComponent(float DeltaTime, ELevelTick Tic
 		// 원소별 기본(baseline) 효과 — 반응/조합 없는 단순 적용
 		switch (Status.ElementType)
 		{
-		case ESkillElementType::Fire:
-			if (Owner && Status.TimeSinceLastTick >= FireTickInterval)
-			{
-				Status.TimeSinceLastTick = 0.0f;
-				Owner->TakeDamage(FireTickDamage, FDamageEvent(), nullptr, Status.Instigator.Get());
-			}
+		case ESkillElementType::Red:
+			// 데미지 없음 — 추가 데미지는 부여 시점에(CC_ElementalApplyAddon에서) 1회 적용됨
 			break;
 
-		case ESkillElementType::Poison:
-			if (Owner && Status.TimeSinceLastTick >= PoisonTickInterval)
-			{
-				Status.TimeSinceLastTick = 0.0f;
-				Owner->TakeDamage(PoisonTickDamagePerStack * Status.StackCount, FDamageEvent(), nullptr, Status.Instigator.Get());
-			}
+		case ESkillElementType::Green:
+			// 데미지/회복 없음 — 받는피해·공격력 배율은 GetIncomingDamageMultiplier()/
+			// GetOutgoingDamageMultiplier()로 그때그때 조회됨
 			break;
 
-		case ESkillElementType::Lightning:
-			if (Owner && Status.TimeSinceLastTick >= LightningTickInterval)
-			{
-				Status.TimeSinceLastTick = 0.0f;
-				Owner->TakeDamage(LightningTickDamage, FDamageEvent(), nullptr, Status.Instigator.Get());
-			}
-			break;
-
-		case ESkillElementType::Ice:
+		case ESkillElementType::Blue:
 			// 데미지 없음 — 슬로우는 ApplyElement()에서 부여 시점에 1회 적용됨
 			break;
-
 		default:
 			break;
 		}
@@ -92,9 +76,9 @@ void UCC_ElementalStatusComponent::TickComponent(float DeltaTime, ELevelTick Tic
 	{
 		const int32 Index = ExpiredIndices[i];
 
-		if (ActiveElements[Index].ElementType == ESkillElementType::Ice)
+		if (ActiveElements[Index].ElementType == ESkillElementType::Blue)
 		{
-			RemoveIceSlow();
+			RemoveBlueSlow();
 		}
 
 		if (UNiagaraComponent* VFXComp = ActiveElements[Index].ActiveVFXComponent.Get())
@@ -140,9 +124,9 @@ void UCC_ElementalStatusComponent::ApplyElement(ESkillElementType ElementType, i
 	ActiveElements.Add(NewStatus);
 	SetComponentTickEnabled(true);
 
-	if (ElementType == ESkillElementType::Ice)
+	if (ElementType == ESkillElementType::Blue)
 	{
-		ApplyIceSlow();
+		ApplyBlueSlow();
 	}
 }
 
@@ -166,9 +150,9 @@ void UCC_ElementalStatusComponent::ConsumeElement(ESkillElementType ElementType)
 	{
 		if (ActiveElements[i].ElementType == ElementType)
 		{
-			if (ElementType == ESkillElementType::Ice)
+			if (ElementType == ESkillElementType::Blue)
 			{
-				RemoveIceSlow();
+				RemoveBlueSlow();
 			}
 
 			if (UNiagaraComponent* VFXComp = ActiveElements[i].ActiveVFXComponent.Get())
@@ -186,7 +170,7 @@ void UCC_ElementalStatusComponent::ConsumeElement(ESkillElementType ElementType)
 	}
 }
 
-void UCC_ElementalStatusComponent::ApplyIceSlow()
+void UCC_ElementalStatusComponent::ApplyBlueSlow()
 {
 	AActor* Owner = GetOwner();
 	if (!Owner || bSpeedSlowed) return;
@@ -196,19 +180,19 @@ void UCC_ElementalStatusComponent::ApplyIceSlow()
 		if (UCharacterMovementComponent* CMC = Character->GetCharacterMovement())
 		{
 			SavedOriginalSpeed = CMC->MaxWalkSpeed;
-			CMC->MaxWalkSpeed *= IceSlowMultiplier;
+			CMC->MaxWalkSpeed *= BlueData.SlowMultiplier;
 			bSpeedSlowed = true;
 		}
 	}
 	else if (UCC_EnemyMovementComponent* EnemyMovement = Owner->FindComponentByClass<UCC_EnemyMovementComponent>())
 	{
 		SavedOriginalSpeed = EnemyMovement->MaxSpeed;
-		EnemyMovement->MaxSpeed *= IceSlowMultiplier;
+		EnemyMovement->MaxSpeed *= BlueData.SlowMultiplier;
 		bSpeedSlowed = true;
 	}
 }
 
-void UCC_ElementalStatusComponent::RemoveIceSlow()
+void UCC_ElementalStatusComponent::RemoveBlueSlow()
 {
 	AActor* Owner = GetOwner();
 	if (!Owner || !bSpeedSlowed || SavedOriginalSpeed < 0.0f) return;
@@ -227,6 +211,26 @@ void UCC_ElementalStatusComponent::RemoveIceSlow()
 
 	bSpeedSlowed = false;
 	SavedOriginalSpeed = -1.0f;
+}
+
+float UCC_ElementalStatusComponent::GetIncomingDamageMultiplier() const
+{
+	int32 StackCount = 0;
+	if (GetActiveElement(ESkillElementType::Green, StackCount))
+	{
+		return GreenData.IncomingDamageMultiplier;
+	}
+	return 1.0f;
+}
+
+float UCC_ElementalStatusComponent::GetOutgoingDamageMultiplier() const
+{
+	int32 StackCount = 0;
+	if (GetActiveElement(ESkillElementType::Green, StackCount))
+	{
+		return GreenData.OutgoingDamageMultiplier;
+	}
+	return 1.0f;
 }
 
 UNiagaraComponent* UCC_ElementalStatusComponent::SpawnAttachedElementEffect(UNiagaraSystem* Effect) const

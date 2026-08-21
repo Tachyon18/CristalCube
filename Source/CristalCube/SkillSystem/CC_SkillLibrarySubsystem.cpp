@@ -3,6 +3,7 @@
 
 #include "CC_SkillLibrarySubsystem.h"
 #include "CC_SkillBase.h"
+#include "CC_SkillAddonBase.h"      
 
 void UCC_SkillLibrarySubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
@@ -181,7 +182,15 @@ void UCC_SkillLibrarySubsystem::FillFromDefinition(const FSkillDefinition& Def, 
     OutData.Cooldown = Def.Cooldown;
     OutData.CoreType = Def.CoreType;
     OutData.ElementType = Def.ElementType;
-    OutData.Addons = Def.Addons;
+    
+    OutData.Addons.Reset(Def.Addons.Num());
+    for (const UCC_SkillAddonBase* Addon : Def.Addons)
+    {
+        if (Addon)
+        {
+            OutData.Addons.Add(Addon->AddonType);
+        }
+    }
 }
 
 void UCC_SkillLibrarySubsystem::LoadAddonDataTable(UDataTable* DataTable)
@@ -253,6 +262,34 @@ TArray<FAddonTableRow> UCC_SkillLibrarySubsystem::GetAddonBadgesForSkill(const F
         }
     }
 
+    return Result;
+}
+
+FElementColorData UCC_SkillLibrarySubsystem::GetElementColor(ESkillElementType ElementType) const
+{
+    FElementColorData Result;
+
+    switch (ElementType)
+    {
+    case ESkillElementType::Red:
+        Result.PrimaryColor = FLinearColor(1.0f, 0.0f, 0.0f, 1.0f);
+        break;
+    case ESkillElementType::Green:
+        Result.PrimaryColor = FLinearColor(0.0f, 1.0f, 0.0f, 1.0f);
+        break;
+    case ESkillElementType::Blue:
+        Result.PrimaryColor = FLinearColor(0.0f, 0.0f, 1.0f, 1.0f);
+        break;
+    case ESkillElementType::Black:
+        Result.PrimaryColor = FLinearColor(0.05f, 0.05f, 0.05f, 1.0f);
+        break;
+    case ESkillElementType::None:
+    default:
+        Result.PrimaryColor = FLinearColor::White;
+        break;
+    }
+
+    Result.SecondaryColor = Result.PrimaryColor;
     return Result;
 }
 

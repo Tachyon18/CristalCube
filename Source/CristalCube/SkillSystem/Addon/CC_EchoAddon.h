@@ -16,10 +16,13 @@ class CRISTALCUBE_API UCC_EchoAddon : public UCC_SkillAddonBase
 	GENERATED_BODY()
 	
 public:
+	
+	UCC_EchoAddon() { AddonType = ESkillAddonType::Echo; }
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|Echo")
 	FEchoAddonData Data;
 
 	virtual void OnCast_Implementation(UCC_SkillSystem* SkillSystem, const FSkillDefinition& Skill, FSkillExecutionContext& Context) override;
 
+	virtual void ApplyModifier_Implementation(FName AttributeID, float ValuePerPoint) override;
 };

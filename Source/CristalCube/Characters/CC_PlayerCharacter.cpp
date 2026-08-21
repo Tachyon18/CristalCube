@@ -22,6 +22,9 @@
 #include "../Widgets/CC_SkillInventoryWidget.h"
 #include "../CC_TileTrackerComponent.h"
 #include "../SkillSystem/CC_SkillSystem.h"
+#include "../SkillSystem/CC_SkillAddonBase.h"
+#include "../SkillSystem/Addon/CC_ExplosionAddon.h"
+#include "../SkillSystem/Addon/CC_ChainAddon.h"
 #include "../CC_CollisionHelper.h"
 #include "CC_EnemyCharacter.h"
 
@@ -53,7 +56,7 @@ ACC_PlayerCharacter::ACC_PlayerCharacter()
 
 	TileTrackerComponent = CreateDefaultSubobject<UCC_TileTrackerComponent>(TEXT("TileTrackerComponent"));
 
-	SkillSystem = CreateDefaultSubobject<UCC_SkillSystem>(TEXT("SkillSystem"));
+	SkillSystem = CreateDefaultSubobject<UCC_SkillSystem>(TEXT("SkillSys"));
 
 	CameraBoom = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraBoom"));
 	CameraBoom->SetupAttachment(RootComponent);
@@ -108,24 +111,12 @@ void ACC_PlayerCharacter::BeginPlay()
 		EquipStartingWeapons();
 	}
 
-	if (GameHUDClass)
-	{
-		CurrentGameHUD = CreateWidget<UCC_GameHUD>(GetWorld(), GameHUDClass);
-		if (CurrentGameHUD)
-		{
-			CurrentGameHUD->AddToViewport();
-			UpdateGameHUD();
-			UE_LOG(LogTemp, Log, TEXT("[Player] Game HUD created"));
-		}
-	}
-
 	if (SkillInventoryWidgetClass)
 	{
 		CurrentSkillInventoryWidget = CreateWidget<UCC_SkillInventoryWidget>(GetWorld(), SkillInventoryWidgetClass);
 		if (CurrentSkillInventoryWidget)
 		{
-			CurrentSkillInventoryWidget->AddToViewport();
-			UE_LOG(LogTemp, Log, TEXT("[Player] Skill Inventory Widget created"));
+			//UE_LOG(LogTemp, Log, TEXT("[Player] Skill Inventory Widget created"));
 		}
 	}
 
@@ -596,8 +587,8 @@ void ACC_PlayerCharacter::TestProjectileSkill()
 	TestSkill.Passives.ProjectileCount = 1;
 
 	// Addon 테스트
-	TestSkill.Addons.Add(ESkillAddonType::MultiShot);
-	TestSkill.Addons.Add(ESkillAddonType::Penetrate);
+	TestSkill.bMultiShot = true;
+	TestSkill.bCanPenetrate = true;
 	TestSkill.Passives.PierceData.PierceCount = 3;
 
 	// VFX는 nullptr로 (안전)
@@ -630,12 +621,14 @@ void ACC_PlayerCharacter::CastFireball()
 	Fireball.Cooldown = 1.5f;
 
 	// 폭발 효과
-	Fireball.Addons.Add(ESkillAddonType::Explosion);
+	UCC_ExplosionAddon* FireballExplosion = NewObject<UCC_ExplosionAddon>(this);
+	TestAddonInstances.Add(FireballExplosion);
+	Fireball.Addons.Add(FireballExplosion);
 	Fireball.Passives.SizeMultiplier = 1.5f;  // 폭발 범위 증가
 	Fireball.Passives.ProjectileCount = 1;
 
 	// 원소: 화염
-	Fireball.ElementType = ESkillElementType::Fire;
+	Fireball.ElementType = ESkillElementType::Red;
 
 	FVector TargetLocation = GetActorLocation() + GetActorForwardVector() * 1000.0f;
 	SkillSystem->ExecuteSkill(Fireball, TargetLocation);
@@ -665,11 +658,14 @@ void ACC_PlayerCharacter::CastLightningBolt()
 	}
 
 	// 연쇄 효과 (최대 4번)
-	Lightning.Addons.Add(ESkillAddonType::Chain);
+	UCC_ChainAddon* LightningChain = NewObject<UCC_ChainAddon>(this);
+	LightningChain->Data.ChainCount = 4;
+	TestAddonInstances.Add(LightningChain);
+	Lightning.Addons.Add(LightningChain);
 	Lightning.Passives.ChainData.ChainCount = 4;
 
 	// 원소: 번개
-	Lightning.ElementType = ESkillElementType::Lightning;
+	Lightning.ElementType = ESkillElementType::Red;
 
 	FVector TargetLocation = GetActorLocation() + GetActorForwardVector() * 1000.0f;
 	SkillSystem->ExecuteSkill(Lightning, TargetLocation);
@@ -694,12 +690,12 @@ void ACC_PlayerCharacter::CastIceShard()
 	IceShard.Cooldown = 0.5f;
 
 	// 멀티샷 (3발 → 5발)
-	IceShard.Addons.Add(ESkillAddonType::MultiShot);
+	IceShard.bMultiShot = true;
 	IceShard.Passives.ProjectileCount = 3;
 	IceShard.Passives.SpeedMultiplier = 1.2f;
 
 	// 원소: 얼음
-	IceShard.ElementType = ESkillElementType::Ice;
+	IceShard.ElementType = ESkillElementType::Blue;
 
 	FVector TargetLocation = GetActorLocation() + GetActorForwardVector() * 1000.0f;
 	SkillSystem->ExecuteSkill(IceShard, TargetLocation);
@@ -727,7 +723,7 @@ void ACC_PlayerCharacter::CastPoisonNova()
 	PoisonNova.Passives.SizeMultiplier = 2.0f;
 
 	// 원소: 독
-	PoisonNova.ElementType = ESkillElementType::Poison;
+	PoisonNova.ElementType = ESkillElementType::Red;
 
 	// 플레이어 위치에서 발동
 	FVector TargetLocation = GetActorLocation();
@@ -753,12 +749,12 @@ void ACC_PlayerCharacter::CastPiercingArrow()
 	Arrow.Cooldown = 1.0f;
 
 	// 관통 (5명)
-	Arrow.Addons.Add(ESkillAddonType::Penetrate);
+	Arrow.bCanPenetrate = true;
 	Arrow.Passives.PierceData.PierceCount = 5;
 	Arrow.Passives.SpeedMultiplier = 1.5f;
 
 	// 원소: 물리
-	Arrow.ElementType = ESkillElementType::Physical;
+	Arrow.ElementType = ESkillElementType::Black;
 
 	FVector TargetLocation = GetActorLocation() + GetActorForwardVector() * 1000.0f;
 	SkillSystem->ExecuteSkill(Arrow, TargetLocation);
@@ -787,12 +783,16 @@ void ACC_PlayerCharacter::CastThunderStrike()
 	}
 
 	// Explosion Addon
-	ThunderStrike.Addons.Add(ESkillAddonType::Explosion);
+	UCC_ExplosionAddon* ThunderExplosion = NewObject<UCC_ExplosionAddon>(this);
+	ThunderExplosion->Data.Radius = 350.0f;
+	ThunderExplosion->Data.MinDamageRatio = 0.5f;
+	TestAddonInstances.Add(ThunderExplosion);
+	ThunderStrike.Addons.Add(ThunderExplosion);
 	ThunderStrike.Passives.ExplosionData.Radius = 350.0f;
 	ThunderStrike.Passives.ExplosionData.MinDamageRatio = 0.5f;
 
 	// 속성: 번개
-	ThunderStrike.ElementType = ESkillElementType::Lightning;
+	ThunderStrike.ElementType = ESkillElementType::Red;
 
 	FVector TargetLocation = GetActorLocation() + GetActorForwardVector() * 1000.0f;
 	SkillSystem->ExecuteSkill(ThunderStrike, TargetLocation);
@@ -868,11 +868,11 @@ void ACC_PlayerCharacter::ReleaseVectorLaser()
 		VectorLaser.Cooldown = 2.0f;
 
 		// 관통 추가
-		VectorLaser.Addons.Add(ESkillAddonType::Penetrate);
+		VectorLaser.bCanPenetrate = true;
 		VectorLaser.Passives.PierceData.PierceCount = 10;
 
 		// 원소: 번개
-		VectorLaser.ElementType = ESkillElementType::Lightning;
+		VectorLaser.ElementType = ESkillElementType::Red;
 
 		// Context 설정 (시작점 → 끝점)
 		FSkillExecutionContext Context;

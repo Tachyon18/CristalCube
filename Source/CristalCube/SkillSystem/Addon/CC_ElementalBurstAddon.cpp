@@ -32,3 +32,7 @@ void UCC_ElementalBurstAddon::OnHit_Implementation(UCC_SkillSystem* SkillSystem,
         ElementalComp->ConsumeElement(Skill.ElementType);
     }
 }
+
+void UCC_ElementalBurstAddon::ApplyModifier_Implementation(FName AttributeID, float ValuePerPoint)
+{
+}

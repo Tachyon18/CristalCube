@@ -17,10 +17,13 @@ class CRISTALCUBE_API UCC_ElementalApplyAddon : public UCC_SkillAddonBase
 
 public:
 
+	UCC_ElementalApplyAddon() { AddonType = ESkillAddonType::ElementalApply; }
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|ElementalApply")
 	FElementalApplyAddonData Data;
 
 	virtual void OnHit_Implementation(UCC_SkillSystem* SkillSystem, const FSkillDefinition& Skill,
 		FSkillExecutionContext& Context, AActor* HitTarget, FVector HitLocation) override;
 
+	virtual void ApplyModifier_Implementation(FName AttributeID, float ValuePerPoint) override;
 };

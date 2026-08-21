@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "UObject/NoExportTypes.h"
+#include "../CristalCubeStruct.h"
 #include "CC_SkillAddonBase.generated.h"
 
 class UCC_SkillSystem;
@@ -31,6 +32,11 @@ public:
     // 자기 자신을 반복 호출하는 Addon(Chain 등)은 재귀/루프 동안 원본 Context를 직접 변경하지 말고
     // 로컬 사본에서만 상태(카운트, 데미지 감쇠)를 누적해 부모 프레임으로 새어나가지 않게 한다.
 
+    // 이 인스턴스가 무슨 Addon인지. 서브클래스 생성자에서 고정.
+    // HasAddon()/카탈로그 매칭 등에서 switch 없이 O(1) 타입 판별 용도.
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Addon")
+    ESkillAddonType AddonType = ESkillAddonType::None;
+
     UPROPERTY()
     int32 AddonIndex = 0;
 
@@ -47,10 +53,13 @@ public:
     void OnCast(UCC_SkillSystem* SkillSystem, const FSkillDefinition& Skill, FSkillExecutionContext& Context);
     virtual void OnCast_Implementation(UCC_SkillSystem* SkillSystem, const FSkillDefinition& Skill, FSkillExecutionContext& Context) {}
 
-    // 강화 포인트 배분 시 수치 누적
+    // 강화 포인트 배분 훅 — 기존 시그니처(다른 Addon 인스턴스를 통째로 받는 방식)에서
+    // AttributeID 기반으로 변경. 지금까지 어떤 서브클래스도 override 안 하고 있던 훅이라
+    // (10개 Addon .cpp 전부 grep해서 확인함, 사용처 0건) 시그니처 바꿔도 안전함.
     UFUNCTION(BlueprintNativeEvent, Category = "Addon")
-    void ApplyModifier(const UCC_SkillAddonBase* Modifier);
-    virtual void ApplyModifier_Implementation(const UCC_SkillAddonBase* Modifier) {}
+    void ApplyModifier(FName AttributeID, float ValuePerPoint);
+    virtual void ApplyModifier_Implementation(FName AttributeID, float ValuePerPoint) {}
+
 
 protected:
 

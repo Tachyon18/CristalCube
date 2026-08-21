@@ -19,6 +19,7 @@
 #include "../Characters/CC_Character.h"
 #include "../Gameplay/CC_EnemyAIInterface.h"
 #include "../CC_CubeWorldManager.h"
+#include "../Gameplay/CC_ElementalStatusComponent.h"
 #include "Components/SphereComponent.h"
 #include "GameFramework/ProjectileMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
@@ -714,112 +715,15 @@ void UCC_SkillSystem::ProcessAddons(const FSkillDefinition& Skill, FSkillExecuti
 		HitTarget = nullptr;
 	}
 
+	// Penetrate / MultiShot은 SkillEffector / ExecuteProjectile에서 별도 처리 ?
+	// Core 고유 강화라 애초에 GrantAddon()을 거치지 않으므로 Skill.Addons에 나타나지 않는다.
 	for (int32 i = StartIndex; i < Skill.Addons.Num(); ++i)
 	{
-	
-		const ESkillAddonType Addon = Skill.Addons[i];
+		UCC_SkillAddonBase* Addon = Skill.Addons[i];
+		if (!Addon) continue;
 
-		switch (Addon)
-		{
-		case ESkillAddonType::Explosion:
-		{
-
-			//ApplyExplosion(Skill, Context, HitLocation);
-
-			UCC_ExplosionAddon* TestExplosion = NewObject<UCC_ExplosionAddon>(this);
-			TestExplosion->AddonIndex = i;
-			TestExplosion->Data = Skill.Passives.ExplosionData;
-			TestExplosion->OnHit_Implementation(this, Skill, Context, HitTarget, HitLocation);
-			
-			break;
-		}
-
-		case ESkillAddonType::Chain:
-			if (HitTarget)
-			{
-				//ApplyChain(Skill, Context, HitTarget);
-
-				UCC_ChainAddon* TestChain = NewObject<UCC_ChainAddon>(this);
-				TestChain->AddonIndex = i;
-				TestChain->Data = Skill.Passives.ChainData;
-				TestChain->OnHit_Implementation(this, Skill, Context, HitTarget, HitLocation);
-			}
-			break;
-
-		case ESkillAddonType::Shockwave:
-		{
-			UCC_ShockwaveAddon* TestShockwave = NewObject<UCC_ShockwaveAddon>(this);
-			TestShockwave->AddonIndex = i;
-			TestShockwave->Data = Skill.Passives.ShockwaveData;
-			TestShockwave->OnHit_Implementation(this, Skill, Context, HitTarget, HitLocation);
-			break;
-		}
-			// Penetrate / MultiShot은 SkillEffector / ExecuteProjectile에서 처리
-		case ESkillAddonType::Penetrate:
-		case ESkillAddonType::MultiShot:
-			break;
-
-		case ESkillAddonType::MagicMissile:
-
-			if (HitTarget)
-			{
-				UCC_MagicMissileAddon* TestMagicMissile = NewObject<UCC_MagicMissileAddon>(this);
-				TestMagicMissile->AddonIndex = i;
-				TestMagicMissile->Data = Skill.Passives.MagicMissileData;
-				TestMagicMissile->OnHit_Implementation(this, Skill, Context, HitTarget, HitLocation);
-			}
-
-			break;
-
-		case ESkillAddonType::ElementalApply:
-
-			if (HitTarget)
-			{
-				UCC_ElementalApplyAddon* TestElementalApply = NewObject<UCC_ElementalApplyAddon>(this);
-				TestElementalApply->AddonIndex = i;
-				TestElementalApply->Data = Skill.Passives.ElementalApplyData;
-				TestElementalApply->OnHit_Implementation(this, Skill, Context, HitTarget, HitLocation);
-			}
-
-			break;
-
-		case ESkillAddonType::ElementalBurst:
-
-			if(HitTarget)
-			{
-				UCC_ElementalBurstAddon* TestElementalBurst = NewObject<UCC_ElementalBurstAddon>(this);
-				TestElementalBurst->AddonIndex = i;
-				TestElementalBurst->Data = Skill.Passives.ElementalBurstData;
-				TestElementalBurst->OnHit_Implementation(this, Skill, Context, HitTarget, HitLocation);
-			}
-
-			break;
-
-		case ESkillAddonType::DamageOverTime:
-
-			if (HitTarget)
-			{
-				// 임시 ? 기존 ApplyDamageOverTime() 대신 신규 클래스로 검증
-				UCC_DamageOverTimeAddon* TestDot = NewObject<UCC_DamageOverTimeAddon>(this);
-				TestDot->AddonIndex = i;
-				TestDot->Data = Skill.Passives.DamageOverTimeData;
-				TestDot->OnHit_Implementation(this, Skill, Context, HitTarget, HitLocation);
-			}
-
-			break;
-
-		case ESkillAddonType::Sigil:
-		{
-			UCC_SigilAddon* TestSigil = NewObject<UCC_SigilAddon>(this);
-			TestSigil->AddonIndex = i;
-			TestSigil->Data = Skill.Passives.SigilData;
-			TestSigil->OnHit_Implementation(this, Skill, Context, HitTarget, HitLocation);
-			
-			break;
-		}
-		default:
-			break;
-		}
+		Addon->AddonIndex = i;
+		Addon->OnHit(this, Skill, Context, HitTarget, HitLocation);
 	}
 }
 
@@ -827,27 +731,11 @@ void UCC_SkillSystem::ProcessCastAddons(const FSkillDefinition& Skill, FSkillExe
 {
 	for (int32 i = StartIndex; i < Skill.Addons.Num(); ++i)
 	{
-		switch (Skill.Addons[i])
-		{
-		case ESkillAddonType::SelfEmpower:
-		{
-			UCC_SelfEmpowerAddon* TestEmpower = NewObject<UCC_SelfEmpowerAddon>(this);
-			TestEmpower->AddonIndex = i;
-			TestEmpower->Data = Skill.Passives.SelfEmpowerData;
-			TestEmpower->OnCast_Implementation(this, Skill, Context);
-			break;
-		}
-		case ESkillAddonType::Echo:
-		{
-			UCC_EchoAddon* TestEcho = NewObject<UCC_EchoAddon>(this);
-			TestEcho->AddonIndex = i;
-			TestEcho->Data = Skill.Passives.EchoData;
-			TestEcho->OnCast_Implementation(this, Skill, Context);
-			break;
-		}
-		default:
-			break;
-		}
+		UCC_SkillAddonBase* Addon = Skill.Addons[i];
+		if (!Addon) continue;
+
+		Addon->AddonIndex = i;
+		Addon->OnCast(this, Skill, Context);
 	}
 }
 
@@ -998,7 +886,7 @@ void UCC_SkillSystem::ApplyChain(const FSkillDefinition& Skill, FSkillExecutionC
 
 bool UCC_SkillSystem::CanPenetrate(const FSkillDefinition& Skill, FSkillExecutionContext& Context) const
 {
-	if (!Skill.Addons.Contains(ESkillAddonType::Penetrate))
+	if (!Skill.bCanPenetrate)
 	{
 		return false;
 	}
@@ -1010,9 +898,9 @@ int32 UCC_SkillSystem::GetProjectileCount(const FSkillDefinition& Skill) const
 {
 	int32 Count = Skill.Passives.ProjectileCount;
 
-	if (Skill.Addons.Contains(ESkillAddonType::MultiShot))
+	if (Skill.bMultiShot)
 	{
-		Count += Skill.Passives.MultiShotData.AdditionalCount;  // AdditionalCount만큼 발사 수 증가
+		Count += Skill.Passives.MultiShotData.AdditionalCount;
 	}
 
 	return FMath::Max(1, Count);
@@ -1075,7 +963,7 @@ void UCC_SkillSystem::OnProjectileHit(ACC_SkillEffector* Effector, AActor* HitAc
 
 	UE_LOG(LogTemp, Log, TEXT("[SkillSystem] Projectile hit processed for %s"), *HitActor->GetName());
 
-	bool bHasPenetrate = Skill.Addons.Contains(ESkillAddonType::Penetrate);
+	bool bHasPenetrate = Skill.bCanPenetrate;
 
 	if (bHasPenetrate)
 	{
@@ -1219,12 +1107,19 @@ void UCC_SkillSystem::ApplyDamage(AActor* Target, float Damage, AActor* DamageCa
 		return;
 	}
 
+	float FinalDamage = Damage;
+	if (UCC_ElementalStatusComponent* ElementalComp = Target->FindComponentByClass<UCC_ElementalStatusComponent>())
+	{
+		FinalDamage *= ElementalComp->GetIncomingDamageMultiplier();
+	}
+
+
 	// Character 타입이면 직접 피해 적용
 	//if (ACC_Character* Character = Cast<ACC_Character>(Target))
 	//{
 	//	Character->TakeDamage(Damage, FDamageEvent(), nullptr, DamageCauser);
 		Target->TakeDamage(Damage, FDamageEvent(), nullptr, DamageCauser);
-		UE_LOG(LogTemp, Log, TEXT("Applied %.1f damage to %s"), Damage, *Target->GetName());
+		UE_LOG(LogTemp, Log, TEXT("Applied %.1f damage to %s"), FinalDamage, *Target->GetName());
 	//}
 }
 

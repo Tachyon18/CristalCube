@@ -16,3 +16,7 @@ void UCC_ShockwaveAddon::OnHit_Implementation(UCC_SkillSystem* SkillSystem, cons
             SkillSystem, Skill, Context, AddonIndex + 1);
     }
 }
+
+void UCC_ShockwaveAddon::ApplyModifier_Implementation(FName AttributeID, float ValuePerPoint)
+{
+}

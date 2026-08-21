@@ -14,3 +14,7 @@ void UCC_SelfEmpowerAddon::OnCast_Implementation(UCC_SkillSystem* SkillSystem, c
     const float Multiplier = EmpowerComp->AddStackAndGetMultiplier(Skill.SkillID, Data.DamagePerStack, Data.MaxStacks, Data.StackDuration);
     Context.CurrentDamage *= Multiplier;
 }
+
+void UCC_SelfEmpowerAddon::ApplyModifier_Implementation(FName AttributeID, float ValuePerPoint)
+{
+}

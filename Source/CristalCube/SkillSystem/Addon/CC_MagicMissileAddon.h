@@ -17,11 +17,13 @@ class CRISTALCUBE_API UCC_MagicMissileAddon : public UCC_SkillAddonBase
 
 public:
 
+	UCC_MagicMissileAddon() { AddonType = ESkillAddonType::MagicMissile; }
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|Homing")
 	FMagicMissileAddonData Data;
 
 	virtual void OnHit_Implementation(UCC_SkillSystem* SkillSystem, const FSkillDefinition& Skill,
 		FSkillExecutionContext& Context, AActor* HitTarget, FVector HitLocation) override;
 
-	
+	virtual void ApplyModifier_Implementation(FName AttributeID, float ValuePerPoint) override;
 };

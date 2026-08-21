@@ -196,6 +196,7 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	class UCC_SkillSystem* SkillSystem;
 
+
 public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Test")
@@ -203,6 +204,12 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Test")
 	UNiagaraSystem* TestLightningEffect = nullptr;
+
+	// CastFireball() 등 테스트 캐스트 함수가 로컬 FSkillDefinition에 물리는 Addon 인스턴스 보관용.
+	// FSkillDefinition은 UObject가 아니라 UPROPERTY 컨테이너에 담기지 않으면 소유한 Addon 포인터가
+	// GC 대상이 되어버림 ? 여기 담아서 Actor 생존 기간 동안 루트로 고정.
+	UPROPERTY()
+	TArray<class UCC_SkillAddonBase*> TestAddonInstances;
 
 	UFUNCTION(BlueprintCallable, Category = "Test")
 	void TestBasicSkill();

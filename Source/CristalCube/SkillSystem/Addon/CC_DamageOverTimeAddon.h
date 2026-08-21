@@ -17,9 +17,12 @@ class CRISTALCUBE_API UCC_DamageOverTimeAddon : public UCC_SkillAddonBase
 
 public:
 
+	UCC_DamageOverTimeAddon() { AddonType = ESkillAddonType::DamageOverTime; }
+
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|DamageOverTime")
     FDamageOverTimeAddonData Data;
 
     virtual void OnHit_Implementation(UCC_SkillSystem* SkillSystem, const FSkillDefinition& Skill, FSkillExecutionContext& Context, AActor* HitTarget, FVector HitLocation) override;
 
+    virtual void ApplyModifier_Implementation(FName AttributeID, float ValuePerPoint) override;
 };

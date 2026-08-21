@@ -4,10 +4,12 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/PlayerState.h"
+#include "CristalCubeStruct.h"
 #include "CC_PlayerState.generated.h"
 
 class UCC_SkillBase;
 class UCC_SkillSystem;
+class UCC_AddonPresetAsset;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnSkillsChanged);
 
@@ -175,6 +177,11 @@ public:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Skills|Addon Points")
     TMap<ESkillAddonType, int32> AddonUnspentPoints;
 
+    /** Addon 타입별, 속성(AttributeID)별 누적 배분량. 따라잡기(GrantAddonWithCatchUp)가
+    *  새로 얻은 스킬에 얼마나 소급 적용할지 계산할 때 이 값을 그대로 곱해서 씀. */
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Skills|Addon Points")
+    TMap<ESkillAddonType, FAddonAttributeSpentPoints> AddonSpentPoints;
+
     /** 지정한 Addon 타입에 포인트 N개를 은행에 적립 */
     UFUNCTION(BlueprintCallable, Category = "Skills|Addon Points")
     void AddAddonPoints(ESkillAddonType AddonType, int32 Amount);
@@ -182,6 +189,22 @@ public:
     /** 은행에 적립된 포인트 조회 (UI 표시용) */
     UFUNCTION(BlueprintPure, Category = "Skills|Addon Points")
     int32 GetAddonUnspentPoints(ESkillAddonType AddonType) const;
+
+    /** 은행에서 1포인트를 소진해 AttributeID에 배분. 은행 부족/MaxPoints 초과 시 false, 아무 것도 안 함.
+     *  MaxPoints는 카탈로그(FAddonUpgradeAttribute)에서 가져와 호출부(위젯)가 넘겨줌 — PlayerState는
+     *  카탈로그를 몰라도 되게 하려고 인자로 받는 방식 채택 (SkillLibrarySubsystem 의존 안 만듦). */
+    UFUNCTION(BlueprintCallable, Category = "Skills|Addon Points")
+    bool SpendAddonPoint(ESkillAddonType AddonType, FName AttributeID, float ValuePerPoint, int32 MaxPoints);
+
+    /** 이미 배분된 포인트 수 조회 (UI에서 "3/10" 같은 표시에 사용) */
+    UFUNCTION(BlueprintPure, Category = "Skills|Addon Points")
+    int32 GetAddonAttributeSpentPoints(ESkillAddonType AddonType, FName AttributeID) const;
+
+    /** 스킬에 Addon을 부여하고, 그 Addon 타입에 이미 배분된 포인트가 있으면 즉시 소급 적용까지 처리.
+     *  AddonDataTable에서 카탈로그(UpgradeAttributes)를 조회해야 하므로 SkillLibrary 필요.
+     *  Grant 자체가 실패하면(이미 보유 등) false. */
+    UFUNCTION(BlueprintCallable, Category = "Skills|Addon Points")
+    bool GrantAddonWithCatchUp(UCC_SkillBase* Skill, ESkillAddonType AddonType);
 
     //==========================================================================
     // SKILL CORE POINT BANK (LevelUp "포인트제" 강화, 2026-07-28 설계)

@@ -125,4 +125,9 @@ public:
      *  이 함수 내부 구현만 바뀌고, 위젯 쪽 호출부는 그대로 유지된다. */
     UFUNCTION(BlueprintCallable, Category = "Skill Library")
     TArray<FAddonTableRow> GetAddonBadgesForSkill(const FSkillDisplayData& SkillData);
+
+    /** 원소별 고정 색상 조회 — UI(뱃지/카드/게이지 등)에서 색 기준으로 바로 쓸 수 있게.
+    *  값은 여기 한 곳에서만 관리 — 나중에 조합색(2차색) 추가 시에도 이 함수만 확장하면 됨. */
+    UFUNCTION(BlueprintCallable, Category = "Skill Library")
+    FElementColorData GetElementColor(ESkillElementType ElementType) const;
 };

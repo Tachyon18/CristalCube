@@ -15,6 +15,8 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCubeCleared, FIntPoint, Coordinat
 class UNiagaraSystem;
 class UNiagaraComponent;
 class UCC_SkillBase;
+class UCC_SkillAddonBase;
+class UCC_AddonPresetAsset;
 
 //==============================================================================
 // UPGRADE SYSTEM (Simplified DataTable Approach)
@@ -182,13 +184,76 @@ enum class ETargetingMode : uint8
 UENUM(BlueprintType)
 enum class ESkillElementType : uint8
 {
-    None            UMETA(DisplayName = "None"),
-    Physical        UMETA(DisplayName = "Physical"),       // 물리
-    Fire            UMETA(DisplayName = "Fire"),           // 화염
-    Ice             UMETA(DisplayName = "Ice"),            // 얼음
-    Lightning       UMETA(DisplayName = "Lightning"),      // 번개
-    Poison          UMETA(DisplayName = "Poison")          // 독
+    None            UMETA(DisplayName = "None"),       // 가드용 센티널 — 실제 스킬에 부여하지 않음
+    Black           UMETA(DisplayName = "Black"),       // 무채색 — 구 Physical, 순수 물리 데미지
+    Red             UMETA(DisplayName = "Red"),         // 공격 축 — 구 Fire/Poison/Lightning 데미지 baseline 흡수
+    Green           UMETA(DisplayName = "Green"),       // 생명 축 — 신규, 회복/받는피해 증감 (baseline 미구현, 자리만 확보)
+    Blue            UMETA(DisplayName = "Blue")         // 제어 축 — 구 Ice, 슬로우/CC
+
 };
+
+
+USTRUCT(BlueprintType)
+struct FElementRedData
+{
+    GENERATED_BODY()
+
+    // 고정 데미지 — 지금은 완전 고정 수치. 추후 Player 공격력 등 스탯 참조로 대체 가능(Track 1 범위 밖)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    float FlatDamage = 3.0f;
+
+    // 스킬 자체 공격력의 몇 %를 추가로 얹을지
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    float SkillDamageRatio = 0.15f;
+};
+
+USTRUCT(BlueprintType)
+struct FElementBlueData
+{
+    GENERATED_BODY()
+
+    // 이동속도 배율 — 0.5 = 50% 감속
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    float SlowMultiplier = 0.5f;
+};
+
+USTRUCT(BlueprintType)
+struct FElementGreenData
+{
+    GENERATED_BODY()
+
+    // 1.2 = 받는 피해 20% 증가 — UCC_SkillSystem::ApplyDamage()에서 조회
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    float IncomingDamageMultiplier = 1.2f;
+
+    // 0.8 = 가하는 공격력 20% 감소 — Enemy 공격 판정 시점에 자기 자신을 조회
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    float OutgoingDamageMultiplier = 0.8f;
+
+    // 0.5 = 받는 회복량 50% 감소 — 아직 참조하는 회복 로직이 없어 자리만 확보
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    float HealReceivedMultiplier = 0.5f;
+};
+
+///==============================================================================
+/// 속성별 색상 정보 — UCC_SkillLibrarySubsystem::GetElementColor()에서 원소별 고정값으로 채워짐
+/// ==============================================================================
+
+USTRUCT(BlueprintType)
+struct FElementColorData
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    FLinearColor PrimaryColor = FLinearColor::White;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    FLinearColor SecondaryColor = FLinearColor::White;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    float EmissiveStrength = 1.0f;
+};
+
 
 /// <Skill System>
 /// 새로 작성된 모듈형 스킬 시스템 구조체, 프로토타입 버전
@@ -491,6 +556,10 @@ struct FElementalApplyAddonData
     // Lightning=주기적 감전?)는 원소별로 성격이 전부 달라서 여기서 수치화하지 않음.
     // UCC_ElementalStatusComponent::TickComponent() 안에 원소별 분기 지점을 비워두고,
     // 각 원소 컨셉이 확정되는 대로 하나씩 채워나가는 구조로 설계함.
+    
+    // Red 전용 — 속성 부여 시점에 즉시 추가되는 데미지(다른 색엔 사용 안 함)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|ElementalApply|Red")
+    FElementRedData RedData;
 };
 
 USTRUCT(BlueprintType)
@@ -741,9 +810,22 @@ struct FSkillDefinition
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Core")
     ESkillCoreType CoreType = ESkillCoreType::Projectile;
 
+    // Penetrate / MultiShot은 Addon 카탈로그가 아닌 Projectile Core 고유 강화(STATUS.md 2026-08-15 결정) —
+    // Addons 배열 대신 여기서 on/off를 표현. 수치는 그대로 Passives.PierceData / MultiShotData 사용.
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Core")
+    bool bCanPenetrate = false;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Core")
+    bool bMultiShot = false;
+
     // === Addons (선택, 여러 개) ===
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Instanced, Category = "Addons")
+    TArray<UCC_SkillAddonBase*> Addons;
+
+    // 이 스킬이 처음 만들어질 때(ResolveAddons) 어떤 프리셋들로 Addons를 채울지 — 디자이너가 만지는 건 이 목록.
+    // 위 Addons는 여기서부터 자동 resolve되는 런타임 캐시 취급.
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addons")
-    TArray<ESkillAddonType> Addons;
+    TArray<UCC_AddonPresetAsset*> AddonPresets;
 
     // === Passive (수치) ===
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Passive")
@@ -751,7 +833,7 @@ struct FSkillDefinition
 
     // === Element (비주얼/효과) ===
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Visual")
-    ESkillElementType ElementType = ESkillElementType::Physical;
+    ESkillElementType ElementType = ESkillElementType::Black;
 
     // === VFX ===
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Effects")
@@ -846,6 +928,39 @@ struct FSkillTableRow : public FTableRowBase
     int32 UnlockLevel = 1;
 };
 
+// CristalCubeStruct.h — FAddonTableRow 앞에 신규 추가
+USTRUCT(BlueprintType)
+struct FAddonUpgradeAttribute
+{
+    GENERATED_BODY()
+
+    // ApplyAddonModifier()/SpendAddonAttributePoint()가 매칭에 쓰는 키.
+    // 2절 표의 AttributeID 컬럼 그대로 입력 (오타 시 조용히 무시되니 주의).
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|Upgrade")
+    FName AttributeID = NAME_None;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|Upgrade")
+    FText DisplayName;
+
+    // 포인트 1개당 실제 수치 증가량 (음수면 감소형 강화로도 사용 가능 — 지금은 전부 양수)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|Upgrade")
+    float ValuePerPoint = 0.0f;
+
+    // 0 = 무제한, 그 외엔 이 값 도달 시 UI에서 배분 버튼 비활성화
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|Upgrade")
+    int32 MaxPoints = 0;
+};
+
+USTRUCT(BlueprintType)
+struct FAddonAttributeSpentPoints
+{
+    GENERATED_BODY()
+
+    // AttributeID -> 지금까지 이 속성에 배분한 누적 포인트 수 (따라잡기 계산용)
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Addon|Upgrade")
+    TMap<FName, int32> Points;
+};
+
 USTRUCT(BlueprintType)
 struct FAddonTableRow : public FTableRowBase
 {
@@ -870,27 +985,15 @@ struct FAddonTableRow : public FTableRowBase
     /** false면 ProcessAddons()에 실행 로직이 아직 없는 상태 — UI에서 "구현 예정" 뱃지 등으로 구분 가능 */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Status")
     bool bImplemented = true;
+
+    // 이 Addon에서 포인트 배분 가능한 속성 목록. 비어있으면 배분 UI에서 그냥 스킵.
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|Upgrade")
+    TArray<FAddonUpgradeAttribute> UpgradeAttributes;
+
+    // AddonPresets에 스킬별로 지정 안 된 채 런타임에 그냥 Grant되는 경우(CubeReward 등) 쓸 기본 프리셋.
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon")
+    UCC_AddonPresetAsset* DefaultPreset = nullptr;
 };
-
-///==============================================================================
-/// 속성별 색상 정보
-/// ==============================================================================
-
-USTRUCT(BlueprintType)
-struct FElementColorData
-{
-    GENERATED_BODY()
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    FLinearColor PrimaryColor = FLinearColor::White;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    FLinearColor SecondaryColor = FLinearColor::White;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    float EmissiveStrength = 1.0f;
-};
-
 
 /// </Skill System>
 

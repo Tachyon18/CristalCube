@@ -31,3 +31,7 @@ void UCC_EchoAddon::OnCast_Implementation(UCC_SkillSystem* SkillSystem, const FS
             }),
         Delay, false);
 }
+
+void UCC_EchoAddon::ApplyModifier_Implementation(FName AttributeID, float ValuePerPoint)
+{
+}

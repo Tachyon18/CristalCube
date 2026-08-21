@@ -191,8 +191,14 @@ void ACC_EnemyBase::PerformAttack()
     // 즉발 데미지 (애니메이션 없는 경량 Enemy)
     if (TargetPlayer && TargetPlayer->IsAlive())
     {
+        float FinalAttackDamage = EnemyStats.AttackDamage;
+        if (ElementalStatusComponent)
+        {
+            FinalAttackDamage *= ElementalStatusComponent->GetOutgoingDamageMultiplier();
+        }
+
         TargetPlayer->TakeDamage(
-            EnemyStats.AttackDamage,
+            FinalAttackDamage,
             FDamageEvent(),
             nullptr,
             this

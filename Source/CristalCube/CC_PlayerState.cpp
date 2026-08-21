@@ -5,6 +5,7 @@
 #include "SkillSystem/CC_SkillBase.h"
 #include "SkillSystem/CC_SkillSystem.h"
 #include "SkillSystem/CC_SkillLibrarySubsystem.h"
+#include "SkillSystem/CC_AddonPresetAsset.h"
 #include "CristalCubeStruct.h"
 #include "CC_LogHelper.h"
 
@@ -114,6 +115,11 @@ UCC_SkillBase* ACC_PlayerState::GrantSkillToSlot(TSubclassOf<UCC_SkillBase> Skil
     {
         return nullptr;
     }
+
+	NewSkill->ResolveAddons();
+
+    // 이 스킬에 지정된 프리셋들을 캐치업까지 포함해서 resolve — 스킬 인스턴스가 처음 태어나는
+    // 이 시점에 한 번만 실행됨(재장착 시엔 애초에 새 인스턴스가 만들어지므로 다시 여기로 옴).
 
     EquippedSkills[SlotIndex] = NewSkill;
     NewSkill->OnEquipped(GetPawn());
@@ -347,6 +353,108 @@ int32 ACC_PlayerState::GetAddonUnspentPoints(ESkillAddonType AddonType) const
 {
     const int32* Points = AddonUnspentPoints.Find(AddonType);
     return Points ? *Points : 0;
+}
+
+bool ACC_PlayerState::SpendAddonPoint(ESkillAddonType AddonType, FName AttributeID, float ValuePerPoint, int32 MaxPoints)
+{
+    if (AddonType == ESkillAddonType::None || AttributeID.IsNone()) return false;
+
+    const int32 Bank = GetAddonUnspentPoints(AddonType);
+    if (Bank <= 0) return false;
+
+    const int32 AlreadySpent = GetAddonAttributeSpentPoints(AddonType, AttributeID);
+    if (MaxPoints > 0 && AlreadySpent >= MaxPoints) return false;
+
+    // 은행 차감
+    AddonUnspentPoints[AddonType] = Bank - 1;
+
+    // 스펜트 기록 누적 (따라잡기용)
+    FAddonAttributeSpentPoints& SpentEntry = AddonSpentPoints.FindOrAdd(AddonType);
+    int32& SpentCount = SpentEntry.Points.FindOrAdd(AttributeID);
+    ++SpentCount;
+
+    // 현재 이 Addon을 보유 중인 모든 장착 스킬에 즉시 반영
+    for (UCC_SkillBase* Skill : EquippedSkills)
+    {
+        if (IsValid(Skill) && Skill->HasAddon(AddonType))
+        {
+            Skill->SpendAddonAttributePoint(AddonType, AttributeID, ValuePerPoint);
+        }
+    }
+
+    UE_LOG(LogTemp, Log, TEXT("[PlayerState] Addon point spent: %s / %s (now %d, bank %d left)"),
+        *UEnum::GetValueAsString(AddonType), *AttributeID.ToString(), SpentCount, AddonUnspentPoints[AddonType]);
+
+    return true;
+}
+
+int32 ACC_PlayerState::GetAddonAttributeSpentPoints(ESkillAddonType AddonType, FName AttributeID) const
+{
+    const FAddonAttributeSpentPoints* Entry = AddonSpentPoints.Find(AddonType);
+    if (!Entry) return 0;
+
+    const int32* Count = Entry->Points.Find(AttributeID);
+    return Count ? *Count : 0;
+}
+
+bool ACC_PlayerState::GrantAddonWithCatchUp(UCC_SkillBase* Skill, ESkillAddonType AddonType)
+{
+    if (!Skill) return false;
+
+    // 1) 이 스킬 고유의 카탈로그에서 같은 타입 검색 — "지정한 Addon"
+    UCC_AddonPresetAsset* ResolvedPreset = nullptr;
+    for (UCC_AddonPresetAsset* Candidate : Skill->GetDefinition().AddonPresets)
+    {
+        if (Candidate && Candidate->AddonType == AddonType)
+        {
+            ResolvedPreset = Candidate;
+            break;
+        }
+    }
+
+    // 2) 없으면 DT_Addon의 DefaultPreset — "Default Addon" (스킬 무관 전역)
+    FAddonTableRow AddonRow;
+    const bool bHasRow = SkillLibrary && SkillLibrary->GetAddonDisplayDataByType(AddonType, AddonRow);
+
+    if (!ResolvedPreset && bHasRow)
+    {
+        ResolvedPreset = AddonRow.DefaultPreset;
+    }
+
+    // 3) 둘 다 없으면 ResolvedPreset은 nullptr로 남고, GrantAddon 내부의 순정 NewObject 폴백으로 감
+    if (!Skill->GrantAddon(AddonType, ResolvedPreset))
+    {
+        return false;
+    }
+
+    const FAddonAttributeSpentPoints* SpentEntry = AddonSpentPoints.Find(AddonType);
+    if (!SpentEntry || SpentEntry->Points.Num() == 0)
+    {
+        return true;
+    }
+
+    if (!bHasRow)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[PlayerState] GrantAddonWithCatchUp: addon row not found for %s, catch-up skipped"),
+            *UEnum::GetValueAsString(AddonType));
+        return true;
+    }
+
+    for (const TPair<FName, int32>& Pair : SpentEntry->Points)
+    {
+        const FAddonUpgradeAttribute* AttrDef = AddonRow.UpgradeAttributes.FindByPredicate(
+            [&Pair](const FAddonUpgradeAttribute& A) { return A.AttributeID == Pair.Key; });
+
+        if (AttrDef)
+        {
+            Skill->SpendAddonAttributePoint(AddonType, Pair.Key, AttrDef->ValuePerPoint * Pair.Value);
+        }
+    }
+
+    UE_LOG(LogTemp, Log, TEXT("[PlayerState] GrantAddonWithCatchUp: %s caught up on %s (%d attribute(s))"),
+        *Skill->GetSkillID().ToString(), *UEnum::GetValueAsString(AddonType), SpentEntry->Points.Num());
+
+    return true;
 }
 
 void ACC_PlayerState::AddSkillCorePoints(FName SkillID, int32 Amount)

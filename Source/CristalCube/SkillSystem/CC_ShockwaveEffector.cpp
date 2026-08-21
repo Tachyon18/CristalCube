@@ -84,7 +84,7 @@ void ACC_ShockwaveEffector::Tick(float DeltaTime)
 	const float Alpha = (Data.ExpandDuration > 0.0f)
 		? FMath::Clamp(ElapsedTime / Data.ExpandDuration, 0.0f, 1.0f)
 		: 1.0f;
-	CurrentRadius = FMath::Lerp(0.0f, Data.MaxRadius, Alpha);
+	CurrentRadius = FMath::Lerp(0.0f, Data.MaxRadius*2, Alpha);
 
 	if (ShockwaveVFX && IsValid(ShockwaveVFX))
 	{

@@ -49,39 +49,35 @@ public:
 protected:
 
 	//==========================================================================
-	// 원소별 기본 수치 (baseline — 반응/조합 없는 단순 적용)
+	// 원소별 기본 수치 — 축마다 실제로 다루는 값의 종류가 달라서 필드는 다르지만,
+	// 이름은 FElement[색]Data로 통일해서 어디서든 예측 가능하게 둠
 	//==========================================================================
 
-	UPROPERTY(EditDefaultsOnly, Category = "ElementalStatus|Fire")
-	float FireTickDamage = 4.0f;
+	// Red는 이 컴포넌트에 데이터를 안 둠 — FElementRedData는 CC_ElementalApplyAddon 쪽
+	// FElementalApplyAddonData.RedData에 있음(일회성 프록이라 스킬 데이터가 있는 곳에서 계산).
+	// ActiveElements엔 지속시간/스택 추적용으로만 등록됨(Burst 소비 대상 조회 등).
 
-	UPROPERTY(EditDefaultsOnly, Category = "ElementalStatus|Fire")
-	float FireTickInterval = 1.0f;
+	UPROPERTY(EditDefaultsOnly, Category = "ElementalStatus|Blue")
+	FElementBlueData BlueData;
 
-	UPROPERTY(EditDefaultsOnly, Category = "ElementalStatus|Poison")
-	float PoisonTickDamagePerStack = 2.0f;
+	UPROPERTY(EditDefaultsOnly, Category = "ElementalStatus|Green")
+	FElementGreenData GreenData;
 
-	UPROPERTY(EditDefaultsOnly, Category = "ElementalStatus|Poison")
-	float PoisonTickInterval = 1.0f;
-
-	// TODO(추후 확장): 감전 확산/기절 등 정교한 Lightning 반응은 여기 대신
-	// 별도 원소 반응 시스템에서 처리 — 지금은 약한 틱뎀만
-	UPROPERTY(EditDefaultsOnly, Category = "ElementalStatus|Lightning")
-	float LightningTickDamage = 2.0f;
-
-	UPROPERTY(EditDefaultsOnly, Category = "ElementalStatus|Lightning")
-	float LightningTickInterval = 0.4f;
-
-	UPROPERTY(EditDefaultsOnly, Category = "ElementalStatus|Ice")
-	float IceSlowMultiplier = 0.5f;
-
-	// 현재 Ice로 감속 중인지 + 복구용 원본 속도
+	// 현재 Blue로 감속 중인지 + 복구용 원본 속도
 	bool bSpeedSlowed = false;
 	float SavedOriginalSpeed = -1.0f;
 
-	void ApplyIceSlow();
-	void RemoveIceSlow();
+	void ApplyBlueSlow();
+	void RemoveBlueSlow();
 
+public:
+	// 대상이 Green으로 "받는 피해"가 늘어나 있는지 조회 — UCC_SkillSystem::ApplyDamage()에서 사용
+	float GetIncomingDamageMultiplier() const;
+
+	// 자기 자신이 Green으로 "가하는 공격력"이 줄어 있는지 조회 — Enemy 공격 판정에서 사용
+	float GetOutgoingDamageMultiplier() const;
+
+protected:
 	UPROPERTY()
 	TArray<FActiveElementalStatus> ActiveElements;
 

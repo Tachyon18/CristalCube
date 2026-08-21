@@ -40,3 +40,7 @@ void UCC_ExplosionAddon::OnHit_Implementation(UCC_SkillSystem* SkillSystem, cons
         SkillSystem->SpawnEffect(Data.ExplosionEffect, HitLocation);
     }
 }
+
+void UCC_ExplosionAddon::ApplyModifier_Implementation(FName AttributeID, float ValuePerPoint)
+{
+}

@@ -46,3 +46,7 @@ void UCC_ChainAddon::OnHit_Implementation(UCC_SkillSystem* SkillSystem, const FS
         CurrentTarget = NextTarget;
     }
 }
+
+void UCC_ChainAddon::ApplyModifier_Implementation(FName AttributeID, float ValuePerPoint)
+{
+}

@@ -5,9 +5,11 @@
 #include "CoreMinimal.h"
 #include "UObject/NoExportTypes.h"
 #include "../CristalCubeStruct.h"
+#include "CC_SkillAddonBase.h"
 #include "CC_SkillBase.generated.h"
 
 class UCC_SkillSystem;
+class UCC_AddonPresetAsset;
 
 /**
  * 모든 스킬의 베이스 클래스.
@@ -91,15 +93,36 @@ public:
 
     // CC_SkillBase.h — public 섹션에 추가
     UFUNCTION(BlueprintPure, Category = "Skill|Addon")
-    bool HasAddon(ESkillAddonType AddonType) const { return SkillDef.Addons.Contains(AddonType); }
+    bool HasAddon(ESkillAddonType AddonType) const
+    {
+        for (const UCC_SkillAddonBase* Addon : SkillDef.Addons)
+        {
+            if (Addon && Addon->AddonType == AddonType)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
 
-    /** 새 애드온을 이 스킬에 추가. 이미 있으면 false. */
+    /** 새 애드온을 이 스킬에 추가. Preset이 주어지고 타입이 맞으면 그 Template을 복제해서 사용,
+     *  아니면 순정 클래스 기본값으로 생성. 이미 있으면 false. */
     UFUNCTION(BlueprintCallable, Category = "Skill|Addon")
-    bool GrantAddon(ESkillAddonType AddonType);
+    bool GrantAddon(ESkillAddonType AddonType, UCC_AddonPresetAsset* Preset = nullptr);
+
+    /** SkillDef.Addons(기본 Addon, 타입 선언)는 그대로 두고, 각 Addon과 같은 타입의 Preset이
+     *  SkillDef.AddonPresets에 있으면 그 Template 값으로 데이터만 덮어씀. 스킬 인스턴스가
+     *  처음 만들어질 때 한 번 호출됨. 타입을 추가/제거하진 않음 — 값 하이드레이션 전용. */
+    UFUNCTION(BlueprintCallable, Category = "Skill|Addon")
+    void ResolveAddons();
 
     /** 이미 보유한 애드온의 세부 수치 강화. 미보유 시 무시. */
     UFUNCTION(BlueprintCallable, Category = "Skill|Addon")
     void ApplyAddonModifier(ESkillAddonType AddonType, const FSkillPassiveProperties& Modifier);
+
+    /** AttributeID 하나에 포인트 1회분(ValuePerPoint)을 적용. 매칭 실패 시 조용히 무시하고 로그만 남김. */
+    UFUNCTION(BlueprintCallable, Category = "Skill|Addon")
+    void SpendAddonAttributePoint(ESkillAddonType AddonType, FName AttributeID, float ValuePerPoint);
 
 protected:
 

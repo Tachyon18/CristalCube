@@ -3,6 +3,17 @@
 
 #include "CC_SkillBase.h"
 #include "CC_SkillSystem.h"
+#include "CC_AddonPresetAsset.h"
+#include "Addon/CC_ExplosionAddon.h"
+#include "Addon/CC_ChainAddon.h"
+#include "Addon/CC_ShockwaveAddon.h"
+#include "Addon/CC_MagicMissileAddon.h"
+#include "Addon/CC_ElementalApplyAddon.h"
+#include "Addon/CC_ElementalBurstAddon.h"
+#include "Addon/CC_DamageOverTimeAddon.h"
+#include "Addon/CC_SigilAddon.h"
+#include "Addon/CC_EchoAddon.h"
+#include "Addon/CC_SelfEmpowerAddon.h"
 #include "../CC_LogHelper.h"
 
 UCC_SkillBase::UCC_SkillBase()
@@ -78,16 +89,65 @@ void UCC_SkillBase::ApplyPassiveModifier(const FSkillPassiveProperties& Modifier
         *SkillDef.SkillID.ToString(), SkillDef.Passives.DamageMultiplier);
 }
 
-bool UCC_SkillBase::GrantAddon(ESkillAddonType AddonType)
+bool UCC_SkillBase::GrantAddon(ESkillAddonType AddonType, UCC_AddonPresetAsset* Preset)
 {
     if (AddonType == ESkillAddonType::None) return false;
-    if (SkillDef.Addons.Contains(AddonType)) return false;
+    if (HasAddon(AddonType)) return false;
 
-    SkillDef.Addons.Add(AddonType);
+    UCC_SkillAddonBase* NewAddon = nullptr;
+
+    // 프리셋이 있고 타입이 맞으면 그 Template을 복제 — Radius/Effect 등 전부 그대로 승계.
+    if (Preset && Preset->AddonType == AddonType && Preset->Template)
+    {
+        NewAddon = DuplicateObject<UCC_SkillAddonBase>(Preset->Template, this);
+    }
+    
+    if(!NewAddon)
+    {
+        switch (AddonType)
+        {
+        case ESkillAddonType::Explosion:      NewAddon = NewObject<UCC_ExplosionAddon>(this);      break;
+        case ESkillAddonType::Chain:          NewAddon = NewObject<UCC_ChainAddon>(this);          break;
+        case ESkillAddonType::Shockwave:      NewAddon = NewObject<UCC_ShockwaveAddon>(this);      break;
+        case ESkillAddonType::MagicMissile:   NewAddon = NewObject<UCC_MagicMissileAddon>(this);   break;
+        case ESkillAddonType::ElementalApply: NewAddon = NewObject<UCC_ElementalApplyAddon>(this); break;
+        case ESkillAddonType::ElementalBurst: NewAddon = NewObject<UCC_ElementalBurstAddon>(this); break;
+        case ESkillAddonType::DamageOverTime: NewAddon = NewObject<UCC_DamageOverTimeAddon>(this); break;
+        case ESkillAddonType::Sigil:          NewAddon = NewObject<UCC_SigilAddon>(this);          break;
+        case ESkillAddonType::Echo:           NewAddon = NewObject<UCC_EchoAddon>(this);           break;
+        case ESkillAddonType::SelfEmpower:    NewAddon = NewObject<UCC_SelfEmpowerAddon>(this);    break;
+        default:
+            // Penetrate / MultiShot은 Projectile Core 고유 강화 — 포인트제 Addon 카탈로그 대상 아님(STATUS.md 참고)
+            UE_LOG(LogTemp, Warning, TEXT("[%s] GrantAddon: %s is not a point-allocatable addon"),
+                *SkillDef.SkillID.ToString(), *UEnum::GetValueAsString(AddonType));
+            return false;
+        }
+    }
+
+    if (!NewAddon) return false;
+
+    SkillDef.Addons.Add(NewAddon);
 
     UE_LOG(LogTemp, Log, TEXT("[%s] Addon granted: %s"),
         *SkillDef.SkillID.ToString(), *UEnum::GetValueAsString(AddonType));
     return true;
+}
+
+void UCC_SkillBase::ResolveAddons()
+{
+    for (UCC_SkillAddonBase*& Addon : SkillDef.Addons)
+    {
+        if (!Addon) continue;
+
+        for (UCC_AddonPresetAsset* Preset : SkillDef.AddonPresets)
+        {
+            if (Preset && Preset->AddonType == Addon->AddonType && Preset->Template)
+            {
+                Addon = DuplicateObject<UCC_SkillAddonBase>(Preset->Template, this);
+                break;
+            }
+        }
+    }
 }
 
 void UCC_SkillBase::ApplyAddonModifier(ESkillAddonType AddonType, const FSkillPassiveProperties& Modifier)
@@ -156,4 +216,89 @@ void UCC_SkillBase::ApplyAddonModifier(ESkillAddonType AddonType, const FSkillPa
 
     UE_LOG(LogTemp, Log, TEXT("[%s] Addon modifier applied: %s"),
         *SkillDef.SkillID.ToString(), *UEnum::GetValueAsString(AddonType));
+}
+
+void UCC_SkillBase::SpendAddonAttributePoint(ESkillAddonType AddonType, FName AttributeID, float ValuePerPoint)
+{
+    // Modifier의 Multiplier류 기본값(1.0)은 ApplyAddonModifier가 안 건드리는 필드라 안전함 —
+    // Addon Data 필드만 델타로 채워서 넘긴다.
+    //FSkillPassiveProperties Modifier;
+    //bool bMatched = true;
+    //
+    //switch (AddonType)
+    //{
+    //case ESkillAddonType::Explosion:
+    //    if (AttributeID == TEXT("ExplosionRadius"))            Modifier.ExplosionData.Radius = ValuePerPoint;
+    //    else if (AttributeID == TEXT("ExplosionMinDamageRatio")) Modifier.ExplosionData.MinDamageRatio = ValuePerPoint;
+    //    else bMatched = false;
+    //    break;
+    //case ESkillAddonType::Chain:
+    //    if (AttributeID == TEXT("ChainCount"))            Modifier.ChainData.ChainCount = FMath::RoundToInt(ValuePerPoint);
+    //    else if (AttributeID == TEXT("ChainDamageDecay"))   Modifier.ChainData.DamageDecay = ValuePerPoint;
+    //    else if (AttributeID == TEXT("ChainSearchRadius"))  Modifier.ChainData.SearchRadius = ValuePerPoint;
+    //    else bMatched = false;
+    //    break;
+    //case ESkillAddonType::Shockwave:
+    //    if (AttributeID == TEXT("ShockwaveMaxRadius"))        Modifier.ShockwaveData.MaxRadius = ValuePerPoint;
+    //    else if (AttributeID == TEXT("ShockwaveRingThickness")) Modifier.ShockwaveData.RingThickness = ValuePerPoint;
+    //    else bMatched = false;
+    //    break;
+    //case ESkillAddonType::MagicMissile:
+    //    if (AttributeID == TEXT("MagicMissileLaunchCount"))   Modifier.MagicMissileData.LaunchCount = FMath::RoundToInt(ValuePerPoint);
+    //    else if (AttributeID == TEXT("MagicMissileDamageRatio")) Modifier.MagicMissileData.DamageRatio = ValuePerPoint;
+    //    else bMatched = false;
+    //    break;
+    //case ESkillAddonType::ElementalApply:
+    //    if (AttributeID == TEXT("ElementalApplyStackAmount")) Modifier.ElementalApplyData.StackAmount = FMath::RoundToInt(ValuePerPoint);
+    //    else if (AttributeID == TEXT("ElementalApplyDuration")) Modifier.ElementalApplyData.Duration = ValuePerPoint;
+    //    else bMatched = false;
+    //    break;
+    //case ESkillAddonType::ElementalBurst:
+    //    if (AttributeID == TEXT("ElementalBurstDamagePerStack")) Modifier.ElementalBurstData.DamagePerStack = ValuePerPoint;
+    //    else bMatched = false;
+    //    break;
+    //case ESkillAddonType::DamageOverTime:
+    //    if (AttributeID == TEXT("DamageOverTimeTickDamage"))     Modifier.DamageOverTimeData.TickDamage = ValuePerPoint;
+    //    else if (AttributeID == TEXT("DamageOverTimeTotalDuration")) Modifier.DamageOverTimeData.TotalDuration = ValuePerPoint;
+    //    else bMatched = false;
+    //    break;
+    //case ESkillAddonType::Sigil:
+    //    if (AttributeID == TEXT("SigilRadius"))      Modifier.SigilData.Radius = ValuePerPoint;
+    //    else if (AttributeID == TEXT("SigilTickDamage")) Modifier.SigilData.TickDamage = ValuePerPoint;
+    //    else bMatched = false;
+    //    break;
+    //case ESkillAddonType::Echo:
+    //    if (AttributeID == TEXT("EchoDamageRatio"))  Modifier.EchoData.DamageRatio = ValuePerPoint;
+    //    else if (AttributeID == TEXT("EchoMaxEchoes")) Modifier.EchoData.MaxEchoes = FMath::RoundToInt(ValuePerPoint);
+    //    else bMatched = false;
+    //    break;
+    //case ESkillAddonType::SelfEmpower:
+    //    if (AttributeID == TEXT("SelfEmpowerDamagePerStack")) Modifier.SelfEmpowerData.DamagePerStack = ValuePerPoint;
+    //    else if (AttributeID == TEXT("SelfEmpowerMaxStacks"))   Modifier.SelfEmpowerData.MaxStacks = FMath::RoundToInt(ValuePerPoint);
+    //    else bMatched = false;
+    //    break;
+    //default:
+    //    bMatched = false;
+    //    break;
+    //}
+    //
+    //if (!bMatched)
+    //{
+    //    UE_LOG(LogTemp, Warning, TEXT("[%s] SpendAddonAttributePoint: unknown AttributeID '%s' for addon %s"),
+    //        *SkillDef.SkillID.ToString(), *AttributeID.ToString(), *UEnum::GetValueAsString(AddonType));
+    //    return;
+    //}
+    //
+    //ApplyAddonModifier(AddonType, Modifier);
+
+    bool bFound = false;
+
+    for (UCC_SkillAddonBase* Addon : SkillDef.Addons)
+    {
+        if (Addon && Addon->AddonType == AddonType)
+        {
+            Addon->ApplyModifier(AttributeID, ValuePerPoint);
+            bFound = true;
+        }
+    }
 }

@@ -17,10 +17,12 @@ class CRISTALCUBE_API UCC_SelfEmpowerAddon : public UCC_SkillAddonBase
 
 public:
 
+	UCC_SelfEmpowerAddon() { AddonType = ESkillAddonType::SelfEmpower; }
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|SelfEmpower")
 	FSelfEmpowerAddonData Data;
 
 	virtual void OnCast_Implementation(UCC_SkillSystem* SkillSystem, const FSkillDefinition& Skill, FSkillExecutionContext& Context) override;
 
-	
+	virtual void ApplyModifier_Implementation(FName AttributeID, float ValuePerPoint) override;
 };

@@ -100,3 +100,7 @@ void UCC_MagicMissileAddon::OnHit_Implementation(UCC_SkillSystem* SkillSystem, c
         SkillSystem->GetWorld()->GetTimerManager().SetTimer(*TimerHandlePtr, LaunchDelegate, DataCopy.LaunchInterval, true);
     }
 }
+
+void UCC_MagicMissileAddon::ApplyModifier_Implementation(FName AttributeID, float ValuePerPoint)
+{
+}

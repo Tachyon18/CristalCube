@@ -44,6 +44,8 @@ void ACC_PlayerController::BeginPlay()
         }
     }
 
+    CreateGameHUD();
+
     ControlledCharacter = Cast<ACC_PlayerCharacter>(GetPawn());
     if (ControlledCharacter)
     {

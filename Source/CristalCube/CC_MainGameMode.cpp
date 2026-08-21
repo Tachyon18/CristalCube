@@ -78,7 +78,7 @@ void ACC_MainGameMode::ApplyCubeClearReward(const FCubeClearReward& SelectedRewa
             }
             if (Candidates.Num() > 0)
             {
-                Candidates[FMath::RandRange(0, Candidates.Num() - 1)]->GrantAddon(SelectedReward.TargetAddonType);
+                PS->GrantAddonWithCatchUp(Candidates[FMath::RandRange(0, Candidates.Num() - 1)], SelectedReward.TargetAddonType);
             }
         }
         break;

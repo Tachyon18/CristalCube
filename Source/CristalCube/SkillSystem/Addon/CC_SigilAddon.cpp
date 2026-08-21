@@ -33,3 +33,7 @@ void UCC_SigilAddon::OnHit_Implementation(UCC_SkillSystem* SkillSystem, const FS
         Sigil->Initialize(HitLocation, Context.Caster, Data, SkillSystem, Skill, Context, AddonIndex + 1);
     }
 }
+
+void UCC_SigilAddon::ApplyModifier_Implementation(FName AttributeID, float ValuePerPoint)
+{
+}

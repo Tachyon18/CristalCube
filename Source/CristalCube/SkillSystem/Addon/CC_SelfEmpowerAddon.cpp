@@ -17,4 +17,16 @@ void UCC_SelfEmpowerAddon::OnCast_Implementation(UCC_SkillSystem* SkillSystem, c
 
 void UCC_SelfEmpowerAddon::ApplyModifier_Implementation(FName AttributeID, float ValuePerPoint)
 {
+    if (AttributeID == TEXT("SelfEmpowerDamagePerStack"))
+    {
+        Data.DamagePerStack += ValuePerPoint;
+    }
+    else if (AttributeID == TEXT("SelfEmpowerMaxStacks"))
+    {
+        Data.MaxStacks += FMath::RoundToInt(ValuePerPoint);
+    }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[SelfEmpowerAddon] ApplyModifier: unknown AttributeID '%s'"), *AttributeID.ToString());
+    }
 }

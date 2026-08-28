@@ -10,8 +10,8 @@
 class UCC_AddonUpgradeEntryData;
 class UCC_AddonUpgradeRowWidget;
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnAddonAttributeSpendRequestedFromCard,
-	ESkillAddonType, AddonType, FName, AttributeID);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnAddonAttributePointRequestedFromCard,
+    ESkillAddonType, AddonType, FName, AttributeID, bool, bIsRefund);
 
 /**
  * AddonUpgradeTileView의 항목 1개 = Addon 타입 1개.
@@ -32,7 +32,7 @@ public:
     TSubclassOf<UCC_AddonUpgradeRowWidget> AddonUpgradeRowWidgetClass;
 
     UPROPERTY(BlueprintAssignable, Category = "Addon Upgrade")
-    FOnAddonAttributeSpendRequestedFromCard OnSpendRequested;
+    FOnAddonAttributePointRequestedFromCard OnPointRequested;
 
 protected:
     virtual void NativeOnListItemObjectSet(UObject* ListItemObject) override;
@@ -55,6 +55,5 @@ private:
     void RebuildAttributeRows(const class UCC_AddonUpgradeEntryData* EntryData);
 
     UFUNCTION()
-    void HandleRowSpendRequested(ESkillAddonType AddonType, FName AttributeID);
-    	
+    void HandleRowPointRequested(ESkillAddonType AddonType, FName AttributeID, bool bIsRefund);
 };

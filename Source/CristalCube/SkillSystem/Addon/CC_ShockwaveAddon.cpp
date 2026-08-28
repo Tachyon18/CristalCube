@@ -19,4 +19,16 @@ void UCC_ShockwaveAddon::OnHit_Implementation(UCC_SkillSystem* SkillSystem, cons
 
 void UCC_ShockwaveAddon::ApplyModifier_Implementation(FName AttributeID, float ValuePerPoint)
 {
+    if (AttributeID == TEXT("ShockwaveMaxRadius"))
+    {
+        Data.MaxRadius += ValuePerPoint;
+    }
+    else if (AttributeID == TEXT("ShockwaveRingThickness"))
+    {
+        Data.RingThickness += ValuePerPoint;
+    }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[ShockwaveAddon] ApplyModifier: unknown AttributeID '%s'"), *AttributeID.ToString());
+    }
 }

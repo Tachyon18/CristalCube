@@ -49,4 +49,20 @@ void UCC_ChainAddon::OnHit_Implementation(UCC_SkillSystem* SkillSystem, const FS
 
 void UCC_ChainAddon::ApplyModifier_Implementation(FName AttributeID, float ValuePerPoint)
 {
+    if (AttributeID == TEXT("ChainCount"))
+    {
+        Data.ChainCount += FMath::RoundToInt(ValuePerPoint);
+    }
+    else if (AttributeID == TEXT("ChainDamageDecay"))
+    {
+        Data.DamageDecay = FMath::Clamp(Data.DamageDecay + ValuePerPoint, 0.f, 1.f);
+    }
+    else if (AttributeID == TEXT("ChainSearchRadius"))
+    {
+        Data.SearchRadius += ValuePerPoint;
+    }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[ChainAddon] ApplyModifier: unknown AttributeID '%s'"), *AttributeID.ToString());
+    }
 }

@@ -8,6 +8,7 @@
 #include "CC_SkillSlotWidget.generated.h"
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnSlotDropped, int32, SourceSlotIndex, int32, TargetSlotIndex);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnSlotUpgradeRequested, int32, SlotIndex);
 
 /**
  * 스킬 아이콘 표시 슬롯 1개 (범용).
@@ -23,6 +24,10 @@ class CRISTALCUBE_API UCC_SkillSlotWidget : public UUserWidget
 {
 	GENERATED_BODY()
 	
+public:
+
+	virtual void NativeConstruct() override;
+
 public:
     UFUNCTION(BlueprintCallable, Category = "Skill Inventory")
     void SetSkillData(const FSkillDisplayData& InData);
@@ -44,6 +49,11 @@ public:
     /** 컨테이너가 구독해서 실제 SwapSlots() 호출을 담당 */
     UPROPERTY(BlueprintAssignable, Category = "Skill Inventory")
     FOnSlotDropped OnSlotDropped;
+
+    /** "강화" 버튼 클릭 시 컨테이너가 구독. WBP_SkillInventorySlot에서만 배치하면 됨
+     *  (액션바용 WBP_SkillSlot엔 버튼 자체를 안 만들어도 무방 — BindWidgetOptional이라 안전). */
+    UPROPERTY(BlueprintAssignable, Category = "Skill Inventory")
+    FOnSlotUpgradeRequested OnSlotUpgradeRequested;
 
 protected:
     UPROPERTY(meta = (BindWidget))
@@ -69,6 +79,9 @@ protected:
     UPROPERTY(Transient, meta = (BindWidgetAnimOptional))
     class UWidgetAnimation* ReadyFlashAnim;
 
+    UPROPERTY(meta = (BindWidgetOptional))
+    class UButton* UpgradeButton;
+
     UPROPERTY(BlueprintReadOnly)
     int32 SlotIndex = -1;
 
@@ -87,4 +100,12 @@ protected:
 
     /** 쿨다운 완료 순간(0→1 전이) 감지용. 드래그 가드에도 같이 사용. */
     bool bIsReady = true;
+
+	//==========================================================================
+	// "강화" 버튼 클릭 시 컨테이너가 구독해서 실제 처리 담당
+	//==========================================================================
+
+    UFUNCTION()
+    void HandleUpgradeClicked();
+
 };

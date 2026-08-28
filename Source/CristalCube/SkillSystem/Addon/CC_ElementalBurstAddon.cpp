@@ -35,4 +35,12 @@ void UCC_ElementalBurstAddon::OnHit_Implementation(UCC_SkillSystem* SkillSystem,
 
 void UCC_ElementalBurstAddon::ApplyModifier_Implementation(FName AttributeID, float ValuePerPoint)
 {
+    if (AttributeID == TEXT("ElementalBurstDamagePerStack"))
+    {
+        Data.DamagePerStack += ValuePerPoint;
+    }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[ElementalBurstAddon] ApplyModifier: unknown AttributeID '%s'"), *AttributeID.ToString());
+    }
 }

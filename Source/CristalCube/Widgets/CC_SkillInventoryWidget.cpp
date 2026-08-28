@@ -3,6 +3,8 @@
 
 #include "CC_SkillInventoryWidget.h"
 #include "CC_SkillSlotWidget.h"
+#include "CC_SkillUpgradeDetailWidget.h"
+#include "Components/WidgetSwitcher.h"
 #include "../SkillSystem/CC_SkillLibrarySubsystem.h"
 #include "../CC_PlayerState.h"
 #include "../SkillSystem/CC_SkillBase.h"
@@ -19,7 +21,13 @@ void UCC_SkillInventoryWidget::NativeConstruct()
         {
             Slots[i]->SetSlotIndex(i);
             Slots[i]->OnSlotDropped.AddDynamic(this, &UCC_SkillInventoryWidget::HandleSlotDropped);
+            Slots[i]->OnSlotUpgradeRequested.AddDynamic(this, &UCC_SkillInventoryWidget::HandleSlotUpgradeRequested);
         }
+    }
+
+    if (UpgradeDetailPanel)
+    {
+        UpgradeDetailPanel->OnCloseRequested.AddDynamic(this, &UCC_SkillInventoryWidget::HandleUpgradePanelCloseRequested);
     }
 
     BoundPlayerState = GetOwningPlayerState<ACC_PlayerState>();
@@ -106,6 +114,25 @@ void UCC_SkillInventoryWidget::HandleSlotDropped(int32 SourceSlotIndex, int32 Ta
     {
         BoundPlayerState->SwapSlots(SourceSlotIndex, TargetSlotIndex);
         // RefreshInventory()는 SwapSlots 내부의 OnSkillsChanged.Broadcast()가 자동 트리거함 — 수동 호출 불필요
+    }
+}
+
+void UCC_SkillInventoryWidget::HandleSlotUpgradeRequested(int32 SlotIndex)
+{
+    if (!UpgradeDetailPanel || !BoundPlayerState) return;
+
+    UCC_SkillBase* Skill = BoundPlayerState->GetSkillAtSlot(SlotIndex);
+    if (!Skill) return;
+
+    UpgradeDetailPanel->ShowSkill(Skill, BoundPlayerState);
+    InventorySwitcher->SetActiveWidgetIndex(1);
+}
+
+void UCC_SkillInventoryWidget::HandleUpgradePanelCloseRequested()
+{
+    if (InventorySwitcher)
+    {
+        InventorySwitcher->SetActiveWidgetIndex(0);
     }
 }
 

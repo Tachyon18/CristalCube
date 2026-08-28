@@ -196,6 +196,10 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Skills|Addon Points")
     bool SpendAddonPoint(ESkillAddonType AddonType, FName AttributeID, float ValuePerPoint, int32 MaxPoints);
 
+    /** 이미 배분한 포인트 1개를 회수해서 은행으로 되돌림. 이 속성에 배분한 게 0이면 false, 아무 것도 안 함. */
+    UFUNCTION(BlueprintCallable, Category = "Skills|Addon Points")
+    bool RefundAddonPoint(ESkillAddonType AddonType, FName AttributeID, float ValuePerPoint);
+
     /** 이미 배분된 포인트 수 조회 (UI에서 "3/10" 같은 표시에 사용) */
     UFUNCTION(BlueprintPure, Category = "Skills|Addon Points")
     int32 GetAddonAttributeSpentPoints(ESkillAddonType AddonType, FName AttributeID) const;

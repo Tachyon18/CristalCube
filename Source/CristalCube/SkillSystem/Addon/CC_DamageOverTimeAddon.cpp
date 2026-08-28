@@ -18,4 +18,16 @@ void UCC_DamageOverTimeAddon::OnHit_Implementation(UCC_SkillSystem* SkillSystem,
 
 void UCC_DamageOverTimeAddon::ApplyModifier_Implementation(FName AttributeID, float ValuePerPoint)
 {
+    if (AttributeID == TEXT("DamageOverTimeTickDamage"))
+    {
+        Data.TickDamage += ValuePerPoint;
+    }
+    else if (AttributeID == TEXT("DamageOverTimeTotalDuration"))
+    {
+        Data.TotalDuration += ValuePerPoint;
+    }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[DamageOverTimeAddon] ApplyModifier: unknown AttributeID '%s'"), *AttributeID.ToString());
+    }
 }

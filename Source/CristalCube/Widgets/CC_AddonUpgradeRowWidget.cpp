@@ -29,9 +29,23 @@ void UCC_AddonUpgradeRowWidget::SetAttributeData(ESkillAddonType InAddonType, co
             SpendButton->OnClicked.AddDynamic(this, &UCC_AddonUpgradeRowWidget::HandleSpendClicked);
         }
     }
+
+	if (RefundButton)
+	{
+        RefundButton->SetIsEnabled(CurrentSpent > 0);
+        if (!RefundButton->OnClicked.IsAlreadyBound(this, &UCC_AddonUpgradeRowWidget::HandleRefundClicked))
+        {
+            RefundButton->OnClicked.AddDynamic(this, &UCC_AddonUpgradeRowWidget::HandleRefundClicked);
+        }
+	}
 }
 
 void UCC_AddonUpgradeRowWidget::HandleSpendClicked()
 {
-    OnSpendRequested.Broadcast(AddonType, AttributeID);
+    OnPointRequested.Broadcast(AddonType, AttributeID, false);
+}
+
+void UCC_AddonUpgradeRowWidget::HandleRefundClicked()
+{
+    OnPointRequested.Broadcast(AddonType, AttributeID, true);
 }

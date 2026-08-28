@@ -7,8 +7,9 @@
 #include "../CristalCubeStruct.h"
 #include "CC_AddonUpgradeRowWidget.generated.h"
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnAddonAttributeSpendRequested,
-	ESkillAddonType, AddonType, FName, AttributeID);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnAddonAttributePointRequested,
+    ESkillAddonType, AddonType, FName, AttributeID, bool, bIsRefund);
+
 /**
  * Addon 포인트 배분 카드(UCC_AddonUpgradeCardWidget) 내부에서 동적으로 생성되는
  * 속성 1개짜리 행. 표시 전용 + 버튼 입력만 처리 — 실제 배분(PlayerState::SpendAddonPoint)은
@@ -25,8 +26,9 @@ public:
     void SetAttributeData(ESkillAddonType InAddonType, const FAddonUpgradeAttribute& InAttribute,
         int32 CurrentSpent, int32 BankAvailable);
 
+    /** bIsRefund = false면 배분(+), true면 회수(-) 요청 */
     UPROPERTY(BlueprintAssignable, Category = "Addon Upgrade")
-    FOnAddonAttributeSpendRequested OnSpendRequested;
+    FOnAddonAttributePointRequested OnPointRequested;
 
 protected:
     UPROPERTY(meta = (BindWidget))
@@ -39,8 +41,15 @@ protected:
     UPROPERTY(meta = (BindWidget))
     class UButton* SpendButton;
 
+    /** Optional — 배치 안 해도 안전. 있으면 배분한 포인트를 1개씩 회수 가능. */
+    UPROPERTY(meta = (BindWidgetOptional))
+    class UButton* RefundButton;
+
     UFUNCTION()
     void HandleSpendClicked();
+
+    UFUNCTION()
+    void HandleRefundClicked();
 
 private:
     ESkillAddonType AddonType = ESkillAddonType::None;

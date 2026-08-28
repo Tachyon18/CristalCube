@@ -36,4 +36,16 @@ void UCC_SigilAddon::OnHit_Implementation(UCC_SkillSystem* SkillSystem, const FS
 
 void UCC_SigilAddon::ApplyModifier_Implementation(FName AttributeID, float ValuePerPoint)
 {
+    if (AttributeID == TEXT("SigilRadius"))
+    {
+        Data.Radius += ValuePerPoint;
+    }
+    else if (AttributeID == TEXT("SigilTickDamage"))
+    {
+        Data.TickDamage += ValuePerPoint;
+    }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[SigilAddon] ApplyModifier: unknown AttributeID '%s'"), *AttributeID.ToString());
+    }
 }

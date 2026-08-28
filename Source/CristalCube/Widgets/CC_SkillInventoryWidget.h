@@ -8,6 +8,7 @@
 
 class UCC_SkillSlotWidget;
 class ACC_PlayerState;
+class UCC_SkillUpgradeDetailWidget;
 
 /**
  * 플레이 중 장착 스킬을 고정 6슬롯으로 보여주는 인벤토리 위젯.
@@ -51,8 +52,23 @@ protected:
     UPROPERTY(meta = (BindWidget))
     UCC_SkillSlotWidget* Slot6;
 
+    /** Optional — 넣어두면 슬롯 "강화" 버튼 클릭 시 이 패널이 해당 스킬로 열림. 없으면 그냥 스킵됨. */
+    UPROPERTY(meta = (BindWidgetOptional))
+    UCC_SkillUpgradeDetailWidget* UpgradeDetailPanel;
+
     UFUNCTION()
     void HandleSlotDropped(int32 SourceSlotIndex, int32 TargetSlotIndex);
+
+    UFUNCTION()
+    void HandleSlotUpgradeRequested(int32 SlotIndex);
+
+public:
+
+    UPROPERTY(meta = (BindWidget))
+    class UWidgetSwitcher* InventorySwitcher;
+
+    UFUNCTION()
+    void HandleUpgradePanelCloseRequested();
 
 private:
     /** Slot1~6을 순회용 배열로 캐싱 (NativeConstruct에서 1회 구성) */

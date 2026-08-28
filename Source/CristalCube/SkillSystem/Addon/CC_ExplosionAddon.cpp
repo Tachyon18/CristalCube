@@ -43,4 +43,16 @@ void UCC_ExplosionAddon::OnHit_Implementation(UCC_SkillSystem* SkillSystem, cons
 
 void UCC_ExplosionAddon::ApplyModifier_Implementation(FName AttributeID, float ValuePerPoint)
 {
+    if (AttributeID == TEXT("ExplosionRadius"))
+    {
+        Data.Radius += ValuePerPoint;
+    }
+    else if (AttributeID == TEXT("ExplosionMinDamageRatio"))
+    {
+        Data.MinDamageRatio = FMath::Clamp(Data.MinDamageRatio + ValuePerPoint, 0.f, 1.f);
+    }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[ExplosionAddon] ApplyModifier: unknown AttributeID '%s'"), *AttributeID.ToString());
+    }
 }

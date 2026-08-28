@@ -5,8 +5,19 @@
 #include "Components/Image.h"
 #include "Components/TextBlock.h"
 #include "Components/ProgressBar.h"
+#include "Components/Button.h"
 #include "CC_SkillSlotDragOp.h"
 #include "Blueprint/WidgetBlueprintLibrary.h"
+
+void UCC_SkillSlotWidget::NativeConstruct()
+{
+    Super::NativeConstruct();
+
+    if (UpgradeButton && !UpgradeButton->OnClicked.IsAlreadyBound(this, &UCC_SkillSlotWidget::HandleUpgradeClicked))
+    {
+        UpgradeButton->OnClicked.AddDynamic(this, &UCC_SkillSlotWidget::HandleUpgradeClicked);
+    }
+}
 
 void UCC_SkillSlotWidget::SetSkillData(const FSkillDisplayData& InData)
 {
@@ -125,4 +136,12 @@ bool UCC_SkillSlotWidget::NativeOnDrop(const FGeometry& InGeometry, const FDragD
         return true;
     }
     return false;
+}
+
+void UCC_SkillSlotWidget::HandleUpgradeClicked()
+{
+    if (bIsOccupied)
+    {
+        OnSlotUpgradeRequested.Broadcast(SlotIndex);
+    }
 }

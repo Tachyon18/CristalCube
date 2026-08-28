@@ -25,4 +25,16 @@ void UCC_ElementalApplyAddon::OnHit_Implementation(UCC_SkillSystem* SkillSystem,
 
 void UCC_ElementalApplyAddon::ApplyModifier_Implementation(FName AttributeID, float ValuePerPoint)
 {
+    if (AttributeID == TEXT("ElementalApplyStackAmount"))
+    {
+        Data.StackAmount += FMath::RoundToInt(ValuePerPoint);
+    }
+    else if (AttributeID == TEXT("ElementalApplyDuration"))
+    {
+        Data.Duration += ValuePerPoint;
+    }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[ElementalApplyAddon] ApplyModifier: unknown AttributeID '%s'"), *AttributeID.ToString());
+    }
 }

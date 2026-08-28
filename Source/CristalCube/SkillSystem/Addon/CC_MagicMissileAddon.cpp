@@ -103,4 +103,16 @@ void UCC_MagicMissileAddon::OnHit_Implementation(UCC_SkillSystem* SkillSystem, c
 
 void UCC_MagicMissileAddon::ApplyModifier_Implementation(FName AttributeID, float ValuePerPoint)
 {
+    if (AttributeID == TEXT("MagicMissileLaunchCount"))
+    {
+        Data.LaunchCount += FMath::RoundToInt(ValuePerPoint);
+    }
+    else if (AttributeID == TEXT("MagicMissileDamageRatio"))
+    {
+        Data.DamageRatio = FMath::Max(Data.DamageRatio + ValuePerPoint, 0.f);
+    }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[MagicMissileAddon] ApplyModifier: unknown AttributeID '%s'"), *AttributeID.ToString());
+    }
 }

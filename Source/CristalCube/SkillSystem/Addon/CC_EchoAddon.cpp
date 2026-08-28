@@ -34,4 +34,16 @@ void UCC_EchoAddon::OnCast_Implementation(UCC_SkillSystem* SkillSystem, const FS
 
 void UCC_EchoAddon::ApplyModifier_Implementation(FName AttributeID, float ValuePerPoint)
 {
+    if (AttributeID == TEXT("EchoDamageRatio"))
+    {
+        Data.DamageRatio = FMath::Max(Data.DamageRatio + ValuePerPoint, 0.f);
+    }
+    else if (AttributeID == TEXT("EchoMaxEchoes"))
+    {
+        Data.MaxEchoes += FMath::RoundToInt(ValuePerPoint);
+    }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[EchoAddon] ApplyModifier: unknown AttributeID '%s'"), *AttributeID.ToString());
+    }
 }

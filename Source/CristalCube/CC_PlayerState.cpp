@@ -388,6 +388,38 @@ bool ACC_PlayerState::SpendAddonPoint(ESkillAddonType AddonType, FName Attribute
     return true;
 }
 
+bool ACC_PlayerState::RefundAddonPoint(ESkillAddonType AddonType, FName AttributeID, float ValuePerPoint)
+{
+    if (AddonType == ESkillAddonType::None || AttributeID.IsNone()) return false;
+
+    FAddonAttributeSpentPoints* SpentEntry = AddonSpentPoints.Find(AddonType);
+    if (!SpentEntry) return false;
+
+    int32* SpentCount = SpentEntry->Points.Find(AttributeID);
+    if (!SpentCount || *SpentCount <= 0) return false;
+
+    // 스펜트 기록 차감
+    --(*SpentCount);
+
+    // 은행으로 반환
+    int32& Points = AddonUnspentPoints.FindOrAdd(AddonType);
+    ++Points;
+
+    // 현재 이 Addon을 보유 중인 모든 장착 스킬에 역산 반영
+    for (UCC_SkillBase* Skill : EquippedSkills)
+    {
+        if (IsValid(Skill) && Skill->HasAddon(AddonType))
+        {
+            Skill->SpendAddonAttributePoint(AddonType, AttributeID, -ValuePerPoint);
+        }
+    }
+
+    UE_LOG(LogTemp, Log, TEXT("[PlayerState] Addon point refunded: %s / %s (now %d, bank %d)"),
+        *UEnum::GetValueAsString(AddonType), *AttributeID.ToString(), *SpentCount, Points);
+
+    return true;
+}
+
 int32 ACC_PlayerState::GetAddonAttributeSpentPoints(ESkillAddonType AddonType, FName AttributeID) const
 {
     const FAddonAttributeSpentPoints* Entry = AddonSpentPoints.Find(AddonType);

@@ -351,3 +351,6 @@ Content/*
 !Content/Develop
 
 Content/Develop/Animation/
+Content/Develop/Niagara/SE_Magma_Hit.uasset
+Content/Develop/Niagara/SE_IceShard_Test.uasset
+Content/Develop/Niagara/NS_Explosion.uasset

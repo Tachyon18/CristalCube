@@ -107,10 +107,12 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon")
 	int32 StartingWeaponCount = 2;
 
-	// Current active weapon
+	// Selected weapon for manual attacks and single-weapon UI references.
+	// EquippedWeapons remains the authoritative set of owned/equipped weapons.
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weapon")
 	class ACC_Weapon* CurrentWeapon;
 
+	// All equipped weapons. Each equipped weapon runs its own auto-attack loop.
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Player|Weapons")
 	TArray<ACC_Weapon*> EquippedWeapons;
 
@@ -124,6 +126,8 @@ protected:
 
 	UPROPERTY()
 	TMap<ACC_Weapon*, FTimerHandle> WeaponAttackTimers;
+
+	void SyncCurrentWeapon(ACC_Weapon* PreferredWeapon = nullptr);
 
 public:
 

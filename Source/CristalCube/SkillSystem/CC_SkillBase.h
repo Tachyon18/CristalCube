@@ -116,6 +116,11 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Skill|Addon")
     void ResolveAddons();
 
+    /** Core 스탯(Damage/Cooldown/Range/Area) 포인트 1회분(ValuePerPoint)을 적용.
+     *  Addon과 달리 별도 인스턴스가 없어 SkillDef.Passives를 직접 건드림. */
+    UFUNCTION(BlueprintCallable, Category = "Skill|Core")
+    void SpendCoreAttributePoint(ECoreUpgradeAttribute AttributeType, float ValuePerPoint);
+
     /** 이미 보유한 애드온의 세부 수치 강화. 미보유 시 무시. */
     UFUNCTION(BlueprintCallable, Category = "Skill|Addon")
     void ApplyAddonModifier(ESkillAddonType AddonType, const FSkillPassiveProperties& Modifier);

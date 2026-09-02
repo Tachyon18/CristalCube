@@ -90,6 +90,14 @@ public:
 
     FSkillTableRow* GetSkillRowPtr(FName SkillRowName);
 
+    /** SkillID의 DT_Skill 로우에서 CoreUpgradeAttributes 전체 조회. 로우 없으면 빈 배열. */
+    UFUNCTION(BlueprintCallable, Category = "Skill Library")
+    TArray<FCoreUpgradeAttribute> GetSkillCoreUpgradeAttributes(FName SkillID);
+
+    /** 위 배열에서 AttributeID 하나만 찾음. 못 찾으면 false. */
+    UFUNCTION(BlueprintCallable, Category = "Skill Library")
+    bool GetSkillCoreUpgradeAttribute(FName SkillID, ECoreUpgradeAttribute AttributeType, FCoreUpgradeAttribute& OutAttribute);
+
 protected:
     /** SkillClass의 CDO에서 FSkillDefinition을 읽어 OutData에 채움 (Icon/Description 제외) */
     void FillFromDefinition(const FSkillDefinition& Def, FSkillDisplayData& OutData) const;

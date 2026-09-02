@@ -261,12 +261,14 @@ void UCC_SkillSystem::ExecuteProjectile(const FSkillDefinition& Skill, FSkillExe
 
 void UCC_SkillSystem::ExecuteInstant(const FSkillDefinition& Skill, FSkillExecutionContext& Context)
 {
-	AActor* Target = FindNearestEnemy(Context.StartLocation, Skill.Range, Context.HitActors);
+	const float EffectiveRange = Skill.Range * Skill.Passives.RangeMultiplier;
+
+	AActor* Target = FindNearestEnemy(Context.StartLocation, EffectiveRange, Context.HitActors);
 
 	if (!Target)
 	{
 		UE_LOG(LogTemp, Log, TEXT("ExecuteInstant [%s]: No target found within range %.0f"),
-			*Skill.SkillID.ToString(), Skill.Range);
+			*Skill.SkillID.ToString(), EffectiveRange);
 		return;
 	}
 
@@ -320,18 +322,17 @@ void UCC_SkillSystem::ExecuteArea(const FSkillDefinition& Skill, FSkillExecution
 {
 
 	UWorld* World = GetWorld();
-	if (!World)
-	{
-		return;
-	}
+	if (!World) return; 
+
+	const float EffectiveArea = Skill.Range * Skill.Passives.AreaMultiplier;
 
 	//==========================================================================
-	// 1. 범위 내 적 탐색 (Skill.Range를 Area 반경으로 사용)
+	// 1. 범위 내 적 탐색 (Skill.Range를 Area 반경으로 사용, AreaMultiplier로 강화 반영)
 	//==========================================================================
-	TArray<AActor*> EnemiesInRange = FindEnemiesInRadius(Context.StartLocation, Skill.Range);
+	TArray<AActor*> EnemiesInRange = FindEnemiesInRadius(Context.StartLocation, EffectiveArea);
 
 	UE_LOG(LogTemp, Log, TEXT("ExecuteArea [%s]: %d enemies in range %.0f"),
-		*Skill.SkillID.ToString(), EnemiesInRange.Num(), Skill.Range);
+		*Skill.SkillID.ToString(), EnemiesInRange.Num(), EffectiveArea);
 
 	//==========================================================================
 	// 2. 범위 내 모든 적에게 데미지
@@ -378,7 +379,7 @@ void UCC_SkillSystem::ExecuteArea(const FSkillDefinition& Skill, FSkillExecution
 		DrawDebugSphere(
 			World,
 			Context.StartLocation,
-			Skill.Range,
+			EffectiveArea,
 			24,
 			FColor::Green,
 			false,
@@ -392,20 +393,18 @@ void UCC_SkillSystem::ExecuteArea(const FSkillDefinition& Skill, FSkillExecution
 void UCC_SkillSystem::ExecuteBeam(const FSkillDefinition& Skill, FSkillExecutionContext& Context)
 {
 	UWorld* World = GetWorld();
+	if (!World) return; 
 
-	if (!World)
-	{
-		return;
-	}
+	const float EffectiveRange = Skill.Range * Skill.Passives.RangeMultiplier;
 
 	FVector Start = Context.StartLocation;
 	FVector End = Context.TargetLocation;
 
 	FVector Direction = (End - Start).GetSafeNormal();
 	float Distance = FVector::Dist(Start, End);
-	if (Distance > Skill.Range)
+	if (Distance > EffectiveRange)
 	{
-		End = Start + Direction * Skill.Range;
+		End = Start + Direction * EffectiveRange;
 	}
 
 	FCollisionQueryParams QueryParams;
@@ -509,18 +508,19 @@ void UCC_SkillSystem::ExecuteRainfall(const FSkillDefinition& Skill, FSkillExecu
 	if (!World) return;
 
 	const FRainfallCoreData& RainfallData = Skill.RainfallData;
+	const float EffectiveAreaRadius = RainfallData.AreaRadius * Skill.Passives.AreaMultiplier;
 
 	// 1. 낙하 위치 배열 계산
 	TArray<FVector> DropLocations = CalculateDropLocations(
 		Context.TargetLocation,
-		RainfallData.AreaRadius,
+		EffectiveAreaRadius,
 		RainfallData.DropCount,
 		RainfallData.DropPattern
 	);
 
 	UE_LOG(LogTemp, Log, TEXT("ExecuteRainfall [%s]: %d drops, radius %.0f, pattern %d"),
 		*Skill.SkillID.ToString(), DropLocations.Num(),
-		RainfallData.AreaRadius, (int32)RainfallData.DropPattern);
+		EffectiveAreaRadius, (int32)RainfallData.DropPattern);
 
 	for (int32 i = 0; i < DropLocations.Num(); ++i)
 	{
@@ -562,7 +562,7 @@ void UCC_SkillSystem::ExecuteRainfall(const FSkillDefinition& Skill, FSkillExecu
 			World,
 			Context.TargetLocation,
 			Context.TargetLocation + FVector(0.0f, 0.0f, 50.0f),
-			RainfallData.AreaRadius,
+			EffectiveAreaRadius,
 			24,
 			FColor::Purple,
 			false,

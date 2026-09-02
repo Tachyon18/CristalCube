@@ -174,6 +174,26 @@ FSkillTableRow* UCC_SkillLibrarySubsystem::GetSkillRowPtr(FName SkillRowName)
 
 }
 
+TArray<FCoreUpgradeAttribute> UCC_SkillLibrarySubsystem::GetSkillCoreUpgradeAttributes(FName SkillID)
+{
+    FSkillTableRow* Row = GetSkillRowPtr(SkillID);
+    return Row ? Row->CoreUpgradeAttributes : TArray<FCoreUpgradeAttribute>();
+}
+
+bool UCC_SkillLibrarySubsystem::GetSkillCoreUpgradeAttribute(FName SkillID, ECoreUpgradeAttribute AttributeType, FCoreUpgradeAttribute& OutAttribute)
+{
+    FSkillTableRow* Row = GetSkillRowPtr(SkillID);
+    if (!Row) return false;
+
+    const FCoreUpgradeAttribute* Found = Row->CoreUpgradeAttributes.FindByPredicate(
+        [AttributeType](const FCoreUpgradeAttribute& A) { return A.AttributeType == AttributeType; });
+
+    if (!Found) return false;
+
+    OutAttribute = *Found;
+    return true;
+}
+
 void UCC_SkillLibrarySubsystem::FillFromDefinition(const FSkillDefinition& Def, FSkillDisplayData& OutData) const
 {
     OutData.SkillID = Def.SkillID;

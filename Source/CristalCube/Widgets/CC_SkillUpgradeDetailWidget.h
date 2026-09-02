@@ -29,22 +29,26 @@ public:
     void ShowSkill(UCC_SkillBase* Skill, ACC_PlayerState* PlayerState);
 
 protected:
-    UPROPERTY(meta = (BindWidget)) class UImage* SkillIcon;
-    UPROPERTY(meta = (BindWidget)) class UTextBlock* SkillName;
-    UPROPERTY(meta = (BindWidget)) UTextBlock* SkillDescription;
+    UPROPERTY(meta = (BindWidgetOptional)) class UImage* SkillIcon;
+    UPROPERTY(meta = (BindWidgetOptional)) class UTextBlock* SkillName;
+    UPROPERTY(meta = (BindWidgetOptional)) UTextBlock* SkillDescription;
 
     /** 이 스킬이 가진 Addon 카드 리스트. Card(UCC_AddonUpgradeCardWidget)가 IUserObjectListEntry를
      *  구현하고 있으므로 그 계약대로 ListView를 사용 — PanelWidget에 수동으로 채우면
      *  NativeOnListItemObjectSet이 인터페이스 단에서부터 protected라 컴파일 자체가 안 됨. */
     UPROPERTY(meta = (BindWidget)) class UListView* AddonCardContainer;
 
-    /** Core 강화 4행(Damage/Size/Speed/ProjectileCount) — 고정 개수라 BindWidget 4개로 직접 배치 */
-    UPROPERTY(meta = (BindWidget)) class UCC_AddonUpgradeRowWidget* CoreDamageRow;
-    UPROPERTY(meta = (BindWidget)) UCC_AddonUpgradeRowWidget* CoreSizeRow;
-    UPROPERTY(meta = (BindWidget)) UCC_AddonUpgradeRowWidget* CoreSpeedRow;
-    UPROPERTY(meta = (BindWidget)) UCC_AddonUpgradeRowWidget* CoreProjectileCountRow;
+    /** Core 강화 행 컨테이너. CC_AddonUpgradeCardWidget::AttributeRowContainer와 동일 패턴 —
+     *  ShowSkill()마다 비우고 카탈로그(CoreUpgradeAttributes) 개수만큼 Row를 새로 만들어 채움. */
+    UPROPERTY(meta = (BindWidget)) class UPanelWidget* CoreAttributeContainer;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Skill Upgrade")
+    TSubclassOf<class UCC_CoreUpgradeRowWidget> CoreAttributeRowWidgetClass;
 
     UPROPERTY(meta = (BindWidgetOptional)) class UButton* CloseButton;
+
+    UFUNCTION()
+    void HandleCorePointRequested(ECoreUpgradeAttribute AttributeType, bool bIsRefund);
 
     UFUNCTION()
     void HandleCardPointRequested(ESkillAddonType AddonType, FName AttributeID, bool bIsRefund);
@@ -63,7 +67,12 @@ public:
 private:
     TWeakObjectPtr<UCC_SkillBase> CurrentSkill;
     TWeakObjectPtr<ACC_PlayerState> BoundPlayerState;
-	
+
+    /** Core 강화 컨테이너를 비우고 카탈로그 기준으로 Row를 다시 채움. */
+    void RebuildCoreAttributeRows(class UCC_SkillBase* Skill, class ACC_PlayerState* PlayerState,
+        class UCC_SkillLibrarySubsystem* SkillLibrary);
+
     /** ListView가 엔트리 위젯(Card)을 새로 만들 때마다 호출됨 — 여기서 Card의 OnSpendRequested를 구독 */
     void HandleEntryWidgetGenerated(UUserWidget& EntryWidget);
+
 };

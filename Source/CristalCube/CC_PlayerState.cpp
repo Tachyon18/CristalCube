@@ -338,6 +338,87 @@ int32 ACC_PlayerState::ConsumeCubeClearPicks()
     return Total;
 }
 
+void ACC_PlayerState::AddSkillCorePoints(FName SkillID, int32 Amount)
+{
+    if (SkillID.IsNone() || Amount <= 0) return;
+
+    int32& Points = SkillCoreUnspentPoints.FindOrAdd(SkillID);
+    Points += Amount;
+
+    UE_LOG(LogTemp, Log, TEXT("[PlayerState] Skill core points +%d for %s (total: %d)"),
+        Amount, *SkillID.ToString(), Points);
+}
+
+int32 ACC_PlayerState::GetSkillCoreUnspentPoints(FName SkillID) const
+{
+    const int32* Points = SkillCoreUnspentPoints.Find(SkillID);
+    return Points ? *Points : 0;
+}
+
+bool ACC_PlayerState::SpendSkillCorePoint(FName SkillID, ECoreUpgradeAttribute AttributeType, float ValuePerPoint, int32 MaxPoints)
+{
+    if (SkillID.IsNone()) return false;
+
+    const int32 Bank = GetSkillCoreUnspentPoints(SkillID);
+    if (Bank <= 0) return false;
+
+    const int32 AlreadySpent = GetSkillCoreAttributeSpentPoints(SkillID, AttributeType);
+    if (MaxPoints > 0 && AlreadySpent >= MaxPoints) return false;
+
+    UCC_SkillBase* Skill = FindSkill(SkillID);
+    if (!Skill) return false;   // 장착 안 된 스킬엔 배분 불가 (Addon과 다른 점)
+
+    // 은행 차감
+    SkillCoreUnspentPoints[SkillID] = Bank - 1;
+
+    // 스펜트 기록 누적
+    FCoreAttributeSpentPoints& SpentEntry = SkillCoreSpentPoints.FindOrAdd(SkillID);
+    int32& SpentCount = SpentEntry.Points.FindOrAdd(AttributeType);
+    ++SpentCount;
+
+    Skill->SpendCoreAttributePoint(AttributeType, ValuePerPoint);
+
+    UE_LOG(LogTemp, Log, TEXT("[PlayerState] Skill core point spent: %s / %s (now %d, bank %d left)"),
+        *SkillID.ToString(), *UEnum::GetValueAsString(AttributeType), SpentCount, SkillCoreUnspentPoints[SkillID]);
+
+    return true;
+}
+
+bool ACC_PlayerState::RefundSkillCorePoint(FName SkillID, ECoreUpgradeAttribute AttributeType, float ValuePerPoint)
+{
+    if (SkillID.IsNone()) return false;
+
+    FCoreAttributeSpentPoints* SpentEntry = SkillCoreSpentPoints.Find(SkillID);
+    if (!SpentEntry) return false;
+
+    int32* SpentCount = SpentEntry->Points.Find(AttributeType);
+    if (!SpentCount || *SpentCount <= 0) return false;
+
+    UCC_SkillBase* Skill = FindSkill(SkillID);
+    if (!Skill) return false;
+
+    --(*SpentCount);
+
+    int32& Points = SkillCoreUnspentPoints.FindOrAdd(SkillID);
+    ++Points;
+
+    Skill->SpendCoreAttributePoint(AttributeType, -ValuePerPoint);
+
+    UE_LOG(LogTemp, Log, TEXT("[PlayerState] Skill core point refunded: %s / %s (now %d, bank %d)"),
+        *SkillID.ToString(), *UEnum::GetValueAsString(AttributeType), *SpentCount, Points);
+
+    return true;
+}
+
+int32 ACC_PlayerState::GetSkillCoreAttributeSpentPoints(FName SkillID, ECoreUpgradeAttribute AttributeType) const
+{
+    const FCoreAttributeSpentPoints* Entry = SkillCoreSpentPoints.Find(SkillID);
+    if (!Entry) return 0;
+
+    const int32* Count = Entry->Points.Find(AttributeType);
+    return Count ? *Count : 0;
+}
+
 void ACC_PlayerState::AddAddonPoints(ESkillAddonType AddonType, int32 Amount)
 {
     if (AddonType == ESkillAddonType::None || Amount <= 0) return;
@@ -489,19 +570,3 @@ bool ACC_PlayerState::GrantAddonWithCatchUp(UCC_SkillBase* Skill, ESkillAddonTyp
     return true;
 }
 
-void ACC_PlayerState::AddSkillCorePoints(FName SkillID, int32 Amount)
-{
-    if (SkillID.IsNone() || Amount <= 0) return;
-
-    int32& Points = SkillCoreUnspentPoints.FindOrAdd(SkillID);
-    Points += Amount;
-
-    UE_LOG(LogTemp, Log, TEXT("[PlayerState] Skill core points +%d for %s (total: %d)"),
-        Amount, *SkillID.ToString(), Points);
-}
-
-int32 ACC_PlayerState::GetSkillCoreUnspentPoints(FName SkillID) const
-{
-    const int32* Points = SkillCoreUnspentPoints.Find(SkillID);
-    return Points ? *Points : 0;
-}

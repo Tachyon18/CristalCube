@@ -37,10 +37,11 @@ bool UCC_SkillBase::TryCast(UCC_SkillSystem* SkillSystem, FVector TargetLocation
 
     SkillSystem->ExecuteSkill(SkillDef, TargetLocation);
 
-    // 쿨다운 시작
-    CooldownRemaining = SkillDef.Cooldown;
+    // 쿨다운 시작 — CooldownMultiplier 반영 (1.0 미만이면 쿨다운 감소 = 강화)
+    const float EffectiveCooldown = FMath::Max(SkillDef.Cooldown * SkillDef.Passives.CooldownMultiplier, 0.0f);
+    CooldownRemaining = EffectiveCooldown;
 
-    UE_LOG(LogTemp, Log, TEXT("[%s] Cast! Cooldown: %.1fs"), *SkillDef.SkillID.ToString(), SkillDef.Cooldown);
+    UE_LOG(LogTemp, Log, TEXT("[%s] Cast! Cooldown: %.1fs"), *SkillDef.SkillID.ToString(), EffectiveCooldown);
     return true;
 }
 
@@ -54,12 +55,14 @@ void UCC_SkillBase::TickCooldown(float DeltaTime)
 
 float UCC_SkillBase::GetCooldownProgress() const
 {
-    if (SkillDef.Cooldown <= 0.0f)
+    const float EffectiveCooldown = SkillDef.Cooldown * SkillDef.Passives.CooldownMultiplier;
+
+    if (EffectiveCooldown <= 0.0f)
     {
         return 1.0f; // 쿨다운 없는 스킬은 항상 준비된 상태
     }
 
-    return 1.0f - (CooldownRemaining / SkillDef.Cooldown);
+    return 1.0f - (CooldownRemaining / EffectiveCooldown);
 }
 
 void UCC_SkillBase::OnEquipped(AActor* InOwner)
@@ -147,6 +150,25 @@ void UCC_SkillBase::ResolveAddons()
                 break;
             }
         }
+    }
+}
+
+void UCC_SkillBase::SpendCoreAttributePoint(ECoreUpgradeAttribute AttributeType, float ValuePerPoint)
+{
+    switch (AttributeType)
+    {
+    case ECoreUpgradeAttribute::Damage:
+        SkillDef.Passives.DamageMultiplier += ValuePerPoint;
+        break;
+    case ECoreUpgradeAttribute::Cooldown:
+        SkillDef.Passives.CooldownMultiplier += ValuePerPoint;
+        break;
+    case ECoreUpgradeAttribute::Range:
+        SkillDef.Passives.RangeMultiplier += ValuePerPoint;
+        break;
+    case ECoreUpgradeAttribute::Area:
+        SkillDef.Passives.AreaMultiplier += ValuePerPoint;
+        break;
     }
 }
 

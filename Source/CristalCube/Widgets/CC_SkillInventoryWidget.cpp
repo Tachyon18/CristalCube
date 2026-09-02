@@ -2,33 +2,14 @@
 
 
 #include "CC_SkillInventoryWidget.h"
-#include "CC_SkillSlotWidget.h"
-#include "CC_SkillUpgradeDetailWidget.h"
-#include "Components/WidgetSwitcher.h"
-#include "../SkillSystem/CC_SkillLibrarySubsystem.h"
+#include "CC_SkillRosterEntryWidget.h"
+#include "Components/PanelWidget.h"
 #include "../CC_PlayerState.h"
 #include "../SkillSystem/CC_SkillBase.h"
 
 void UCC_SkillInventoryWidget::NativeConstruct()
 {
     Super::NativeConstruct();
-
-    Slots = { Slot1, Slot2, Slot3, Slot4, Slot5, Slot6 };
-
-    for (int32 i = 0; i < Slots.Num(); ++i)
-    {
-        if (Slots[i])
-        {
-            Slots[i]->SetSlotIndex(i);
-            Slots[i]->OnSlotDropped.AddDynamic(this, &UCC_SkillInventoryWidget::HandleSlotDropped);
-            Slots[i]->OnSlotUpgradeRequested.AddDynamic(this, &UCC_SkillInventoryWidget::HandleSlotUpgradeRequested);
-        }
-    }
-
-    if (UpgradeDetailPanel)
-    {
-        UpgradeDetailPanel->OnCloseRequested.AddDynamic(this, &UCC_SkillInventoryWidget::HandleUpgradePanelCloseRequested);
-    }
 
     BoundPlayerState = GetOwningPlayerState<ACC_PlayerState>();
 
@@ -46,6 +27,11 @@ void UCC_SkillInventoryWidget::NativeConstruct()
 
 void UCC_SkillInventoryWidget::NativeDestruct()
 {
+    if (GetWorld())
+    {
+        GetWorld()->GetTimerManager().ClearTimer(TransitionTimerHandle);
+    }
+
     if (BoundPlayerState)
     {
         BoundPlayerState->OnSkillsChanged.RemoveDynamic(this, &UCC_SkillInventoryWidget::HandleSkillsChanged);
@@ -54,85 +40,86 @@ void UCC_SkillInventoryWidget::NativeDestruct()
     Super::NativeDestruct();
 }
 
-void UCC_SkillInventoryWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
-{
-    Super::NativeTick(MyGeometry, InDeltaTime);
-
-    if (!BoundPlayerState) return;
-
-    for (int32 i = 0; i < Slots.Num(); ++i)
-    {
-        if (UCC_SkillBase* Skill = BoundPlayerState->GetSkillAtSlot(i))
-        {
-            Slots[i]->SetCooldownProgress(Skill->GetCooldownProgress());
-        }
-    }
-}
-
 void UCC_SkillInventoryWidget::RefreshInventory()
 {
-    if (!BoundPlayerState)
+    if (!RosterContainer || !RosterEntryWidgetClass || !BoundPlayerState) return;
+
+    if (GetWorld())
     {
+        GetWorld()->GetTimerManager().ClearTimer(TransitionTimerHandle);
+    }
+
+    RosterContainer->ClearChildren();
+    RosterEntries.Reset();
+    ExpandedEntry = nullptr;
+
+    for (int32 SlotIndex = 0; SlotIndex < NumEquipSlots; ++SlotIndex)
+    {
+        UCC_SkillBase* Skill = BoundPlayerState->GetSkillAtSlot(SlotIndex);
+        if (!Skill) continue;
+
+        UCC_SkillRosterEntryWidget* Entry = CreateWidget<UCC_SkillRosterEntryWidget>(this, RosterEntryWidgetClass);
+        if (!Entry) continue;
+
+        Entry->SetSkillData(SlotIndex, Skill, BoundPlayerState);
+        Entry->OnExpandRequested.AddDynamic(this, &UCC_SkillInventoryWidget::HandleEntryExpandRequested);
+
+        RosterContainer->AddChild(Entry);
+        RosterEntries.Add(Entry);
+    }
+}
+
+void UCC_SkillInventoryWidget::HandleEntryExpandRequested(UCC_SkillRosterEntryWidget* Entry)
+{
+    if (!Entry || !GetWorld()) return;
+
+    GetWorld()->GetTimerManager().ClearTimer(TransitionTimerHandle);
+
+    if (ExpandedEntry == Entry)
+    {
+        Entry->SetExpanded(false);
+        ExpandedEntry = nullptr;
+
+        FTimerDelegate Del;
+        Del.BindUObject(this, &UCC_SkillInventoryWidget::RevealSiblings);
+        GetWorld()->GetTimerManager().SetTimer(TransitionTimerHandle, Del, Entry->GetDrawerAnimDuration(), false);
         return;
     }
 
-    UCC_SkillLibrarySubsystem* SkillLibrary =
-        GetWorld() ? GetWorld()->GetGameInstance()->GetSubsystem<UCC_SkillLibrarySubsystem>() : nullptr;
-
-    if (!SkillLibrary)
+    if (ExpandedEntry)
     {
-        UE_LOG(LogTemp, Error, TEXT("[SkillInventory] SkillLibrarySubsystem not found!"));
-        return;
+        ExpandedEntry->SetExpanded(false);
     }
 
-    const TArray<UCC_SkillBase*>& EquippedSkills = BoundPlayerState->GetAllSkills();
-
-    for (int32 i = 0; i < Slots.Num(); ++i)
+    for (UCC_SkillRosterEntryWidget* E : RosterEntries)
     {
-        if (!Slots[i])
-        {
-            continue;
-        }
-
-        UCC_SkillBase* Skill = BoundPlayerState->GetSkillAtSlot(i);
-
-        FSkillDisplayData Data;
-        if (Skill && SkillLibrary->GetSkillDisplayData(Skill->GetSkillID(), Data))
-        {
-            Slots[i]->SetSkillData(Data);
-        }
-        else
-        {
-            Slots[i]->ClearSlot();
-        }
+        if (!E || E == Entry) continue;
+        E->PlayFadeOut();
     }
+
+    ExpandedEntry = Entry;
+
+    TWeakObjectPtr<UCC_SkillRosterEntryWidget> WeakEntry(Entry);
+    TWeakObjectPtr<UCC_SkillInventoryWidget> WeakSelf(this);
+
+    FTimerDelegate Del;
+    Del.BindLambda([WeakSelf, WeakEntry]()
+        {
+            if (WeakSelf.IsValid() && WeakEntry.IsValid() && WeakSelf->ExpandedEntry == WeakEntry.Get())
+            {
+                WeakEntry->SetExpanded(true);
+            }
+        });
+    GetWorld()->GetTimerManager().SetTimer(TransitionTimerHandle, Del, Entry->GetDrawerAnimDuration(), false);
+
 }
 
-void UCC_SkillInventoryWidget::HandleSlotDropped(int32 SourceSlotIndex, int32 TargetSlotIndex)
+void UCC_SkillInventoryWidget::RevealSiblings()
 {
-    if (BoundPlayerState)
+    for (UCC_SkillRosterEntryWidget* E : RosterEntries)
     {
-        BoundPlayerState->SwapSlots(SourceSlotIndex, TargetSlotIndex);
-        // RefreshInventory()는 SwapSlots 내부의 OnSkillsChanged.Broadcast()가 자동 트리거함 — 수동 호출 불필요
-    }
-}
-
-void UCC_SkillInventoryWidget::HandleSlotUpgradeRequested(int32 SlotIndex)
-{
-    if (!UpgradeDetailPanel || !BoundPlayerState) return;
-
-    UCC_SkillBase* Skill = BoundPlayerState->GetSkillAtSlot(SlotIndex);
-    if (!Skill) return;
-
-    UpgradeDetailPanel->ShowSkill(Skill, BoundPlayerState);
-    InventorySwitcher->SetActiveWidgetIndex(1);
-}
-
-void UCC_SkillInventoryWidget::HandleUpgradePanelCloseRequested()
-{
-    if (InventorySwitcher)
-    {
-        InventorySwitcher->SetActiveWidgetIndex(0);
+        if (!E || E == ExpandedEntry) continue;
+        E->PlayFadeIn();
     }
 }
 
@@ -140,3 +127,4 @@ void UCC_SkillInventoryWidget::HandleSkillsChanged()
 {
     RefreshInventory();
 }
+

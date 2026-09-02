@@ -3,12 +3,13 @@
 
 #include "CC_SkillUpgradeDetailWidget.h"
 #include "CC_AddonUpgradeCardWidget.h"
-#include "CC_AddonUpgradeRowWidget.h"
+#include "CC_CoreUpgradeRowWidget.h"
 #include "Blueprint/IUserObjectListEntry.h"
 #include "Components/Image.h"
 #include "Components/TextBlock.h"
 #include "Components/ListView.h"
 #include "Components/Button.h"
+#include "Components/PanelWidget.h"
 #include "../SkillSystem/CC_SkillBase.h"
 #include "../SkillSystem/CC_SkillLibrarySubsystem.h"
 #include "../SkillSystem/CC_AddonUpgradeEntryData.h"
@@ -80,12 +81,30 @@ void UCC_SkillUpgradeDetailWidget::ShowSkill(UCC_SkillBase* Skill, ACC_PlayerSta
         AddonCardContainer->SetListItems(Items);
     }
 
-    // Core 강화 4행 — 아직 배분 백엔드 없음(SkillCorePoints 배분 로직 미구현). 다음 세션 대상, 지금은 숨김.
-    if (CoreDamageRow) CoreDamageRow->SetVisibility(ESlateVisibility::Collapsed);
-    if (CoreSizeRow) CoreSizeRow->SetVisibility(ESlateVisibility::Collapsed);
-    if (CoreSpeedRow) CoreSpeedRow->SetVisibility(ESlateVisibility::Collapsed);
-    if (CoreProjectileCountRow) CoreProjectileCountRow->SetVisibility(ESlateVisibility::Collapsed);
+    RebuildCoreAttributeRows(Skill, PlayerState, SkillLibrary);
+}
 
+void UCC_SkillUpgradeDetailWidget::HandleCorePointRequested(ECoreUpgradeAttribute AttributeType, bool bIsRefund)
+{
+    if (!BoundPlayerState.IsValid() || !CurrentSkill.IsValid()) return;
+
+    UCC_SkillLibrarySubsystem* SkillLibrary =
+        GetWorld() ? GetWorld()->GetGameInstance()->GetSubsystem<UCC_SkillLibrarySubsystem>() : nullptr;
+    if (!SkillLibrary) return;
+
+    const FName SkillID = CurrentSkill->GetSkillID();
+
+    FCoreUpgradeAttribute AttrDef;
+    if (!SkillLibrary->GetSkillCoreUpgradeAttribute(SkillID, AttributeType, AttrDef)) return;
+
+    const bool bSuccess = bIsRefund
+        ? BoundPlayerState->RefundSkillCorePoint(SkillID, AttributeType, AttrDef.ValuePerPoint)
+        : BoundPlayerState->SpendSkillCorePoint(SkillID, AttributeType, AttrDef.ValuePerPoint, AttrDef.MaxPoints);
+
+    if (bSuccess)
+    {
+        ShowSkill(CurrentSkill.Get(), BoundPlayerState.Get());
+    }
 }
 
 void UCC_SkillUpgradeDetailWidget::HandleCardPointRequested(ESkillAddonType AddonType, FName AttributeID, bool bIsRefund)
@@ -118,6 +137,30 @@ void UCC_SkillUpgradeDetailWidget::HandleCloseClicked()
     OnCloseRequested.Broadcast();
 }
 
+void UCC_SkillUpgradeDetailWidget::RebuildCoreAttributeRows(UCC_SkillBase* Skill, ACC_PlayerState* PlayerState, UCC_SkillLibrarySubsystem* SkillLibrary)
+{
+    if (!CoreAttributeContainer || !CoreAttributeRowWidgetClass || !Skill || !PlayerState || !SkillLibrary) return;
+
+    // 재사용 컨테이너라 매번 비우고 다시 채움 — RebuildAttributeRows()와 동일 원칙
+    CoreAttributeContainer->ClearChildren();
+
+    const FName SkillID = Skill->GetSkillID();
+    const TArray<FCoreUpgradeAttribute> CoreAttrs = SkillLibrary->GetSkillCoreUpgradeAttributes(SkillID);
+    const int32 CoreBank = PlayerState->GetSkillCoreUnspentPoints(SkillID);
+
+    for (const FCoreUpgradeAttribute& Attr : CoreAttrs)
+    {
+        UCC_CoreUpgradeRowWidget* Row = CreateWidget<UCC_CoreUpgradeRowWidget>(this, CoreAttributeRowWidgetClass);
+        if (!Row) continue;
+
+        const int32 CurrentSpent = PlayerState->GetSkillCoreAttributeSpentPoints(SkillID, Attr.AttributeType);
+        Row->SetAttributeData(Attr, CurrentSpent, CoreBank);
+        Row->OnPointRequested.AddDynamic(this, &UCC_SkillUpgradeDetailWidget::HandleCorePointRequested);
+
+        CoreAttributeContainer->AddChild(Row);
+    }
+}
+
 void UCC_SkillUpgradeDetailWidget::HandleEntryWidgetGenerated(UUserWidget& EntryWidget)
 {
     if (UCC_AddonUpgradeCardWidget* Card = Cast<UCC_AddonUpgradeCardWidget>(&EntryWidget))
@@ -128,3 +171,4 @@ void UCC_SkillUpgradeDetailWidget::HandleEntryWidgetGenerated(UUserWidget& Entry
         }
     }
 }
+

@@ -718,6 +718,15 @@ struct FSkillPassiveProperties
     float DamageMultiplier = 1.0f;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Passive|Multipliers")
+    float CooldownMultiplier = 1.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Passive|Multipliers")
+    float RangeMultiplier = 1.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Passive|Multipliers")
+    float AreaMultiplier = 1.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Passive|Multipliers")
     float SizeMultiplier = 1.0f;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Passive|Multipliers")
@@ -899,8 +908,73 @@ struct FSkillExecutionContext
 };
 
 //------------------------------------------------------------------------------
+// Skill Core Upgrade - 스킬 코어 강화(Damage/Cooldown/Range/Area) 카탈로그
+//------------------------------------------------------------------------------
+UENUM(BlueprintType)
+enum class ECoreUpgradeAttribute : uint8
+{
+    Damage,
+    Cooldown,
+    Range,
+    Area
+};
+
+USTRUCT(BlueprintType)
+struct FCoreUpgradeAttribute
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Core|Upgrade")
+    ECoreUpgradeAttribute AttributeType = ECoreUpgradeAttribute::Damage;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Core|Upgrade")
+    FText DisplayName;
+
+    // 포인트 1개당 실제 수치 증가량 (Cooldown을 줄이려면 음수로 — Addon과 동일 컨벤션)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Core|Upgrade")
+    float ValuePerPoint = 0.0f;
+
+    // 0 = 무제한, 그 외엔 이 값 도달 시 UI에서 배분 버튼 비활성화
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Core|Upgrade")
+    int32 MaxPoints = 0;
+};
+
+USTRUCT(BlueprintType)
+struct FCoreAttributeSpentPoints
+{
+    GENERATED_BODY()
+
+    // AttributeType -> 지금까지 이 속성에 배분한 누적 포인트 수
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Core|Upgrade")
+    TMap<ECoreUpgradeAttribute, int32> Points;
+};
+
+//------------------------------------------------------------------------------
 // DataTable Row - 스킬 라이브러리
 //------------------------------------------------------------------------------
+
+USTRUCT(BlueprintType)
+struct FAddonUpgradeAttribute
+{
+    GENERATED_BODY()
+
+    // ApplyAddonModifier()/SpendAddonAttributePoint()가 매칭에 쓰는 키.
+    // 2절 표의 AttributeID 컬럼 그대로 입력 (오타 시 조용히 무시되니 주의).
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|Upgrade")
+    FName AttributeID = NAME_None;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|Upgrade")
+    FText DisplayName;
+
+    // 포인트 1개당 실제 수치 증가량 (음수면 감소형 강화로도 사용 가능 — 지금은 전부 양수)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|Upgrade")
+    float ValuePerPoint = 0.0f;
+
+    // 0 = 무제한, 그 외엔 이 값 도달 시 UI에서 배분 버튼 비활성화
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|Upgrade")
+    int32 MaxPoints = 0;
+};
+
 USTRUCT(BlueprintType)
 struct FSkillTableRow : public FTableRowBase
 {
@@ -926,29 +1000,11 @@ struct FSkillTableRow : public FTableRowBase
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Acquisition")
     int32 UnlockLevel = 1;
-};
 
-// CristalCubeStruct.h — FAddonTableRow 앞에 신규 추가
-USTRUCT(BlueprintType)
-struct FAddonUpgradeAttribute
-{
-    GENERATED_BODY()
-
-    // ApplyAddonModifier()/SpendAddonAttributePoint()가 매칭에 쓰는 키.
-    // 2절 표의 AttributeID 컬럼 그대로 입력 (오타 시 조용히 무시되니 주의).
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|Upgrade")
-    FName AttributeID = NAME_None;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|Upgrade")
-    FText DisplayName;
-
-    // 포인트 1개당 실제 수치 증가량 (음수면 감소형 강화로도 사용 가능 — 지금은 전부 양수)
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|Upgrade")
-    float ValuePerPoint = 0.0f;
-
-    // 0 = 무제한, 그 외엔 이 값 도달 시 UI에서 배분 버튼 비활성화
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|Upgrade")
-    int32 MaxPoints = 0;
+    // Skill Core 강화 배분 카탈로그 — 스킬마다 다르게 설정. Range는 Instant/Beam 전용,
+    // Area는 Area/Rainfall 전용 (CoreType에 안 맞는 항목을 넣어도 실행부가 안 읽어서 조용히 무효).
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Skill|Core Upgrade")
+    TArray<FCoreUpgradeAttribute> CoreUpgradeAttributes;
 };
 
 USTRUCT(BlueprintType)

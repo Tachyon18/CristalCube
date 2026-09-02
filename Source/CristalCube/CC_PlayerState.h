@@ -168,6 +168,42 @@ public:
     int32 ConsumeCubeClearPicks();
 
     //==========================================================================
+    // SKILL CORE POINT BANK (LevelUp "포인트제" 강화, 2026-07-28 설계)
+    //==========================================================================
+
+    /** 스킬 ID별 미소진 Core 포인트. LevelUp CorePoint 카드가 여기 적립.
+     *  Addon 포인트와 달리 SkillID 단위(따라잡기 없음) — 스킬 중복 장착 계획이 없어서
+     *  포인트가 특정 스킬 인스턴스 하나에만 귀속됨.
+     *  실제 속성별 배분(소진)은 Addon 포인트와 동일하게 SkillInventory 확장 UI(8번)에서 처리. */
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Skills|Core Points")
+    TMap<FName, int32> SkillCoreUnspentPoints;
+
+    /** 지정한 스킬에 Core 포인트 N개를 은행에 적립 */
+    UFUNCTION(BlueprintCallable, Category = "Skills|Core Points")
+    void AddSkillCorePoints(FName SkillID, int32 Amount);
+
+    /** 은행에 적립된 포인트 조회 (UI 표시용) */
+    UFUNCTION(BlueprintPure, Category = "Skills|Core Points")
+    int32 GetSkillCoreUnspentPoints(FName SkillID) const;
+
+    /** 스킬 ID별, 속성(AttributeID)별 누적 배분량. Addon과 달리 따라잡기 없음 —
+     *  스킬 인스턴스 하나에만 귀속되므로 구조만 재사용(FAddonAttributeSpentPoints). */
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Skills|Core Points")
+    TMap<FName, FCoreAttributeSpentPoints> SkillCoreSpentPoints;
+
+    /** 은행에서 1포인트를 소진해 AttributeID에 배분. 은행 부족/MaxPoints 초과/스킬 미장착 시 false. */
+    UFUNCTION(BlueprintCallable, Category = "Skills|Core Points")
+    bool SpendSkillCorePoint(FName SkillID, ECoreUpgradeAttribute AttributeType, float ValuePerPoint, int32 MaxPoints);
+
+    /** 이미 배분한 포인트 1개를 회수해서 은행으로 되돌림. */
+    UFUNCTION(BlueprintCallable, Category = "Skills|Core Points")
+    bool RefundSkillCorePoint(FName SkillID, ECoreUpgradeAttribute AttributeType, float ValuePerPoint);
+
+    /** 이미 배분된 포인트 수 조회 (UI에서 "3/10" 같은 표시에 사용) */
+    UFUNCTION(BlueprintPure, Category = "Skills|Core Points")
+    int32 GetSkillCoreAttributeSpentPoints(FName SkillID, ECoreUpgradeAttribute AttributeType) const;
+
+    //==========================================================================
     // ADDON POINT BANK (CubeClear "포인트제" 강화, SkillSystem.md 2026-07-23 설계)
     //==========================================================================
 
@@ -209,23 +245,4 @@ public:
      *  Grant 자체가 실패하면(이미 보유 등) false. */
     UFUNCTION(BlueprintCallable, Category = "Skills|Addon Points")
     bool GrantAddonWithCatchUp(UCC_SkillBase* Skill, ESkillAddonType AddonType);
-
-    //==========================================================================
-    // SKILL CORE POINT BANK (LevelUp "포인트제" 강화, 2026-07-28 설계)
-    //==========================================================================
-
-    /** 스킬 ID별 미소진 Core 포인트. LevelUp CorePoint 카드가 여기 적립.
-     *  Addon 포인트와 달리 SkillID 단위(따라잡기 없음) — 스킬 중복 장착 계획이 없어서
-     *  포인트가 특정 스킬 인스턴스 하나에만 귀속됨.
-     *  실제 속성별 배분(소진)은 Addon 포인트와 동일하게 SkillInventory 확장 UI(8번)에서 처리. */
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Skills|Core Points")
-    TMap<FName, int32> SkillCoreUnspentPoints;
-
-    /** 지정한 스킬에 Core 포인트 N개를 은행에 적립 */
-    UFUNCTION(BlueprintCallable, Category = "Skills|Core Points")
-    void AddSkillCorePoints(FName SkillID, int32 Amount);
-
-    /** 은행에 적립된 포인트 조회 (UI 표시용) */
-    UFUNCTION(BlueprintPure, Category = "Skills|Core Points")
-    int32 GetSkillCoreUnspentPoints(FName SkillID) const;
 };

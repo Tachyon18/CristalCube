@@ -82,6 +82,6 @@ protected:
 	TArray<FActiveElementalStatus> ActiveElements;
 
 	// 원소 하나 스폰 헬퍼 (DoT의 SpawnAttachedTickEffect와 동일 패턴)
-	class UNiagaraComponent* SpawnAttachedElementEffect(UNiagaraSystem* Effect) const;
+	class UNiagaraComponent* SpawnAttachedElementEffect(UNiagaraSystem* Effect, ESkillElementType ElementType) const;
 
 };

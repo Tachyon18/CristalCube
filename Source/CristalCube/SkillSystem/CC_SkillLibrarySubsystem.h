@@ -138,4 +138,10 @@ public:
     *  값은 여기 한 곳에서만 관리 — 나중에 조합색(2차색) 추가 시에도 이 함수만 확장하면 됨. */
     UFUNCTION(BlueprintCallable, Category = "Skill Library")
     FElementColorData GetElementColor(ESkillElementType ElementType) const;
+
+    /** 서브시스템 인스턴스를 직접 들고 있지 않은 클래스(Effector/Component 등)를 위한
+     *  월드 컨텍스트 기반 정적 헬퍼. 실제 색상 데이터는 여전히 GetElementColor() 한 곳에서만
+     *  관리됨 — 이 함수는 거기 접근하는 경로만 통일해주는 것. 서브시스템을 못 찾으면 흰색 폴백. */
+    UFUNCTION(BlueprintCallable, Category = "Skill Library", meta = (WorldContext = "WorldContextObject"))
+    static FLinearColor ResolveElementColor(const UObject* WorldContextObject, ESkillElementType ElementType);
 };

@@ -9,6 +9,7 @@
 
 class UNiagaraComponent;
 class UCC_SkillSystem;
+class UCC_EffectorPoolSubsystem;
 
 /**
  * Shockwave Addon 전용 실행 액터.
@@ -32,6 +33,8 @@ public:
 
 	void Initialize(FVector InOrigin, float InDamage, AActor* InInstigator, const FShockwaveAddonData& InData, AActor* InExcludedTarget, UCC_SkillSystem* InSkillSystem, const FSkillDefinition& InSkill, const FSkillExecutionContext& InContext, int32 InStartIndex);
 
+	void SetOwningPool(UCC_EffectorPoolSubsystem* InPool);
+
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
@@ -41,11 +44,17 @@ public:
 	virtual void Tick(float DeltaTime) override;
 
 private:
+
+	void Deactivate();
+
 	UPROPERTY(VisibleAnywhere)
 	class USceneComponent* Root = nullptr;
 
 	UPROPERTY()
 	UNiagaraComponent* ShockwaveVFX = nullptr;
+
+	UPROPERTY()
+	UCC_EffectorPoolSubsystem* OwningPool = nullptr;
 
 	FVector Origin = FVector::ZeroVector;
 	float Damage = 0.0f;

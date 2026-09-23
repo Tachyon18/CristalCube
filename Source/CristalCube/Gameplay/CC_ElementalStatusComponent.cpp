@@ -6,6 +6,8 @@
 #include "NiagaraComponent.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "../SkillSystem/CC_SkillSystem.h"
+#include "../SkillSystem/CC_SkillLibrarySubsystem.h"
 #include "CC_EnemyMovementComponent.h"
 #include "Engine/DamageEvents.h"
 
@@ -109,8 +111,9 @@ void UCC_ElementalStatusComponent::ApplyElement(ESkillElementType ElementType, i
 
 			if (!Existing.ActiveVFXComponent.IsValid() && ApplyEffect)
 			{
-				Existing.ActiveVFXComponent = SpawnAttachedElementEffect(ApplyEffect);
+				Existing.ActiveVFXComponent = SpawnAttachedElementEffect(ApplyEffect, ElementType);
 			}
+
 			return;
 		}
 	}
@@ -120,7 +123,7 @@ void UCC_ElementalStatusComponent::ApplyElement(ESkillElementType ElementType, i
 	NewStatus.StackCount = FMath::Min(StackAmount, MaxStacks);
 	NewStatus.RemainingDuration = Duration;
 	NewStatus.Instigator = Instigator;
-	NewStatus.ActiveVFXComponent = SpawnAttachedElementEffect(ApplyEffect);
+	NewStatus.ActiveVFXComponent = SpawnAttachedElementEffect(ApplyEffect, ElementType);
 	ActiveElements.Add(NewStatus);
 	SetComponentTickEnabled(true);
 
@@ -233,7 +236,7 @@ float UCC_ElementalStatusComponent::GetOutgoingDamageMultiplier() const
 	return 1.0f;
 }
 
-UNiagaraComponent* UCC_ElementalStatusComponent::SpawnAttachedElementEffect(UNiagaraSystem* Effect) const
+UNiagaraComponent* UCC_ElementalStatusComponent::SpawnAttachedElementEffect(UNiagaraSystem* Effect, ESkillElementType ElementType) const
 {
 	AActor* Owner = GetOwner();
 	if (!Effect || !Owner || !Owner->GetRootComponent())
@@ -241,17 +244,7 @@ UNiagaraComponent* UCC_ElementalStatusComponent::SpawnAttachedElementEffect(UNia
 		return nullptr;
 	}
 
-	return UNiagaraFunctionLibrary::SpawnSystemAttached(
-		Effect,
-		Owner->GetRootComponent(),
-		NAME_None,
-		FVector::ZeroVector,
-		FRotator::ZeroRotator,
-		EAttachLocation::SnapToTarget,
-		false,  // bAutoDestroy — 수명은 컴포넌트가 직접 관리
-		true,   // bAutoActivate
-		ENCPoolMethod::None,  // 수명 직접 관리하므로 풀링 비사용 (DoT 때 겪은 문제 재발 방지)
-		true    // bPreCullCheck
-	);
+	return UCC_SkillSystem::SpawnPersistentAttachedVFX(Effect, Owner->GetRootComponent(), ElementType);
+
 }
 

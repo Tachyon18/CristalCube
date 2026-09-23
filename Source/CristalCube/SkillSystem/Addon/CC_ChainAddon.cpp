@@ -29,7 +29,7 @@ void UCC_ChainAddon::OnHit_Implementation(UCC_SkillSystem* SkillSystem, const FS
 
         if (Data.ChainEffect)
         {
-            SkillSystem->SpawnChainEffect(Data.ChainEffect, SearchOrigin, NextTarget->GetActorLocation());
+            SkillSystem->SpawnTrajectoryEffect(Data.ChainEffect, SearchOrigin, NextTarget->GetActorLocation(), 5.0f, Skill.ElementType);
         }
 
         FHitResult ChainHit;

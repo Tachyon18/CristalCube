@@ -84,7 +84,7 @@ void UCC_MagicMissileAddon::OnHit_Implementation(UCC_SkillSystem* SkillSystem, c
 
             if (DataCopy.LaunchEffect)
             {
-                WeakSystem->SpawnEffect(DataCopy.LaunchEffect, SpawnLocation);
+                WeakSystem->SpawnEffect(DataCopy.LaunchEffect, SpawnLocation, FRotator::ZeroRotator, SkillCopy.ElementType);
             }
 
             if (*LaunchedCount >= TargetPoints.Num())

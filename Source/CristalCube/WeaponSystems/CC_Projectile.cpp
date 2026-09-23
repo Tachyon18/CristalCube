@@ -37,8 +37,6 @@ ACC_Projectile::ACC_Projectile()
 	// Overlap 이벤트만 사용
 	CollisionSphere->SetGenerateOverlapEvents(true);
 
-
-
 	// Create projectile mesh (optional visual)
 	ProjectileMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ProjectileMesh"));
 	ProjectileMesh->SetupAttachment(CollisionSphere);
@@ -264,4 +262,3 @@ bool ACC_Projectile::ShouldPierceThrough(AActor* HitActor)
 
 	return CurrentPierceCount < PierceCount;
 }
-

@@ -37,7 +37,7 @@ void UCC_ExplosionAddon::OnHit_Implementation(UCC_SkillSystem* SkillSystem, cons
 
     if (Data.ExplosionEffect)
     {
-        SkillSystem->SpawnEffect(Data.ExplosionEffect, HitLocation);
+        SkillSystem->SpawnEffect(Data.ExplosionEffect, HitLocation, FRotator::ZeroRotator, Skill.ElementType);
     }
 }
 

@@ -5,6 +5,8 @@
 #include "../CC_LogHelper.h"
 #include "CC_SkillEffector.h"
 #include "CC_SkillInstance.h"
+#include "CC_EffectorPoolSubsystem.h"
+#include "CC_SkillLibrarySubsystem.h"
 #include "Addon/CC_ExplosionAddon.h"
 #include "Addon/CC_ChainAddon.h"
 #include "Addon/CC_ShockwaveAddon.h"
@@ -98,17 +100,17 @@ void UCC_SkillSystem::ExecuteSkill(const FSkillDefinition& Skill, FVector Target
 	UE_LOG(LogTemp, Log, TEXT("Executing Skill : %s, Core : %d"), *Skill.SkillID.ToString(),
 		(int32)Skill.CoreType);
 
-	//// Cast VFX
-	//if (Skill.CastEffect)
-	//{
-	//	SpawnEffect(Skill.CastEffect, Context.StartLocation);
-	//}
+	// Cast VFX
+	if (Skill.CastEffect)
+	{
+		SpawnEffect(Skill.CastEffect, Context.StartLocation, FRotator::ZeroRotator, Skill.ElementType);
+	}
 
 	// Cast Sound
-	//if (Skill.CastSound)
-	//{
-	//	PlaySound(Skill.CastSound, Context.StartLocation);
-	//}
+	if (Skill.CastSound)
+	{
+		PlaySound(Skill.CastSound, Context.StartLocation);
+	}
 
 	// Core 실행
 	switch (Skill.CoreType)
@@ -212,15 +214,13 @@ void UCC_SkillSystem::ExecuteProjectile(const FSkillDefinition& Skill, FSkillExe
 		SpawnTransform.SetLocation(SpawnLocation);
 		SpawnTransform.SetRotation(SpawnDirection.ToOrientationQuat());
 
-		ACC_SkillEffector* SkillEffectorProjectile = World->SpawnActor<ACC_SkillEffector>(
-			Skill.ProjectileClass,
-			SpawnTransform
-		);
+		ACC_SkillEffector* SkillEffectorProjectile = AcquireSkillEffector(Skill.ProjectileClass, SpawnTransform);
 
 		if (SkillEffectorProjectile)
 		{
 			// 3. 투사체 초기화
 			SkillEffectorProjectile->SetSkillOwner(Context.Caster);
+			SkillEffectorProjectile->SetOwningSkillSystem(this);
 			SkillEffectorProjectile->SkillContext = Context;
 			SkillEffectorProjectile->Initialize(Skill.CoreType, Skill);
 
@@ -282,7 +282,7 @@ void UCC_SkillSystem::ExecuteInstant(const FSkillDefinition& Skill, FSkillExecut
 
 	if(Skill.ImpactEffect)
 	{
-		SpawnEffect(Skill.ImpactEffect, HitLocation);
+		SpawnEffect(Skill.ImpactEffect, HitLocation, FRotator::ZeroRotator, Skill.ElementType);
 	}
 
 	if (bShowDebugShapes)
@@ -350,7 +350,7 @@ void UCC_SkillSystem::ExecuteArea(const FSkillDefinition& Skill, FSkillExecution
 		// 개별 Impact VFX
 		if (Skill.ImpactEffect)
 		{
-			SpawnEffect(Skill.ImpactEffect, Enemy->GetActorLocation());
+			SpawnEffect(Skill.ImpactEffect, Enemy->GetActorLocation(), FRotator::ZeroRotator, Skill.ElementType);
 		}
 
 		// 개별 Addon 처리 (Area도 Chain/Explosion 조합 가능)
@@ -368,7 +368,7 @@ void UCC_SkillSystem::ExecuteArea(const FSkillDefinition& Skill, FSkillExecution
 	//==========================================================================
 	if (Skill.SkillEffect)
 	{
-		SpawnEffect(Skill.SkillEffect, Context.StartLocation);
+		SpawnEffect(Skill.SkillEffect, Context.StartLocation, FRotator::ZeroRotator, Skill.ElementType);
 	}
 
 	//==========================================================================
@@ -438,7 +438,7 @@ void UCC_SkillSystem::ExecuteBeam(const FSkillDefinition& Skill, FSkillExecution
 			// Impact VFX
 			if (Skill.ImpactEffect)
 			{
-				SpawnEffect(Skill.ImpactEffect, Hit.ImpactPoint);
+				SpawnEffect(Skill.ImpactEffect, Hit.ImpactPoint, FRotator::ZeroRotator, Skill.ElementType);
 			}
 
 			// Addon 처리 (Explosion, Chain 등)
@@ -451,23 +451,7 @@ void UCC_SkillSystem::ExecuteBeam(const FSkillDefinition& Skill, FSkillExecution
 	// 4. Beam VFX 스폰 (Niagara Beam)
 	if (Skill.SkillEffect)
 	{
-		UNiagaraComponent* BeamEffect = UNiagaraFunctionLibrary::SpawnSystemAtLocation(
-			World,
-			Skill.SkillEffect,
-			Start,
-			FRotator::ZeroRotator,
-			FVector(1.0f),
-			true,
-			true,
-			ENCPoolMethod::AutoRelease
-		);
-
-		if (BeamEffect)
-		{
-			// Beam 끝점 설정 (Niagara Parameter)
-			BeamEffect->SetVectorParameter(FName("BeamEnd"), End);
-			BeamEffect->SetFloatParameter(FName("BeamWidth"), 10.0f);
-		}
+		SpawnTrajectoryEffect(Skill.SkillEffect, Start, End, 10.0f, Skill.ElementType);
 	}
 
 	// 5. 디버그 표시
@@ -585,12 +569,8 @@ void UCC_SkillSystem::SpawnRainfallProjectile(const FSkillDefinition& Skill, con
 	FRotator SpawnRotation = FallDirection.ToOrientationRotator();
 
 	FTransform SpawnTransform(SpawnRotation, SpawnLocation);
-	
 
-	ACC_SkillEffector* Effector = GetWorld()->SpawnActor<ACC_SkillEffector>(
-		Skill.ProjectileClass,
-		SpawnTransform
-	);
+	ACC_SkillEffector* Effector = AcquireSkillEffector(Skill.ProjectileClass, SpawnTransform);
 
 	if (!Effector) return;
 
@@ -601,6 +581,7 @@ void UCC_SkillSystem::SpawnRainfallProjectile(const FSkillDefinition& Skill, con
 	NewContext.Direction = FallDirection;
 
 	Effector->SetSkillOwner(Context.Caster);
+	Effector->SetOwningSkillSystem(this);
 	Effector->SkillContext = NewContext;
 	Effector->Initialize(ESkillCoreType::Rainfall, Skill);
 
@@ -771,7 +752,7 @@ void UCC_SkillSystem::ApplyExplosion(const FSkillDefinition& Skill, FSkillExecut
 
 	if (Skill.Passives.ExplosionData.ExplosionEffect)
 	{
-		SpawnEffect(Skill.Passives.ExplosionData.ExplosionEffect, Location);
+		SpawnEffect(Skill.Passives.ExplosionData.ExplosionEffect, Location, FRotator::ZeroRotator, Skill.ElementType);
 	}
 
 	// 디버그 구체
@@ -906,7 +887,7 @@ int32 UCC_SkillSystem::GetProjectileCount(const FSkillDefinition& Skill) const
 	return FMath::Max(1, Count);
 }
 
-void UCC_SkillSystem::SpawnChainEffect(UNiagaraSystem* Effect, FVector StartLocation, FVector TargetLocation)
+void UCC_SkillSystem::SpawnChainEffect(UNiagaraSystem* Effect, FVector StartLocation, FVector TargetLocation, ESkillElementType ElementType)
 {
 	if (!Effect || !GetWorld())
 	{
@@ -929,9 +910,54 @@ void UCC_SkillSystem::SpawnChainEffect(UNiagaraSystem* Effect, FVector StartLoca
 		ChainNiagara->SetVectorParameter(FName("BeamEnd"), TargetLocation);
 		//ChainNiagara->SetFloatParameter(FName("BeamWidth"), 5.0f);
 
+		if (ElementType != ESkillElementType::None)
+		{
+			const FLinearColor ElementColor = UCC_SkillLibrarySubsystem::ResolveElementColor(this, ElementType);
+			ChainNiagara->SetVariableLinearColor(FName("User.PrimaryColor"), ElementColor);
+			ChainNiagara->SetVariableLinearColor(FName("User.SecondaryColor"), ElementColor);
+		}
+
 		ChainNiagara->Activate();
 	}
 
+}
+
+void UCC_SkillSystem::SpawnTrajectoryEffect(UNiagaraSystem* Effect, FVector StartLocation, FVector TargetLocation, float Width, ESkillElementType ElementType)
+{
+	if (!Effect || !GetWorld())
+	{
+		return;
+	}
+
+	UNiagaraComponent* TrajectoryVFX = UNiagaraFunctionLibrary::SpawnSystemAtLocation(
+		GetWorld(),
+		Effect,
+		StartLocation,
+		FRotator::ZeroRotator,
+		FVector(1.0f),
+		true,   // Auto Destroy
+		false,  // Auto Activate ? 파라미터를 먼저 세팅한 뒤 수동으로 Activate
+		ENCPoolMethod::AutoRelease  // 풀링!
+	);
+
+	if (TrajectoryVFX)
+	{
+		TrajectoryVFX->SetVectorParameter(FName("User.BeamEnd"), TargetLocation);
+
+		if (Width > 0.0f)
+		{
+			TrajectoryVFX->SetFloatParameter(FName("User.BeamWidth"), Width);
+		}
+
+		if (ElementType != ESkillElementType::None)
+		{
+			const FLinearColor ElementColor = UCC_SkillLibrarySubsystem::ResolveElementColor(this, ElementType);
+			TrajectoryVFX->SetVariableLinearColor(FName("User.PrimaryColor"), ElementColor);
+			TrajectoryVFX->SetVariableLinearColor(FName("User.SecondaryColor"), ElementColor);
+		}
+
+		TrajectoryVFX->Activate();
+	}
 }
 
 //==============================================================================
@@ -1043,6 +1069,36 @@ void UCC_SkillSystem::RegisterActiveSkillInstance(AActor* Instance)
 	ActiveSkillInstances.AddUnique(Instance);
 }
 
+void UCC_SkillSystem::UnregisterActiveSkillInstance(AActor* Instance)
+{
+	if (!Instance) return;
+	ActiveSkillInstances.RemoveSingleSwap(Instance, EAllowShrinking::No);
+}
+
+ACC_SkillEffector* UCC_SkillSystem::AcquireSkillEffector(TSubclassOf<ACC_SkillEffector> EffectorClass, const FTransform& SpawnTransform)
+{
+	UWorld* World = GetWorld();
+	if (!World || !EffectorClass)
+	{
+		return nullptr;
+	}
+
+	UCC_EffectorPoolSubsystem* Pool = World->GetSubsystem<UCC_EffectorPoolSubsystem>();
+	if (!Pool)
+	{
+		return World->SpawnActor<ACC_SkillEffector>(EffectorClass, SpawnTransform);
+	}
+
+	ACC_SkillEffector* Effector = Cast<ACC_SkillEffector>(Pool->AcquireEffector(EffectorClass));
+	if (Effector)
+	{
+		Effector->SetOwningPool(Pool);
+		Effector->ActivateAtTransform(SpawnTransform);
+	}
+
+	return Effector;
+}
+
 AActor* UCC_SkillSystem::FindNearestEnemy(FVector Origin, float Radius, const TArray<AActor*>& ExcludeActors) const
 {
 	TArray<AActor*> FoundEnemies;
@@ -1123,14 +1179,14 @@ void UCC_SkillSystem::ApplyDamage(AActor* Target, float Damage, AActor* DamageCa
 	//}
 }
 
-void UCC_SkillSystem::SpawnEffect(UNiagaraSystem* Effect, FVector Location, FRotator Rotation)
+void UCC_SkillSystem::SpawnEffect(UNiagaraSystem* Effect, FVector Location, FRotator Rotation, ESkillElementType ElementType)
 {
 	if (!Effect || !GetWorld())
 	{
 		return;
 	}
 
-	UNiagaraFunctionLibrary::SpawnSystemAtLocation(
+	UNiagaraComponent* SpawnedVFX = UNiagaraFunctionLibrary::SpawnSystemAtLocation(
 		GetWorld(),
 		Effect,
 		Location,
@@ -1140,6 +1196,43 @@ void UCC_SkillSystem::SpawnEffect(UNiagaraSystem* Effect, FVector Location, FRot
 		true,  // Auto Activate
 		ENCPoolMethod::AutoRelease  // 풀링!
 	);
+
+	if (SpawnedVFX && ElementType != ESkillElementType::None)
+	{
+		const FLinearColor ElementColor = UCC_SkillLibrarySubsystem::ResolveElementColor(this, ElementType);
+		SpawnedVFX->SetVariableLinearColor(FName("User.PrimaryColor"), ElementColor);
+		SpawnedVFX->SetVariableLinearColor(FName("User.SecondaryColor"), ElementColor);
+	}
+}
+
+UNiagaraComponent* UCC_SkillSystem::SpawnPersistentAttachedVFX(UNiagaraSystem* Effect, USceneComponent* AttachToComponent, ESkillElementType ElementType)
+{
+	if (!Effect || !AttachToComponent)
+	{
+		return nullptr;
+	}
+
+	UNiagaraComponent* VFX = UNiagaraFunctionLibrary::SpawnSystemAttached(
+		Effect,
+		AttachToComponent,
+		NAME_None,
+		FVector::ZeroVector,
+		FRotator::ZeroRotator,
+		EAttachLocation::SnapToTarget,
+		false,  // bAutoDestroy ? 수명은 호출자(액터/컴포넌트)가 직접 관리
+		true,   // bAutoActivate
+		ENCPoolMethod::None,  // 수명을 호출자가 직접 관리하므로 풀링 비사용
+		true    // bPreCullCheck
+	);
+
+	if (VFX)
+	{
+		const FLinearColor ElementColor = UCC_SkillLibrarySubsystem::ResolveElementColor(AttachToComponent, ElementType);
+		VFX->SetVariableLinearColor(FName("User.PrimaryColor"), ElementColor);
+		VFX->SetVariableLinearColor(FName("User.SecondaryColor"), ElementColor);
+	}
+
+	return VFX;
 }
 
 void UCC_SkillSystem::PlaySound(USoundBase* Sound, FVector Location)

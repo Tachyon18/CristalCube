@@ -313,3 +313,22 @@ FElementColorData UCC_SkillLibrarySubsystem::GetElementColor(ESkillElementType E
     return Result;
 }
 
+FLinearColor UCC_SkillLibrarySubsystem::ResolveElementColor(const UObject* WorldContextObject, ESkillElementType ElementType)
+{
+    const UWorld* World = GEngine ? GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::ReturnNull) : nullptr;
+    if (!World)
+    {
+        return FLinearColor::White;
+    }
+
+    if (UGameInstance* GI = World->GetGameInstance())
+    {
+        if (UCC_SkillLibrarySubsystem* Library = GI->GetSubsystem<UCC_SkillLibrarySubsystem>())
+        {
+            return Library->GetElementColor(ElementType).PrimaryColor;
+        }
+    }
+
+    return FLinearColor::White;
+}
+

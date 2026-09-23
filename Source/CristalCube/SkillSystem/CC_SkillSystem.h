@@ -12,6 +12,7 @@
 // Forward declarations
 class ACC_Projectile;
 class UNiagaraSystem;
+class USceneComponent;
 
 /**
  * 모듈형 스킬 시스템 컴포넌트
@@ -154,7 +155,14 @@ public:
 	* Chain Addon - 체인 이펙트에 목표 지점 User Parameter로 전달
 	*/
 
-	void SpawnChainEffect(UNiagaraSystem* Effect, FVector StartLocation, FVector TargetLocation);
+	void SpawnChainEffect(UNiagaraSystem* Effect, FVector StartLocation, FVector TargetLocation, ESkillElementType ElementType = ESkillElementType::None);
+
+	/**
+	 * 궤적형(시작점→끝점) VFX 스폰 ? Beam Core와 Chain Addon이 공유하는 로직.
+	 * User.BeamEnd 세팅 → (Width>0이면 User.BeamWidth도 세팅) → 색상 주입 → 수동 Activate.
+	 * @param Width - 0 이하면 세팅 스킵(에셋 자체 기본값 사용)
+	 */
+	void SpawnTrajectoryEffect(UNiagaraSystem* Effect, FVector StartLocation, FVector TargetLocation, float Width = 0.0f, ESkillElementType ElementType = ESkillElementType::None);
 
 public:
 
@@ -178,6 +186,17 @@ public:
 	void RegisterActiveSkillInstance(AActor* Instance);
 
 	/**
+	 * ActiveSkillInstances에서 명시적으로 제거. 풀에 반납된(재사용 대기 중인) Effector가
+	 * 큐브 전환 정리 로직에 "여전히 활성"으로 잘못 걸리는 걸 막기 위해 반납 시점에 호출됨.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Skill System")
+	void UnregisterActiveSkillInstance(AActor* Instance);
+
+	// SkillEffector를 풀에서 획득(없으면 새로 스폰)하고 Transform까지 재배치해서 반환.
+	// ExecuteProjectile()/SpawnRainfallProjectile() 공용 헬퍼.
+	ACC_SkillEffector* AcquireSkillEffector(TSubclassOf<ACC_SkillEffector> EffectorClass, const FTransform& SpawnTransform);
+
+	/**
 	 * 가장 가까운 적 찾기
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Skill System|Utility")
@@ -196,8 +215,17 @@ public:
 
 	/**
 	 * VFX 스폰
+	 * @param ElementType - None이면 색 주입 스킵(경고 텔레그래프 등 원소색 안 태우고 싶을 때).
+	 *                      그 외엔 GetElementColor() 기준으로 User.PrimaryColor/SecondaryColor 자동 주입.
 	 */
-	void SpawnEffect(UNiagaraSystem* Effect, FVector Location, FRotator Rotation = FRotator::ZeroRotator);
+	void SpawnEffect(UNiagaraSystem* Effect, FVector Location, FRotator Rotation = FRotator::ZeroRotator, ESkillElementType ElementType = ESkillElementType::None);
+
+	/**
+	 * 지속형 Attach VFX 스폰 ? Shockwave/Sigil/ElementalStatus 등 "호출자가 수명을 직접
+	 * 관리하는 지속 이펙트"가 공유하는 스폰 패턴(AutoDestroy=false, SnapToTarget, 풀링 없음,
+	 * PreCullCheck=true) + 색상 주입까지 한 번에 처리하는 정적 헬퍼.
+	 */
+	static UNiagaraComponent* SpawnPersistentAttachedVFX(UNiagaraSystem* Effect, USceneComponent* AttachToComponent, ESkillElementType ElementType = ESkillElementType::None);
 
 	/**
 	 * 사운드 재생

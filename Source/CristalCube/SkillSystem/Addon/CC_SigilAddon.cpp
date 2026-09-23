@@ -4,6 +4,7 @@
 #include "CC_SigilAddon.h"
 #include "../CC_SkillSystem.h"
 #include "../CC_SigilEffector.h"
+#include "../CC_EffectorPoolSubsystem.h"
 
 void UCC_SigilAddon::OnHit_Implementation(UCC_SkillSystem* SkillSystem, const FSkillDefinition& Skill, FSkillExecutionContext& Context, AActor* HitTarget, FVector HitLocation)
 {
@@ -27,7 +28,8 @@ void UCC_SigilAddon::OnHit_Implementation(UCC_SkillSystem* SkillSystem, const FS
     }
     // 트레이스가 아무것도 못 찾으면 원래 HitLocation을 그대로 사용 (안전 폴백 — 지금까지의 동작과 동일)
 
-    ACC_SigilEffector* Sigil = SkillSystem->GetWorld()->SpawnActor<ACC_SigilEffector>(HitLocation, FRotator::ZeroRotator);
+    ACC_SigilEffector* Sigil = CC_AcquirePooledEffector<ACC_SigilEffector>(World);
+
     if (Sigil)
     {
         Sigil->Initialize(HitLocation, Context.Caster, Data, SkillSystem, Skill, Context, AddonIndex + 1);

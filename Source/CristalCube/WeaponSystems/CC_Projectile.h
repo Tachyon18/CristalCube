@@ -135,7 +135,6 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Projectile")
 	void InitializeProjectile(float InDamage, float InSpeed = 0.0f);
 
-
 protected:
 	//==========================================================================
 	// COLLISION & DAMAGE
@@ -158,5 +157,6 @@ protected:
 
 	// Handle pierce behavior
 	bool ShouldPierceThrough(AActor* HitActor);
+
 };
 

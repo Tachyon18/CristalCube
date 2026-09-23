@@ -24,7 +24,7 @@ void UCC_ElementalBurstAddon::OnHit_Implementation(UCC_SkillSystem* SkillSystem,
 
     if (Data.BurstEffect)
     {
-        SkillSystem->SpawnEffect(Data.BurstEffect, HitLocation);
+        SkillSystem->SpawnEffect(Data.BurstEffect, HitLocation, FRotator::ZeroRotator, Skill.ElementType);
     }
 
     if (Data.bConsumeOnBurst && bFoundElement && ElementalComp)

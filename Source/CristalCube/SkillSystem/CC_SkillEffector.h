@@ -8,6 +8,9 @@
 #include "CC_SkillInstance.h"
 #include "CC_SkillEffector.generated.h"
 
+class UCC_EffectorPoolSubsystem;
+class UCC_SkillSystem;
+
 // SkillSystem으로 충돌 이벤트를 위임하는 델리게이트
 // Effector는 충돌 및 판정 감지만, 판단·처리는 SkillSystem이 담당
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(
@@ -114,6 +117,23 @@ public:
 	void SetupAsProjectile();
 	void SetupAsRainfall();
 
+	//==========================================================================
+	// POOLING
+	//==========================================================================
+
+	// 풀이 신규 스폰 직후 1회 호출. 풀 없이 스폰된 경우(레벨 직접 배치 등)엔 안 불리며,
+	// 그 경우 DeactivateAndDestroy()는 기존처럼 Destroy()로 폴백.
+	void SetOwningPool(UCC_EffectorPoolSubsystem* InPool);
+
+	// 이 Effector를 ActiveSkillInstances에 등록한 SkillSystem 참조 — 반납 시 그쪽에서도
+	// 스스로 등록 해제하기 위함. TWeakObjectPtr — SkillSystem 생명주기가 갈릴 수 있어서
+	// (플레이어가 먼저 사라지는 등) 약한 참조로 보관.
+	void SetOwningSkillSystem(UCC_SkillSystem* InSkillSystem);
+
+	// 재사용 시 위치/충돌/VFX/수명/Addon 인덱스 등 이전 사용 흔적을 전부 리셋하고
+	// NewTransform에 재배치. 풀이 신규 스폰 시/재사용 시 둘 다 호출.
+	void ActivateAtTransform(const FTransform& NewTransform);
+
 	// ICC_SkillInstance 구현
 	virtual bool ShouldPersistThroughCubeTransition_Implementation() const override
 	{
@@ -128,5 +148,14 @@ protected:
 
 	// LifeSpan 타임아웃(아무것도 못 맞추고 EffectDuration 지남)도 같은 경로를 타도록 오버라이드
 	virtual void LifeSpanExpired() override;
+
+	// 풀 반납/파괴 처리가 이미 끝났는지 — 중복 호출(예: 큐브 전환 정리와 LifeSpan 타이머가
+	// 겹치는 경우) 방지용 가드.
+	bool bIsPooledInactive = false;
+
+	UPROPERTY()
+	UCC_EffectorPoolSubsystem* OwningPool = nullptr;
+
+	TWeakObjectPtr<UCC_SkillSystem> OwningSkillSystem;
 
 };

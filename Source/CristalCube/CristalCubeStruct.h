@@ -851,6 +851,9 @@ struct FSkillDefinition
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Effects")
     UNiagaraSystem* ImpactEffect = nullptr;  // 타격 피드백 (속성 엔진 연동 대상)
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Effects")
+	UNiagaraSystem* CastEffect = nullptr; // 시전 순간 재생 VFX (캐스터 위치, Core 운용 아님)
+
     // Projectile Core 전용. VFX 포함 BP 서브클래스를 에디터에서 직접 지정.
     // null이면 SkillSystem의 기본 SkillEffectorClass로 폴백.
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Core")

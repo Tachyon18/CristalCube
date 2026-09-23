@@ -2,8 +2,11 @@
 
 
 #include "CC_ShockwaveEffector.h"
+#include "CC_EffectorPoolSubsystem.h"
+#include "../CC_EnemyManager.h"
 #include "../Gameplay/CC_EnemyAIInterface.h"
 #include "CC_SkillSystem.h"
+#include "CC_SkillLibrarySubsystem.h"
 #include "Kismet/GameplayStatics.h"
 #include "Engine/DamageEvents.h"
 #include "NiagaraFunctionLibrary.h"
@@ -36,26 +39,25 @@ void ACC_ShockwaveEffector::Initialize(FVector InOrigin, float InDamage, AActor*
 	BaseContext.CurrentChainCount = 0;
 	AddonStartIndex = InStartIndex;
 
+	// 풀에서 재사용되는 경우를 위한 리셋 — 안 하면 이전 사용의 진행도(만료 직전 상태:
+	// ElapsedTime이 이미 ExpandDuration에 도달해있는 등)를 그대로 물려받아, 재사용 즉시
+	// 다음 Tick에서 Alpha>=1.0f로 판정돼 확장을 시작도 못 해보고 바로 다시 반납돼버림.
+	ElapsedTime = 0.0f;
+	CurrentRadius = 0.0f;
+	PreviousRadius = 0.0f;
+	AlreadyHit.Reset();
+
 	SetActorLocation(Origin);
+	SetActorHiddenInGame(false);
+	SetActorTickEnabled(true);
 
 	if (Data.ShockwaveEffect)
 	{
-		ShockwaveVFX = UNiagaraFunctionLibrary::SpawnSystemAttached(
-			Data.ShockwaveEffect,
-			Root,
-			NAME_None,
-			FVector::ZeroVector,
-			FRotator::ZeroRotator,
-			EAttachLocation::SnapToTarget,
-			false,  // bAutoDestroy — 이 액터 수명(ExpandDuration)에 종속시킴
-			true,   // bAutoActivate
-			ENCPoolMethod::None,  // 반경을 매틱 직접 갱신하므로 풀링 미사용
-			true    // bPreCullCheck
-		);
+		ShockwaveVFX = UCC_SkillSystem::SpawnPersistentAttachedVFX(Data.ShockwaveEffect, Root, InSkill.ElementType);
 
 		if (ShockwaveVFX)
 		{
-			ShockwaveVFX->SetFloatParameter(FName("Radius"), 0.0f);
+			ShockwaveVFX->SetFloatParameter(FName("User.Radius"), 0.0f);
 		}
 	}
 
@@ -64,6 +66,11 @@ void ACC_ShockwaveEffector::Initialize(FVector InOrigin, float InDamage, AActor*
 		// 방어: 확장시간 0이면 즉시 최대 반경으로 취급 (다음 Tick에서 바로 종료)
 		CurrentRadius = Data.MaxRadius;
 	}
+}
+
+void ACC_ShockwaveEffector::SetOwningPool(UCC_EffectorPoolSubsystem* InPool)
+{
+	OwningPool = InPool;
 }
 
 // Called when the game starts or when spawned
@@ -88,7 +95,7 @@ void ACC_ShockwaveEffector::Tick(float DeltaTime)
 
 	if (ShockwaveVFX && IsValid(ShockwaveVFX))
 	{
-		ShockwaveVFX->SetFloatParameter(FName("Radius"), CurrentRadius);
+		ShockwaveVFX->SetFloatParameter(FName("User.Radius"), CurrentRadius);
 	}
 
 	// 이번 프레임에 파동 전선이 지나간 밴드
@@ -96,7 +103,10 @@ void ACC_ShockwaveEffector::Tick(float DeltaTime)
 	const float BandOuter = CurrentRadius + Data.RingThickness;
 
 	TArray<AActor*> FoundEnemies;
-	UGameplayStatics::GetAllActorsWithTag(GetWorld(), FName("Enemy"), FoundEnemies);
+	if (ACC_EnemyManager* EnemyManager = ACC_EnemyManager::Get(this))
+	{
+		FoundEnemies = EnemyManager->GetEnemiesInRadius(Origin, BandOuter);
+	}
 
 	UCC_SkillSystem* SkillSystem = SkillSystemRef.Get();
 
@@ -104,12 +114,6 @@ void ACC_ShockwaveEffector::Tick(float DeltaTime)
 	{
 		if (!Enemy || !IsValid(Enemy) || Enemy == ExcludedTarget.Get()) continue;
 		if (AlreadyHit.Contains(Enemy)) continue;
-
-		if (Enemy->GetClass()->ImplementsInterface(UCC_EnemyAIInterface::StaticClass())
-			&& ICC_EnemyAIInterface::Execute_GetIsFrozen(Enemy))
-		{
-			continue;
-		}
 
 		const float Dist = FVector::Dist(Origin, Enemy->GetActorLocation());
 		if (Dist >= BandInner && Dist <= BandOuter)
@@ -135,8 +139,32 @@ void ACC_ShockwaveEffector::Tick(float DeltaTime)
 
 	if (Alpha >= 1.0f)
 	{
-		Destroy();  // Root에 Attach된 ShockwaveVFX도 함께 정리됨
+		Deactivate();
 	}
 
+}
+
+void ACC_ShockwaveEffector::Deactivate()
+{
+	SetActorTickEnabled(false);
+	SetActorHiddenInGame(true);
+
+	if (ShockwaveVFX)
+	{
+		// Data.ShockwaveEffect는 스킬 설정마다 다른 에셋일 수 있어서(같은 풀링된 액터라도
+		// 다음 사용 때 다른 나이아가라 시스템이 필요할 수 있음) 살려서 재활용하지 않고
+		// 통째로 정리 — 다음 Initialize()가 필요한 에셋으로 새로 스폰함.
+		ShockwaveVFX->DestroyComponent();
+		ShockwaveVFX = nullptr;
+	}
+
+	if (OwningPool)
+	{
+		OwningPool->ReleaseEffector(this);
+	}
+	else
+	{
+		Destroy();
+	}
 }
 

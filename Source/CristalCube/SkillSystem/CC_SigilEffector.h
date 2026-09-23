@@ -10,6 +10,7 @@
 
 class UNiagaraComponent;
 class UCC_SkillSystem;
+class UCC_EffectorPoolSubsystem;
 
 /**
  * Sigil Addon 전용 실행 액터. OnHit 시점에 1회 스폰되어 고정 반경 안의
@@ -28,10 +29,14 @@ public:
 
 	void Initialize(FVector InOrigin, AActor* InInstigator, const FSigilAddonData& InData, UCC_SkillSystem* InSkillSystem, const FSkillDefinition& InSkill, const FSkillExecutionContext& InContext, int32 InStartIndex);
 
+	void SetOwningPool(UCC_EffectorPoolSubsystem* InPool);
 
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
+
+	// LifeSpan 만료(정상 종료) 시 기본 Destroy() 대신 Deactivate() 경로를 타도록
+	virtual void LifeSpanExpired() override;
 
 public:	
 	// Called every frame
@@ -39,11 +44,16 @@ public:
 
 private:
 
+	void Deactivate();
+
 	UPROPERTY(VisibleAnywhere)
 	class USceneComponent* Root = nullptr;
 
 	UPROPERTY()
 	UNiagaraComponent* SigilVFX = nullptr;
+
+	UPROPERTY()
+	UCC_EffectorPoolSubsystem* OwningPool = nullptr;
 
 	FVector Origin = FVector::ZeroVector;
 	FSigilAddonData Data;

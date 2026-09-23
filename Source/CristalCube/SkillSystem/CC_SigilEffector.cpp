@@ -2,8 +2,11 @@
 
 
 #include "CC_SigilEffector.h"
+#include "CC_EffectorPoolSubsystem.h"
+#include "../CC_EnemyManager.h"
 #include "../Gameplay/CC_EnemyAIInterface.h"
 #include "CC_SkillSystem.h"
+#include "CC_SkillLibrarySubsystem.h"
 #include "Kismet/GameplayStatics.h"
 #include "Engine/DamageEvents.h"
 #include "NiagaraFunctionLibrary.h"
@@ -36,21 +39,17 @@ void ACC_SigilEffector::Initialize(FVector InOrigin, AActor* InInstigator, const
 	AddonStartIndex = InStartIndex;
 
 	SetActorLocation(Origin);
+	SetActorHiddenInGame(false);
+	SetActorTickEnabled(true);
 
 	if (Data.SigilEffect)
 	{
-		SigilVFX = UNiagaraFunctionLibrary::SpawnSystemAttached(
-			Data.SigilEffect,
-			Root,
-			NAME_None,
-			FVector::ZeroVector,
-			FRotator::ZeroRotator,
-			EAttachLocation::SnapToTarget,
-			false,  // bAutoDestroy — 액터 수명(Duration)에 종속
-			true,   // bAutoActivate
-			ENCPoolMethod::None,
-			true    // bPreCullCheck
-		);
+		SigilVFX = UCC_SkillSystem::SpawnPersistentAttachedVFX(Data.SigilEffect, Root, InSkill.ElementType);
+
+		if (SigilVFX)
+		{
+			SigilVFX->SetFloatParameter(FName("User.Radius"), Data.Radius);
+		}
 	}
 
 	if (Data.TickInterval > 0.0f)
@@ -61,11 +60,21 @@ void ACC_SigilEffector::Initialize(FVector InOrigin, AActor* InInstigator, const
 	SetLifeSpan(Data.Duration);  // 종료 시 자동 파괴 (Attach된 VFX도 함께 정리)
 }
 
+void ACC_SigilEffector::SetOwningPool(UCC_EffectorPoolSubsystem* InPool)
+{
+	OwningPool = InPool;
+}
+
 // Called when the game starts or when spawned
 void ACC_SigilEffector::BeginPlay()
 {
 	Super::BeginPlay();
 	
+}
+
+void ACC_SigilEffector::LifeSpanExpired()
+{
+	Deactivate();
 }
 
 // Called every frame
@@ -75,24 +84,47 @@ void ACC_SigilEffector::Tick(float DeltaTime)
 
 }
 
+void ACC_SigilEffector::Deactivate()
+{
+	SetLifeSpan(0.0f); // 대기 중이던 LifeSpan 타이머 취소(조기 반납 경로 대비)
+	GetWorldTimerManager().ClearTimer(TickTimer); // 반복 데미지 타이머 정지 — 안 지우면
+	// 풀에서 대기하는 동안에도 ApplyTick()이
+	// 계속 불려서 엉뚱한 상태로 데미지를 줌
+
+	SetActorTickEnabled(false);
+	SetActorHiddenInGame(true);
+
+	if (SigilVFX)
+	{
+		// Data.SigilEffect는 스킬 설정마다 다른 에셋일 수 있어서 살려서 재활용하지 않고
+		// 통째로 정리 — 다음 Initialize()가 필요한 에셋으로 새로 스폰함.
+		SigilVFX->DestroyComponent();
+		SigilVFX = nullptr;
+	}
+
+	if (OwningPool)
+	{
+		OwningPool->ReleaseEffector(this);
+	}
+	else
+	{
+		Destroy();
+	}
+}
+
 void ACC_SigilEffector::ApplyTick()
 {
 	TArray<AActor*> FoundEnemies;
-	UGameplayStatics::GetAllActorsWithTag(GetWorld(), FName("Enemy"), FoundEnemies);
+	if (ACC_EnemyManager* EnemyManager = ACC_EnemyManager::Get(this))
+	{
+		FoundEnemies = EnemyManager->GetEnemiesInRadius(Origin, Data.Radius);
+	}
 
 	UCC_SkillSystem* SkillSystem = SkillSystemRef.Get();
 
 	for (AActor* Enemy : FoundEnemies)
 	{
 		if (!Enemy || !IsValid(Enemy)) continue;
-
-		if (Enemy->GetClass()->ImplementsInterface(UCC_EnemyAIInterface::StaticClass())
-			&& ICC_EnemyAIInterface::Execute_GetIsFrozen(Enemy))
-		{
-			continue;
-		}
-
-		if (FVector::Dist(Origin, Enemy->GetActorLocation()) > Data.Radius) continue;
 
 		Enemy->TakeDamage(Data.TickDamage, FDamageEvent(), nullptr, DamageInstigator.Get());
 

@@ -21,6 +21,7 @@
 #include "../Characters/CC_Character.h"
 #include "../Gameplay/CC_EnemyAIInterface.h"
 #include "../CC_CubeWorldManager.h"
+#include "../CC_EnemyManager.h"
 #include "../Gameplay/CC_ElementalStatusComponent.h"
 #include "Components/SphereComponent.h"
 #include "GameFramework/ProjectileMovementComponent.h"
@@ -432,7 +433,7 @@ void UCC_SkillSystem::ExecuteBeam(const FSkillDefinition& Skill, FSkillExecution
 		if (HitActor->ActorHasTag(EnemyTag))
 		{
 			// 데미지 적용
-			ApplyDamage(HitActor, Context.CurrentDamage, Context.Caster);
+			ApplyDamageAtLocation(HitActor, Context.CurrentDamage, Context.Caster, Hit.ImpactPoint);
 			DamagedActors.Add(HitActor);
 
 			// Impact VFX
@@ -974,12 +975,13 @@ void UCC_SkillSystem::OnProjectileHit(ACC_SkillEffector* Effector, AActor* HitAc
 	FSkillExecutionContext& Context = Effector->SkillContext;
 	const FSkillDefinition& Skill = Effector->SkillDef;
 
-	ApplyDamage(HitActor, Context.CurrentDamage, Context.Caster);
+	ApplyDamageAtLocation(HitActor, Context.CurrentDamage, Context.Caster, HitLocation);
 	Context.HitActors.Add(HitActor);
 	
 	if (Skill.ImpactEffect)
 	{
-		SpawnEffect(Skill.ImpactEffect, HitActor->GetActorLocation());
+		// 실제 충돌점(HitLocation) + 원소색 주입 (Instant/Area/Beam 경로와 통일)
+		SpawnEffect(Skill.ImpactEffect, HitLocation, FRotator::ZeroRotator, Skill.ElementType);
 	}
 
 	FHitResult Hit;
@@ -1101,27 +1103,30 @@ ACC_SkillEffector* UCC_SkillSystem::AcquireSkillEffector(TSubclassOf<ACC_SkillEf
 
 AActor* UCC_SkillSystem::FindNearestEnemy(FVector Origin, float Radius, const TArray<AActor*>& ExcludeActors) const
 {
-	TArray<AActor*> FoundEnemies;
-	UGameplayStatics::GetAllActorsWithTag(GetWorld(), EnemyTag, FoundEnemies);
+	// EnemyManager가 반경 필터 + Frozen 필터를 이미 수행 (레벨 전수 스캔 제거)
+	ACC_EnemyManager* EnemyManager = ACC_EnemyManager::Get(this);
+	if (!EnemyManager)
+	{
+		return nullptr;
+	}
+
+	// GetNearestEnemy()는 제외 목록을 받지 않으므로 반경 후보를 받아 직접 최근접 선택
+	const TArray<AActor*> Candidates = EnemyManager->GetEnemiesInRadius(Origin, Radius);
 
 	AActor* NearestEnemy = nullptr;
-	float NearestDistance = Radius;
+	float NearestDistSq = Radius * Radius;
 
-	for (AActor* Enemy : FoundEnemies)
+	for (AActor* Enemy : Candidates)
 	{
-		if (!Enemy || !IsValid(Enemy) || ExcludeActors.Contains(Enemy))
+		if (!IsValid(Enemy) || ExcludeActors.Contains(Enemy))
 		{
 			continue;
 		}
 
-		bool bIsFrozen = Enemy->GetClass()->ImplementsInterface(UCC_EnemyAIInterface::StaticClass())
-			&& ICC_EnemyAIInterface::Execute_GetIsFrozen(Enemy);
-		if (bIsFrozen) continue;
-
-		float Distance = FVector::Dist(Origin, Enemy->GetActorLocation());
-		if (Distance < NearestDistance)
+		const float DistSq = FVector::DistSquared(Origin, Enemy->GetActorLocation());
+		if (DistSq < NearestDistSq)
 		{
-			NearestDistance = Distance;
+			NearestDistSq = DistSq;
 			NearestEnemy = Enemy;
 		}
 	}
@@ -1131,52 +1136,32 @@ AActor* UCC_SkillSystem::FindNearestEnemy(FVector Origin, float Radius, const TA
 
 TArray<AActor*> UCC_SkillSystem::FindEnemiesInRadius(FVector Origin, float Radius) const
 {
-	TArray<AActor*> FoundEnemies;
-	UGameplayStatics::GetAllActorsWithTag(GetWorld(), EnemyTag, FoundEnemies);
-
-	TArray<AActor*> EnemiesInRadius;
-	for (AActor* Enemy : FoundEnemies)
+	if (ACC_EnemyManager* EnemyManager = ACC_EnemyManager::Get(this))
 	{
-		if (!Enemy || !IsValid(Enemy))
-		{
-			continue;
-		}
-
-		bool bIsFrozen = Enemy->GetClass()->ImplementsInterface(UCC_EnemyAIInterface::StaticClass())
-			&& ICC_EnemyAIInterface::Execute_GetIsFrozen(Enemy);
-		if (bIsFrozen) continue;
-
-		float Distance = FVector::Dist(Origin, Enemy->GetActorLocation());
-		if (Distance <= Radius)
-		{
-			EnemiesInRadius.Add(Enemy);
-		}
+		return EnemyManager->GetEnemiesInRadius(Origin, Radius);
 	}
 
-	return EnemiesInRadius;
+	return TArray<AActor*>();
 }
 
 void UCC_SkillSystem::ApplyDamage(AActor* Target, float Damage, AActor* DamageCauser)
 {
-	if (!Target || Damage <= 0.0f)
-	{
-		return;
-	}
+	if (!Target) return;
+	ApplyDamageAtLocation(Target, Damage, DamageCauser, Target->GetActorLocation());
+}
 
-	float FinalDamage = Damage;
-	if (UCC_ElementalStatusComponent* ElementalComp = Target->FindComponentByClass<UCC_ElementalStatusComponent>())
-	{
-		FinalDamage *= ElementalComp->GetIncomingDamageMultiplier();
-	}
+void UCC_SkillSystem::ApplyDamageAtLocation(AActor* Target, float Damage, AActor* DamageCauser, const FVector& HitLocation)
+{
+	if (!Target || Damage <= 0.0f) return;
 
+	FHitResult HitInfo;
+	HitInfo.ImpactPoint = HitLocation;
 
-	// Character 타입이면 직접 피해 적용
-	//if (ACC_Character* Character = Cast<ACC_Character>(Target))
-	//{
-	//	Character->TakeDamage(Damage, FDamageEvent(), nullptr, DamageCauser);
-		Target->TakeDamage(Damage, FDamageEvent(), nullptr, DamageCauser);
-		UE_LOG(LogTemp, Log, TEXT("Applied %.1f damage to %s"), FinalDamage, *Target->GetName());
-	//}
+	const FVector ShotDir = DamageCauser
+		? (HitLocation - DamageCauser->GetActorLocation()).GetSafeNormal()
+		: FVector::ZeroVector;
+
+	Target->TakeDamage(Damage, FPointDamageEvent(Damage, HitInfo, ShotDir, UDamageType::StaticClass()), nullptr, DamageCauser);
 }
 
 void UCC_SkillSystem::SpawnEffect(UNiagaraSystem* Effect, FVector Location, FRotator Rotation, ESkillElementType ElementType)

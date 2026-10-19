@@ -215,6 +215,10 @@ struct FElementBlueData
     // 이동속도 배율 — 0.5 = 50% 감속
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     float SlowMultiplier = 0.5f;
+
+    // Attack speed multiplier - 0.5 = attack cooldown doubles
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    float AttackSpeedMultiplier = 0.5f;
 };
 
 USTRUCT(BlueprintType)

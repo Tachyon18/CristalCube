@@ -71,7 +71,10 @@ protected:
 	void RemoveBlueSlow();
 
 public:
-	// 대상이 Green으로 "받는 피해"가 늘어나 있는지 조회 — UCC_SkillSystem::ApplyDamage()에서 사용
+	// Blue 공격속도 배율(없으면 1.0) — ACC_EnemyBase::PerformAttack()이 쿨다운 계산 시 조회
+	float GetAttackSpeedMultiplier() const;
+
+	// 대상이 Green으로 "받는 피해"가 늘어나 있는지 조회 — UCC_SkillSystem::TakeDamage()에서 사용
 	float GetIncomingDamageMultiplier() const;
 
 	// 자기 자신이 Green으로 "가하는 공격력"이 줄어 있는지 조회 — Enemy 공격 판정에서 사용

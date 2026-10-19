@@ -30,7 +30,7 @@ void FCC_CollisionHelper::DrawEnemyCapsuleDebug(const UWorld* World, const UCaps
 		Capsule->GetComponentQuat(),
 		Color,
 		false,   // bPersistentLines
-		0.0f,    // LifeTime — 매 프레임/타이머 재호출로 리프레시되므로 짧게
+		0.1f,    // LifeTime — 매 프레임/타이머 재호출로 리프레시되므로 짧게
 		0,
 		1.5f
 	);

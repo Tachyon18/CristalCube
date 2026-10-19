@@ -64,7 +64,7 @@ void UCC_EnemyMovementComponent::SetMoveTarget(const FVector& NewTarget)
 
 void UCC_EnemyMovementComponent::SetMovementVelocity(const FVector& NewVelocity)
 {
-    DesiredVelocity = NewVelocity.GetClampedToMaxSize(MaxSpeed);
+    DesiredVelocity = NewVelocity.GetClampedToMaxSize(GetEffectiveMaxSpeed());
 }
 
 void UCC_EnemyMovementComponent::StopMovementImmediately()
@@ -72,6 +72,11 @@ void UCC_EnemyMovementComponent::StopMovementImmediately()
     DesiredVelocity = FVector::ZeroVector;
     Velocity = FVector::ZeroVector;
     Super::StopMovementImmediately();
+}
+
+void UCC_EnemyMovementComponent::SetSpeedMultiplier(float NewMultiplier)
+{
+	SpeedMultiplier = FMath::Max(NewMultiplier, 0.f);
 }
 
 void UCC_EnemyMovementComponent::UpdateFacingRotation(const FVector& Direction, float DeltaTime)
@@ -95,12 +100,13 @@ void UCC_EnemyMovementComponent::UpdateFacingRotation(const FVector& Direction, 
 
 void UCC_EnemyMovementComponent::TickDirect(float DeltaTime)
 {
+	const float Speed = GetEffectiveMaxSpeed();
 	FVector Direction = FVector::ZeroVector;
 
 	if (!MoveTarget.IsZero())
 	{
 		Direction = (MoveTarget - UpdatedComponent->GetComponentLocation()).GetSafeNormal2D();
-		DesiredVelocity = Direction * MaxSpeed;
+		DesiredVelocity = Direction * Speed;
 	}
 	else
 	{
@@ -109,8 +115,8 @@ void UCC_EnemyMovementComponent::TickDirect(float DeltaTime)
 
 	// 속도 보간
 	Velocity = FMath::VInterpTo(Velocity, DesiredVelocity, DeltaTime, VelocityInterpSpeed);
-	if (Velocity.SizeSquared() > MaxSpeed * MaxSpeed)
-		Velocity = Velocity.GetSafeNormal() * MaxSpeed;
+	if (Velocity.SizeSquared() > Speed * Speed)
+		Velocity = Velocity.GetSafeNormal() * Speed;
 
 	ApplyVelocityMove(DeltaTime);
 
@@ -126,6 +132,8 @@ void UCC_EnemyMovementComponent::TickStep(float DeltaTime)
 	{
 	case EStepPhase::Moving:
 	{
+		const float Speed = GetEffectiveMaxSpeed();
+
 		// 최초 진입 또는 목표 미설정 시 새 Step 목표 계산
 		if (StepTarget.IsZero())
 			StepTarget = ComputeNextStepTarget();
@@ -143,11 +151,11 @@ void UCC_EnemyMovementComponent::TickStep(float DeltaTime)
 		}
 
 		const FVector Direction = ToTarget.GetSafeNormal2D();
-		DesiredVelocity = Direction * MaxSpeed;
+		DesiredVelocity = Direction * Speed;
 
 		Velocity = FMath::VInterpTo(Velocity, DesiredVelocity, DeltaTime, VelocityInterpSpeed);
-		if (Velocity.SizeSquared() > MaxSpeed * MaxSpeed)
-			Velocity = Velocity.GetSafeNormal() * MaxSpeed;
+		if (Velocity.SizeSquared() > Speed * Speed)
+			Velocity = Velocity.GetSafeNormal() * Speed;
 
 		ApplyVelocityMove(DeltaTime);
 		UpdateFacingRotation(Direction, DeltaTime);
@@ -157,7 +165,7 @@ void UCC_EnemyMovementComponent::TickStep(float DeltaTime)
 	case EStepPhase::Waiting:
 	{
 		Velocity = FVector::ZeroVector;
-		StepWaitElapsed += DeltaTime;
+		StepWaitElapsed += DeltaTime * SpeedMultiplier;
 
 		if (StepWaitElapsed >= StepWaitDuration)
 		{
@@ -175,7 +183,7 @@ void UCC_EnemyMovementComponent::TickTeleport(float DeltaTime)
 	// Teleport 방식은 자체 이동(Velocity)이 없음 — 정지 상태 유지
 	Velocity = FVector::ZeroVector;
 
-	TeleportElapsed += DeltaTime;
+	TeleportElapsed += DeltaTime * SpeedMultiplier;
 	if (TeleportElapsed < TeleportInterval) return;
 
 	TeleportElapsed = 0.f;

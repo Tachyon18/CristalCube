@@ -213,6 +213,8 @@ public:
 	 */
 	void ApplyDamage(AActor* Target, float Damage, AActor* DamageCauser);
 
+	void ApplyDamageAtLocation(AActor* Target, float Damage, AActor* DamageCauser, const FVector& HitLocation);
+
 	/**
 	 * VFX 스폰
 	 * @param ElementType - None이면 색 주입 스킵(경고 텔레그래프 등 원소색 안 태우고 싶을 때).

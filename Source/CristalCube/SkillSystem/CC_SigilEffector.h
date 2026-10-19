@@ -32,15 +32,9 @@ public:
 	void SetOwningPool(UCC_EffectorPoolSubsystem* InPool);
 
 protected:
-	// Called when the game starts or when spawned
-	virtual void BeginPlay() override;
 
 	// LifeSpan 만료(정상 종료) 시 기본 Destroy() 대신 Deactivate() 경로를 타도록
 	virtual void LifeSpanExpired() override;
-
-public:	
-	// Called every frame
-	virtual void Tick(float DeltaTime) override;
 
 private:
 

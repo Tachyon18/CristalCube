@@ -118,7 +118,10 @@ void ACC_ShockwaveEffector::Tick(float DeltaTime)
 		const float Dist = FVector::Dist(Origin, Enemy->GetActorLocation());
 		if (Dist >= BandInner && Dist <= BandOuter)
 		{
-			Enemy->TakeDamage(Damage, FDamageEvent(), nullptr, DamageInstigator.Get());
+			FHitResult DmgHit;
+			DmgHit.ImpactPoint = Enemy->GetActorLocation();
+			const FVector DmgDir = (Enemy->GetActorLocation() - Origin).GetSafeNormal();
+			Enemy->TakeDamage(Damage, FPointDamageEvent(Damage, DmgHit, DmgDir, UDamageType::StaticClass()), nullptr, DamageInstigator.Get());
 			AlreadyHit.Add(Enemy);
 
 			if (SkillSystem)

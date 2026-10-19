@@ -189,8 +189,8 @@ void UCC_ElementalStatusComponent::ApplyBlueSlow()
 	}
 	else if (UCC_EnemyMovementComponent* EnemyMovement = Owner->FindComponentByClass<UCC_EnemyMovementComponent>())
 	{
-		SavedOriginalSpeed = EnemyMovement->MaxSpeed;
-		EnemyMovement->MaxSpeed *= BlueData.SlowMultiplier;
+		// MaxSpeed (base speed) is untouched - only the multiplier is set, once per state change
+		EnemyMovement->SetSpeedMultiplier(BlueData.SlowMultiplier);
 		bSpeedSlowed = true;
 	}
 }
@@ -198,22 +198,35 @@ void UCC_ElementalStatusComponent::ApplyBlueSlow()
 void UCC_ElementalStatusComponent::RemoveBlueSlow()
 {
 	AActor* Owner = GetOwner();
-	if (!Owner || !bSpeedSlowed || SavedOriginalSpeed < 0.0f) return;
+	if (!Owner || !bSpeedSlowed) return;
 
 	if (ACharacter* Character = Cast<ACharacter>(Owner))
 	{
-		if (UCharacterMovementComponent* CMC = Character->GetCharacterMovement())
+		if (SavedOriginalSpeed >= 0.0f)
 		{
-			CMC->MaxWalkSpeed = SavedOriginalSpeed;
+			if (UCharacterMovementComponent* CMC = Character->GetCharacterMovement())
+			{
+				CMC->MaxWalkSpeed = SavedOriginalSpeed;
+			}
 		}
 	}
 	else if (UCC_EnemyMovementComponent* EnemyMovement = Owner->FindComponentByClass<UCC_EnemyMovementComponent>())
 	{
-		EnemyMovement->MaxSpeed = SavedOriginalSpeed;
+		EnemyMovement->SetSpeedMultiplier(1.0f);
 	}
 
 	bSpeedSlowed = false;
 	SavedOriginalSpeed = -1.0f;
+}
+
+float UCC_ElementalStatusComponent::GetAttackSpeedMultiplier() const
+{
+	int32 StackCount = 0;
+	if (GetActiveElement(ESkillElementType::Blue, StackCount))
+	{
+		return BlueData.AttackSpeedMultiplier;
+	}
+	return 1.0f;
 }
 
 float UCC_ElementalStatusComponent::GetIncomingDamageMultiplier() const

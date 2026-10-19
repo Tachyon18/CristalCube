@@ -18,6 +18,8 @@
 #include "CC_VisualComponent.h"
 #include "CC_StatusEffectComponent.h" 
 #include "CC_ElementalStatusComponent.h"
+#include "CC_DamageNumberActor.h"
+#include "../SkillSystem/CC_EffectorPoolSubsystem.h"
 #include "NiagaraFunctionLibrary.h"
 #include "NiagaraComponent.h"
 
@@ -205,15 +207,20 @@ void ACC_EnemyBase::PerformAttack()
         );
     }
 
-    bIsAttacking = false;
-    EnemyState = EEnemyState::Moving;
+    // Blue attack-speed multiplier is sampled once per attack cycle
+    float AttackSpeedMult = 1.f;
+    if (ElementalStatusComponent)
+    {
+        AttackSpeedMult = ElementalStatusComponent->GetAttackSpeedMultiplier();
+    }
+    const float Cooldown = EnemyStats.AttackCooldown / FMath::Max(AttackSpeedMult, 0.05f);
 
     // 쿨다운 후 이동 재개
     GetWorldTimerManager().SetTimer(
         AttackCooldownTimer,
         this,
         &ACC_EnemyBase::ResetAttackCooldown,
-        EnemyStats.AttackCooldown,
+        Cooldown,
         false
     );
 }
@@ -228,8 +235,35 @@ float ACC_EnemyBase::TakeDamage(float DamageAmount, FDamageEvent const& DamageEv
 {
     if (!IsAlive()) return 0.f;
 
+    // Defender-side modifier: every damage path (skills, Sigil, Shockwave, ...) goes through here
+    if (ElementalStatusComponent)
+    {
+        DamageAmount *= ElementalStatusComponent->GetIncomingDamageMultiplier();
+    }
+
     const float Applied = Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
     CurrentHealth = FMath::Max(0.f, CurrentHealth - Applied);
+
+    if (Applied > 0.f)
+    {
+        if (ACC_DamageNumberActor* DmgNum = CC_AcquirePooledEffector<ACC_DamageNumberActor>(GetWorld()))
+        {
+            FVector PopupLocation;
+            if (DamageEvent.IsOfType(FPointDamageEvent::ClassID))
+            {
+                const FPointDamageEvent& PointEvent = static_cast<const FPointDamageEvent&>(DamageEvent);
+                PopupLocation = PointEvent.HitInfo.ImpactPoint + FVector(0.f, 0.f, 20.f);
+            }
+            else
+            {
+                // Fallback: colliding components only (excludes attached Niagara bounds)
+                FVector Origin, BoxExtent;
+                GetActorBounds(true, Origin, BoxExtent);
+                PopupLocation = Origin + FVector(0.f, 0.f, BoxExtent.Z + 20.f);
+            }
+            DmgNum->Initialize(Applied, PopupLocation);
+        }
+    }
 
     if (CurrentHealth <= 0.f)
         Die();

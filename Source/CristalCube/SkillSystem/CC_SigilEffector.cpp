@@ -17,7 +17,7 @@
 ACC_SigilEffector::ACC_SigilEffector()
 {
  	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
-	PrimaryActorTick.bCanEverTick = true;
+	PrimaryActorTick.bCanEverTick = false;
 
 	Root = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
 	SetRootComponent(Root);
@@ -40,7 +40,6 @@ void ACC_SigilEffector::Initialize(FVector InOrigin, AActor* InInstigator, const
 
 	SetActorLocation(Origin);
 	SetActorHiddenInGame(false);
-	SetActorTickEnabled(true);
 
 	if (Data.SigilEffect)
 	{
@@ -65,23 +64,9 @@ void ACC_SigilEffector::SetOwningPool(UCC_EffectorPoolSubsystem* InPool)
 	OwningPool = InPool;
 }
 
-// Called when the game starts or when spawned
-void ACC_SigilEffector::BeginPlay()
-{
-	Super::BeginPlay();
-	
-}
-
 void ACC_SigilEffector::LifeSpanExpired()
 {
 	Deactivate();
-}
-
-// Called every frame
-void ACC_SigilEffector::Tick(float DeltaTime)
-{
-	Super::Tick(DeltaTime);
-
 }
 
 void ACC_SigilEffector::Deactivate()
@@ -91,7 +76,6 @@ void ACC_SigilEffector::Deactivate()
 	// 풀에서 대기하는 동안에도 ApplyTick()이
 	// 계속 불려서 엉뚱한 상태로 데미지를 줌
 
-	SetActorTickEnabled(false);
 	SetActorHiddenInGame(true);
 
 	if (SigilVFX)
@@ -126,7 +110,10 @@ void ACC_SigilEffector::ApplyTick()
 	{
 		if (!Enemy || !IsValid(Enemy)) continue;
 
-		Enemy->TakeDamage(Data.TickDamage, FDamageEvent(), nullptr, DamageInstigator.Get());
+		FHitResult DmgHit;
+		DmgHit.ImpactPoint = Enemy->GetActorLocation();
+		const FVector DmgDir = (Enemy->GetActorLocation() - Origin).GetSafeNormal();
+		Enemy->TakeDamage(Data.TickDamage, FPointDamageEvent(Data.TickDamage, DmgHit, DmgDir, UDamageType::StaticClass()), nullptr, DamageInstigator.Get());
 
 		if (SkillSystem)
 		{

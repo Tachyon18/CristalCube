@@ -122,11 +122,22 @@ public:
     UFUNCTION(BlueprintPure, Category = "Movement")
     bool IsMoving() const { return !Velocity.IsNearlyZero(1.f); }
 
+	/** External speed multiplier (status effects etc.). 1.0 = normal. MaxSpeed stays the base speed. Call only on state change. */
+	UFUNCTION(BlueprintCallable, Category = "Movement")
+	void SetSpeedMultiplier(float NewMultiplier);
+
+	UFUNCTION(BlueprintPure, Category = "Movement")
+	float GetSpeedMultiplier() const { return SpeedMultiplier; }
+
 	/** Teleport 발생 시 BP에서 VFX 등 시각 효과를 구현할 자리 */
 	UFUNCTION(BlueprintImplementableEvent, Category = "Movement|Teleport")
 	void OnTeleportPerformed(const FVector& FromLocation, const FVector& ToLocation);
 
 protected:
+
+	float SpeedMultiplier = 1.f;
+	float GetEffectiveMaxSpeed() const { return MaxSpeed * SpeedMultiplier; }
+
     /** 목표 속도 (Direct/공통 — 매 틱 Velocity가 보간하며 추적) */
     FVector DesiredVelocity = FVector::ZeroVector;
 

@@ -5,7 +5,7 @@
 #include "CoreMinimal.h"
 #include "CC_Character.h"
 #include "../CristalCubeStruct.h"
-#include "../WeaponSystems/CC_Weapon.h"
+#include "NiagaraSystem.h"
 #include "CC_PlayerCharacter.generated.h"
 
 /**
@@ -86,106 +86,19 @@ public:
 protected:
 
 	//==============================================================================
-	// WEAPON SYSTEM
+	// COMBAT - basic attack entry point
 	//==============================================================================
-
-	// Current equipped weapons
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons|Data")
-	UDataTable* WeaponDataTable;
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Components")
-	class UCC_SearchingComponent* SearchingComponent;
-
-	UPROPERTY()
-	class UCC_WeaponManagerSubsystem* WeaponManager;
-
-	void InitializeWeaponSystem();
-
-	void EquipStartingWeapons();
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon")
-	int32 StartingWeaponCount = 2;
-
-	// Current active weapon
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weapon")
-	class ACC_Weapon* CurrentWeapon;
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Player|Weapons")
-	TArray<ACC_Weapon*> EquippedWeapons;
-
-	/** Starting weapon class (equipped on BeginPlay) */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player|Weapons")
-	TSubclassOf<ACC_Weapon> StartingWeaponClass;
-
-	/** Maximum number of weapons player can equip */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player|Weapons")
-	int32 MaxWeapons;
-
-	UPROPERTY()
-	TMap<ACC_Weapon*, FTimerHandle> WeaponAttackTimers;
 
 public:
 
-	UFUNCTION(BlueprintCallable, Category = "Weapon")
-	void EquipWeaponByName(FName WeaponRowName);
-
-	// Weapon Management
-	UFUNCTION(BlueprintCallable, Category = "Weapon")
-	bool EquipWeapon(ACC_Weapon* Weapon);
-
-	UFUNCTION(BlueprintCallable, Category = "Weapon")
-	ACC_Weapon* CreateAndEquipWeapon(TSubclassOf<ACC_Weapon> WeaponClass);
-
-	UFUNCTION(BlueprintCallable, Category = "Weapon")
-	void UnequipWeapon(ACC_Weapon* Weapon);
-
-	UFUNCTION(BlueprintCallable, Category = "Weapon")
-	void UnequipAllWeapons();
-
-	UFUNCTION(BlueprintCallable, Category = "Weapon")
-	void SwitchWeapon();
-
-	UFUNCTION(BlueprintCallable, Category = "Weapon")
+	// Called by ACC_PlayerController::HandlePrimaryAttack.
+	// Weapon system removed (2026-10-20). Kept as a no-op entry point for the
+	// future skill-based weapon object (Gun variants, etc.).
+	UFUNCTION(BlueprintCallable, Category = "Combat")
 	void PerformAttack();
-
-	// Getters
-	UFUNCTION(BlueprintCallable, Category = "Weapon")
-	UCC_SearchingComponent* GetSearchingComponent() const { return SearchingComponent; }
 
 	UFUNCTION(BlueprintPure, Category = "Skills")
 	UCC_SkillSystem* GetSkillSystem() const { return SkillSystem; }
-
-	UFUNCTION(BlueprintPure, Category = "Weapon")
-	ACC_Weapon* GetCurrentWeapon() const { return CurrentWeapon; }
-
-	UFUNCTION(BlueprintCallable, Category = "Weapon")
-	ACC_Weapon* FindWeaponByClass(TSubclassOf<ACC_Weapon> WeaponClass) const;
-
-	UFUNCTION(BlueprintCallable, Category = "Weapon")
-	ACC_Weapon* CreateWeapon(TSubclassOf<ACC_Weapon> WeaponClass);
-
-	UFUNCTION(BlueprintCallable, Category = "Weapon")
-	void StartWeaponAutoAttack(ACC_Weapon* Weapon);
-
-	UFUNCTION(BlueprintCallable, Category = "Weapon")
-	void StopWeaponAutoAttack(ACC_Weapon* Weapon);
-
-	/** Get all equipped weapons */
-	UFUNCTION(BlueprintPure, Category = "Player|Weapons")
-	TArray<ACC_Weapon*> GetEquippedWeapons() const { return EquippedWeapons; }
-
-	/** Check if can equip more weapons */
-	UFUNCTION(BlueprintPure, Category = "Player|Weapons")
-	bool CanEquipMoreWeapons() const { return EquippedWeapons.Num() < MaxWeapons; }
-
-	/** Get weapon count */
-	UFUNCTION(BlueprintPure, Category = "Player|Weapons")
-	int32 GetEquippedWeaponCount() const { return EquippedWeapons.Num(); }
-
-	/** Check if specific weapon is equipped */
-	UFUNCTION(BlueprintPure, Category = "Player|Weapons")
-	bool HasWeapon(ACC_Weapon* Weapon) const { return EquippedWeapons.Contains(Weapon); }
 
 protected:
 	

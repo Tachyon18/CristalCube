@@ -12,8 +12,6 @@
 #include "Kismet/GameplayStatics.h"
 #include "Blueprint/UserWidget.h"
 #include "../CC_LogHelper.h"
-#include "../CC_WeaponManagerSubsystem.h"
-#include "../CC_SearchingComponent.h"
 #include "../CC_GameModeBase.h"
 #include "../CC_MainGameMode.h"
 #include "../CC_PlayerController.h"
@@ -52,8 +50,6 @@ ACC_PlayerCharacter::ACC_PlayerCharacter()
 	// Initialize player stats (all start at 1.0 = no bonus)
 	PlayerStats = FCristalCubePlayerStats();
 
-	SearchingComponent = CreateDefaultSubobject<UCC_SearchingComponent>(TEXT("SearchingComponent"));
-
 	TileTrackerComponent = CreateDefaultSubobject<UCC_TileTrackerComponent>(TEXT("TileTrackerComponent"));
 
 	SkillSystem = CreateDefaultSubobject<UCC_SkillSystem>(TEXT("SkillSys"));
@@ -79,12 +75,6 @@ ACC_PlayerCharacter::ACC_PlayerCharacter()
 	ExperienceScaling = 1.15f;
 	ExperienceToNextLevel = BaseExperienceRequirement;
 
-	// Initialize weapon pointers
-	CurrentWeapon = nullptr;
-
-	MaxWeapons = 6;
-	StartingWeaponClass = nullptr;
-
 }
 
 void ACC_PlayerCharacter::BeginPlay()
@@ -98,18 +88,6 @@ void ACC_PlayerCharacter::BeginPlay()
 
 	// Apply initial stats
 	ApplyPlayerStats();
-
-	if (StartingWeaponClass)
-	{
-		CreateAndEquipWeapon(StartingWeaponClass);
-	}
-	else
-	{
-		CC_LOG_PLAYER(Warning, "No StartingWeaponClass set");
-
-		InitializeWeaponSystem();
-		EquipStartingWeapons();
-	}
 
 	if (SkillInventoryWidgetClass)
 	{
@@ -221,18 +199,7 @@ void ACC_PlayerCharacter::RefreshStats()
 	}
 	MaxHealth = NewMaxHealth;
 
-	// ── 공격속도 (무기 타이머 재설정) ────────────────────────
-	// AttackSpeedMultiplier는 Weapon->GetAttackSpeed()에서 직접 참조하므로
-	// 타이머만 재시작하면 자동 반영
-	for (ACC_Weapon* Weapon : EquippedWeapons)
-	{
-		if (!IsValid(Weapon)) continue;
-		StopWeaponAutoAttack(Weapon);
-		StartWeaponAutoAttack(Weapon);
-	}
-
-	// ── DamageMultiplier, AdvancedStats 등 ────────────────────
-	// 무기 공격 시 GetFinalDamageMultiplier()로 조회되므로 별도 처리 불필요
+	// AttackSpeed / Damage multipliers: no timer to refresh here (weapon system removed).
 
 	UE_LOG(LogTemp, Log,
 		TEXT("[Stats] Refreshed ? HP:%.0f/%.0f | Speed:%.0f | DmgMul:%.2f | AtkSpd:%.2f"),
@@ -242,328 +209,8 @@ void ACC_PlayerCharacter::RefreshStats()
 		PlayerStats.BasicStats.AttackSpeedMultiplier);
 }
 
-void ACC_PlayerCharacter::InitializeWeaponSystem()
-{
-	UGameInstance* GameInstance = GetGameInstance();
-	if(!GameInstance)
-	{
-		CC_LOG_PLAYER(Error, "Cannot initialize Weapon System - GameInstance is null");
-		return;
-	}
-
-	WeaponManager = GameInstance->GetSubsystem<UCC_WeaponManagerSubsystem>();
-
-	if (!WeaponManager)
-	{
-		CC_LOG_PLAYER(Error, "Cannot initialize Weapon System - WeaponManagerSubsystem is null");
-		return;
-	}
-
-	if (WeaponDataTable)
-	{
-		WeaponManager->LoadWeaponDataTable(WeaponDataTable);
-		CC_LOG_PLAYER(Log, "Weapon System Initialized");
-	}
-	else
-	{
-		CC_LOG_PLAYER(Warning, "No WeaponDataTable set - cannot load weapon data");
-	}
-}
-
-void ACC_PlayerCharacter::EquipStartingWeapons()
-{
-	if (!WeaponManager)
-	{
-		CC_LOG_PLAYER(Error, TEXT("WeaponManager Not Initialized!"));
-		return;
-	}
-
-	TArray<FName> StartingWeaponNames = WeaponManager->GetStartingWeaponNames();
-
-	if (StartingWeaponNames.Num() == 0)
-	{
-		CC_LOG_PLAYER(Error, TEXT("No Starting weapons available"));
-		return;
-	}
-
-	TArray<FName> SelectedWeaponNames =
-		WeaponManager->GetRandomWeaponNames(StartingWeaponNames, StartingWeaponCount, false);
-
-	for (FName WeaponName : SelectedWeaponNames)
-	{
-		TSubclassOf<ACC_Weapon> WeaponClass = WeaponManager->GetWeaponClass(WeaponName);
-
-		if (WeaponClass)
-		{
-			CreateAndEquipWeapon(WeaponClass);
-
-			FWeaponData WeaponData;
-			if (WeaponManager->GetWeaponData(WeaponName, WeaponData))
-			{
-				CC_LOG_PLAYER(Log, TEXT("Equipped: %s"), *WeaponData.WeaponName.ToString());
-			}
-		}
-	}
-}
-
-void ACC_PlayerCharacter::EquipWeaponByName(FName WeaponRowName)
-{
-	if (!WeaponManager)
-	{
-		CC_LOG_PLAYER(Error, TEXT("WeaponManager not initialized!"));
-		return;
-	}
-
-	TSubclassOf<ACC_Weapon> WeaponClass = WeaponManager->GetWeaponClass(WeaponRowName);
-
-	if (WeaponClass)
-	{
-		CreateAndEquipWeapon(WeaponClass);
-
-		FWeaponData WeaponData;
-		if (WeaponManager->GetWeaponData(WeaponRowName, WeaponData))
-		{
-			CC_LOG_PLAYER(Log, TEXT("Equipped weapon: %s"), *WeaponData.WeaponName.ToString());
-		}
-	}
-}
-
-bool ACC_PlayerCharacter::EquipWeapon(ACC_Weapon* Weapon)
-{
-	// Validation
-	if (!Weapon)
-	{
-		CC_LOG_PLAYER(Warning, "Cannot equip weapon - weapon is null");
-		return false;
-	}
-
-	if (!CanEquipMoreWeapons())
-	{
-		CC_LOG_PLAYER(Warning, "Cannot equip more weapons (Max: %d)", MaxWeapons);
-		return false;
-	}
-
-	if (HasWeapon(Weapon))
-	{
-		CC_LOG_PLAYER(Warning, "Weapon already equipped");
-		return false;
-	}
-
-	// Setup weapon
-	Weapon->OnEquipped(this);
-
-	// Add to equipped weapons list
-	EquippedWeapons.Add(Weapon);
-
-	// Start auto-attack
-	StartWeaponAutoAttack(Weapon);
-
-	CC_LOG_PLAYER(Log, "Equipped weapon (Total: %d/%d)",
-		EquippedWeapons.Num(), MaxWeapons);
-
-	return true;
-}
-
-ACC_Weapon* ACC_PlayerCharacter::CreateAndEquipWeapon(TSubclassOf<ACC_Weapon> WeaponClass)
-{
-	if (!WeaponClass)
-	{
-		CC_LOG_PLAYER(Warning, "Cannot create weapon - invalid class");
-		return nullptr;
-	}
-
-	if (!CanEquipMoreWeapons())
-	{
-		CC_LOG_PLAYER(Warning, "Cannot equip more weapons (Max: %d)", MaxWeapons);
-		return nullptr;
-	}
-
-	// Create weapon
-	ACC_Weapon* NewWeapon = CreateWeapon(WeaponClass);
-
-	if (!NewWeapon)
-	{
-		CC_LOG_PLAYER(Error, "Failed to create weapon!");
-		return nullptr;
-	}
-
-	// Equip it
-	if (EquipWeapon(NewWeapon))
-	{
-		return NewWeapon;
-	}
-	else
-	{
-		// Failed to equip, destroy it
-		NewWeapon->Destroy();
-		return nullptr;
-	}
-}
-
-void ACC_PlayerCharacter::UnequipWeapon(ACC_Weapon* Weapon)
-{
-	if (!Weapon)
-	{
-		CC_LOG_PLAYER(Warning, "Cannot unequip - weapon is null");
-		return;
-	}
-
-	if (!HasWeapon(Weapon))
-	{
-		CC_LOG_PLAYER(Warning, "Weapon is not equipped");
-		return;
-	}
-
-	// Stop auto-attack
-	StopWeaponAutoAttack(Weapon);
-
-	// Remove from list
-	EquippedWeapons.Remove(Weapon);
-
-	// Cleanup weapon
-	Weapon->OnUnequipped();
-	Weapon->Destroy();
-
-	CC_LOG_PLAYER(Log, "Unequipped weapon (Remaining: %d)", EquippedWeapons.Num());
-
-}
-
-void ACC_PlayerCharacter::UnequipAllWeapons()
-{
-	// Create copy of array to iterate (since we're modifying the original)
-	TArray<ACC_Weapon*> WeaponsCopy = EquippedWeapons;
-
-	for (ACC_Weapon* Weapon : WeaponsCopy)
-	{
-		UnequipWeapon(Weapon);
-	}
-
-	CC_LOG_PLAYER(Log, "Unequipped all weapons");
-}
-
-void ACC_PlayerCharacter::SwitchWeapon()
-{
-
-}
-
 void ACC_PlayerCharacter::PerformAttack()
 {
-	if (CurrentWeapon && CurrentWeapon->CanAttack())
-	{
-		CurrentWeapon->Attack();
-	}
-}
-
-ACC_Weapon* ACC_PlayerCharacter::FindWeaponByClass(TSubclassOf<ACC_Weapon> WeaponClass) const
-{
-	if (!WeaponClass)
-	{
-		return nullptr;
-	}
-
-	for (ACC_Weapon* Weapon : EquippedWeapons)
-	{
-		if (Weapon && Weapon->GetClass() == WeaponClass)
-		{
-			return Weapon;
-		}
-	}
-
-	return nullptr;
-}
-
-ACC_Weapon* ACC_PlayerCharacter::CreateWeapon(TSubclassOf<ACC_Weapon> WeaponClass)
-{
-	if (!WeaponClass)
-	{
-		return nullptr;
-	}
-
-	// Spawn parameters
-	FActorSpawnParameters SpawnParams;
-	SpawnParams.Owner = this;
-	SpawnParams.Instigator = this;
-	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-
-	// Spawn weapon
-	ACC_Weapon* NewWeapon = GetWorld()->SpawnActor<ACC_Weapon>(
-		WeaponClass,
-		GetActorLocation(),
-		FRotator::ZeroRotator,
-		SpawnParams
-	);
-
-	if (NewWeapon)
-	{
-		CC_LOG_PLAYER(VeryVerbose, "Created weapon from class");
-	}
-	else
-	{
-		CC_LOG_PLAYER(Error, "Failed to spawn weapon!");
-	}
-
-	return NewWeapon;
-}
-
-void ACC_PlayerCharacter::StartWeaponAutoAttack(ACC_Weapon* Weapon)
-{
-	if (!Weapon)
-	{
-		CC_LOG_PLAYER(Warning, "Cannot start auto-attack - weapon is null");
-		return;
-	}
-
-	// Get attack speed
-	float AttackSpeed = Weapon->GetAttackSpeed();
-	if (AttackSpeed <= 0.0f)
-	{
-		CC_LOG_PLAYER(Warning, "Invalid attack speed: %.2f", AttackSpeed);
-		return;
-	}
-
-	// Calculate interval
-	float AttackInterval = 1.0f / AttackSpeed;
-
-	// Create timer handle
-	FTimerHandle AttackTimer;
-
-	// Set up repeating timer
-	GetWorld()->GetTimerManager().SetTimer(
-		AttackTimer,
-		[Weapon]()
-		{
-			if (IsValid(Weapon))
-			{
-				Weapon->Attack();
-			}
-		},
-		AttackInterval,
-		true  // Repeating
-	);
-
-	// Store timer handle
-	WeaponAttackTimers.Add(Weapon, AttackTimer);
-
-	CC_LOG_PLAYER(Log, "Started auto-attack (Interval: %.2fs, Rate: %.1f/s)",
-		AttackInterval, AttackSpeed);
-}
-
-void ACC_PlayerCharacter::StopWeaponAutoAttack(ACC_Weapon* Weapon)
-{
-	if (!Weapon)
-	{
-		return;
-	}
-
-	// Find and clear timer
-	FTimerHandle* TimerHandle = WeaponAttackTimers.Find(Weapon);
-	if (TimerHandle && TimerHandle->IsValid())
-	{
-		GetWorld()->GetTimerManager().ClearTimer(*TimerHandle);
-		WeaponAttackTimers.Remove(Weapon);
-
-		CC_LOG_PLAYER(VeryVerbose, "Stopped auto-attack for weapon");
-	}
 }
 
 void ACC_PlayerCharacter::TestBasicSkill()

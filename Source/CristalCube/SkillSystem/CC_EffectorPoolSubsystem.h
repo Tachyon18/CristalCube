@@ -71,3 +71,27 @@ TEffector* CC_AcquirePooledEffector(UWorld* World)
 
 	return Effector;
 }
+
+// Same as CC_AcquirePooledEffector, but for a caller-supplied (usually Blueprint) class.
+// Pooled per exact class, so different BP subclasses keep separate free lists.
+template<typename TEffector>
+TEffector* CC_AcquirePooledEffectorOfClass(UWorld* World, TSubclassOf<TEffector> EffectorClass)
+{
+	if (!World || !EffectorClass)
+	{
+		return nullptr;
+	}
+
+	UCC_EffectorPoolSubsystem* Pool = World->GetSubsystem<UCC_EffectorPoolSubsystem>();
+	if (!Pool)
+	{
+		return World->SpawnActor<TEffector>(EffectorClass);
+	}
+
+	TEffector* Effector = Cast<TEffector>(Pool->AcquireEffector(EffectorClass));
+	if (Effector)
+	{
+		Effector->SetOwningPool(Pool);
+	}
+	return Effector;
+}

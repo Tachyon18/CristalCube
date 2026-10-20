@@ -17,7 +17,6 @@
 #include "Addon/CC_SigilAddon.h"
 #include "Addon/CC_EchoAddon.h"
 #include "Addon/CC_SelfEmpowerAddon.h"
-#include "../WeaponSystems/CC_Projectile.h"
 #include "../Characters/CC_Character.h"
 #include "../Gameplay/CC_EnemyAIInterface.h"
 #include "../CC_CubeWorldManager.h"
@@ -29,6 +28,7 @@
 #include "Engine/DamageEvents.h"
 #include "NiagaraFunctionLibrary.h"
 #include "NiagaraComponent.h"
+#include "NiagaraSystem.h"
 #include "DrawDebugHelpers.h"
 #include "TimerManager.h"
 

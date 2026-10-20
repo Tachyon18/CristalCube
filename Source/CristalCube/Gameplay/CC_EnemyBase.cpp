@@ -19,6 +19,8 @@
 #include "CC_StatusEffectComponent.h" 
 #include "CC_ElementalStatusComponent.h"
 #include "CC_DamageNumberActor.h"
+#include "CC_EnemyAreaAttack.h"
+#include "../WeaponSystems/CC_Projectile.h"
 #include "../SkillSystem/CC_EffectorPoolSubsystem.h"
 #include "NiagaraFunctionLibrary.h"
 #include "NiagaraComponent.h"
@@ -49,6 +51,7 @@ ACC_EnemyBase::ACC_EnemyBase()
 	ElementalStatusComponent = CreateDefaultSubobject<UCC_ElementalStatusComponent>(TEXT("ElementalStatusComponent"));  
 
     CurrentHealth = MaxHealth;
+    AreaAttackClass = ACC_EnemyAreaAttack::StaticClass();
 
 }
 
@@ -186,41 +189,42 @@ void ACC_EnemyBase::TryAttack(ACC_PlayerCharacter* Target)
 
 void ACC_EnemyBase::PerformAttack()
 {
-    EnemyState = EEnemyState::Attacking;
-    bIsAttacking = true;
+    // 이동 상태(EnemyState)는 건드리지 않음 — 발사 후에도 계속 이동.
+    // (이전 구현은 Attacking으로 바꾼 뒤 되돌리지 않아, 첫 공격 이후 이동/공격이 영구 정지됐음)
     bCanAttack = false;
 
-    // 즉발 데미지 (애니메이션 없는 경량 Enemy)
+    ActiveAttackActors.RemoveAll([this](const TWeakObjectPtr<AActor>& Weak)
+        {
+            const AActor* Attack = Weak.Get();
+            if (const ACC_Projectile* P = Cast<ACC_Projectile>(Attack)) return P->GetProjectileOwner() != this;
+            if (const ACC_EnemyAreaAttack* A = Cast<ACC_EnemyAreaAttack>(Attack)) return A->GetAttackInstigator() != this;
+            return true;
+        });
+
     if (TargetPlayer && TargetPlayer->IsAlive())
     {
-        float FinalAttackDamage = EnemyStats.AttackDamage;
-        if (ElementalStatusComponent)
+        const float AttackDamage = GetEffectiveAttackDamage();
+
+        if (AttackProjectileClass)
         {
-            FinalAttackDamage *= ElementalStatusComponent->GetOutgoingDamageMultiplier();
+            FireProjectileAttack(AttackDamage);
         }
-
-        TargetPlayer->TakeDamage(
-            FinalAttackDamage,
-            FDamageEvent(),
-            nullptr,
-            this
-        );
+        else if (AreaAttackClass)
+        {
+            LaunchAreaAttack(AttackDamage);
+        }
+        else
+        {
+            // 최종 폴백: 기존 즉발 데미지
+            TargetPlayer->TakeDamage(AttackDamage, FDamageEvent(), nullptr, this);
+        }
     }
 
-    // Blue attack-speed multiplier is sampled once per attack cycle
-    float AttackSpeedMult = 1.f;
-    if (ElementalStatusComponent)
-    {
-        AttackSpeedMult = ElementalStatusComponent->GetAttackSpeedMultiplier();
-    }
-    const float Cooldown = EnemyStats.AttackCooldown / FMath::Max(AttackSpeedMult, 0.05f);
-
-    // 쿨다운 후 이동 재개
     GetWorldTimerManager().SetTimer(
         AttackCooldownTimer,
         this,
         &ACC_EnemyBase::ResetAttackCooldown,
-        Cooldown,
+        GetEffectiveAttackCooldown(),
         false
     );
 }
@@ -228,8 +232,88 @@ void ACC_EnemyBase::PerformAttack()
 void ACC_EnemyBase::ResetAttackCooldown()
 {
     bCanAttack = true;
+
+    // 방어: 과거 상태가 남아 있어도 다음 공격/이동이 막히지 않도록
+    bIsAttacking = false;
+    if (EnemyState == EEnemyState::Attacking)
+    {
+        EnemyState = EEnemyState::Moving;
+    }
 }
 
+void ACC_EnemyBase::FireProjectileAttack(float AttackDamage)
+{
+    const FVector MyLoc = GetActorLocation();
+    const FVector TargetLoc = TargetPlayer->GetActorLocation();
+
+    FVector AimDir2D = (TargetLoc - MyLoc).GetSafeNormal2D();
+    if (AimDir2D.IsNearlyZero())
+    {
+        AimDir2D = GetActorForwardVector();
+    }
+
+    const FVector SpawnLoc = MyLoc + AimDir2D * ProjectileForwardOffset + FVector(0.f, 0.f, ProjectileHeightOffset);
+    const FVector ShotDir = (TargetLoc - SpawnLoc).GetSafeNormal();
+
+    if (ACC_Projectile* Projectile = ACC_Projectile::AcquirePooled(GetWorld(), AttackProjectileClass))
+    {
+        Projectile->Fire(SpawnLoc, ShotDir, AttackDamage, ProjectileSpeed, this);
+        ActiveAttackActors.Add(Projectile);
+    }
+}
+
+void ACC_EnemyBase::LaunchAreaAttack(float AttackDamage)
+{
+    if (ACC_EnemyAreaAttack* Area = ACC_EnemyAreaAttack::AcquirePooled(GetWorld(), AreaAttackClass))
+    {
+        Area->Launch(GetActorLocation(), EnemyStats.AttackRange, AttackDamage, this);
+        ActiveAttackActors.Add(Area);
+    }
+}
+
+void ACC_EnemyBase::CancelActiveAttacks()
+{
+    for (const TWeakObjectPtr<AActor>& Weak : ActiveAttackActors)
+    {
+        AActor* Attack = Weak.Get();
+
+        // 풀에서 다른 적에게 재사용된 액터는 건드리지 않음 — 현재 주인이 나일 때만 취소
+        if (ACC_Projectile* P = Cast<ACC_Projectile>(Attack))
+        {
+            const AActor* CurrentOwner = P->GetProjectileOwner();
+                CurrentOwner == this ? TEXT("CANCEL") : TEXT("skip"));
+
+            if (CurrentOwner == this) P->Deactivate();
+        }
+        else if (ACC_EnemyAreaAttack* A = Cast<ACC_EnemyAreaAttack>(Attack))
+        {
+            if (A->GetAttackInstigator() == this) A->Deactivate();
+        }
+    }
+    ActiveAttackActors.Reset();
+}
+
+float ACC_EnemyBase::GetEffectiveAttackCooldown() const
+{
+    float AttackSpeedMult = 1.f;
+    if (ElementalStatusComponent)
+    {
+        AttackSpeedMult = ElementalStatusComponent->GetAttackSpeedMultiplier();
+    }
+
+    // 0초 타이머는 SetTimer가 즉시 해제해 bCanAttack이 영영 안 돌아오므로 하한을 둠
+    return FMath::Max(EnemyStats.AttackCooldown / FMath::Max(AttackSpeedMult, 0.05f), 0.05f);
+}
+
+float ACC_EnemyBase::GetEffectiveAttackDamage() const
+{
+    float AttackDamage = EnemyStats.AttackDamage;
+    if (ElementalStatusComponent)
+    {
+        AttackDamage *= ElementalStatusComponent->GetOutgoingDamageMultiplier();
+    }
+    return AttackDamage;
+}
 
 float ACC_EnemyBase::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser)
 {
@@ -331,6 +415,9 @@ void ACC_EnemyBase::Freeze_Implementation()
         EnemyMovement->StopMovementImmediately();
 
     GetWorldTimerManager().PauseTimer(AttackCooldownTimer);
+    
+    // 임시: 얼려진 적의 진행 중 공격 제거 (Track 6 C 전환 정리에서 일괄 처리로 이관 예정)
+    CancelActiveAttacks();
 
     if (UCC_AIManager* AIManager = UCC_AIManager::Get(this))
     {
@@ -393,6 +480,9 @@ void ACC_EnemyBase::ResetMovementState_Implementation()
     MoveTarget = GetActorLocation();
     EnemyState = EEnemyState::Moving;
     bIsAttacking = false;
+
+    // 텔레포트(Persistent 큐브 이동)로 위치가 바뀌면 이전 위치에서 쏜 공격은 무효 — Freeze를 안 타는 Persistent 적 대응
+    CancelActiveAttacks();
 }
 
 void ACC_EnemyBase::ApplyStatMultiplier_Implementation(float Multiplier)

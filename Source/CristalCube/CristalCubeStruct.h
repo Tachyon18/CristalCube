@@ -1160,47 +1160,6 @@ struct FLevelUpCandidate
     UTexture2D* Icon = nullptr;
 };
 
-// Bast Weapon Data
-USTRUCT(BlueprintType)
-struct FWeaponData : public FTableRowBase
-{
-    GENERATED_BODY()
-
-public:
-
-    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Basic Info")
-    FText WeaponName;
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Basic Info")
-	FText Description;
-
-    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Basic Info")
-	UTexture2D* Icon;
-    
-    UPROPERTY(Editanywhere, BlueprintReadOnly)
-	TSubclassOf<class ACC_Weapon> WeaponClass;
-
-    UPROPERTY(EditAnywhere, BlueprintReadOnly)
-    int32 MaxLevel;
-
-    UPROPERTY(EditAnywhere, BlueprintReadOnly)
-    bool bIsStartingWeapon;
-
-    UPROPERTY(EditAnywhere, BlueprintReadOnly)
-    float DropWeight;
-
-    FWeaponData()
-        : WeaponName(FText::FromString("Unknown Weapon"))
-        , Description(FText::FromString("No description"))
-        , Icon(nullptr)
-        , WeaponClass(nullptr)
-        , MaxLevel(5)
-        , bIsStartingWeapon(true)
-        , DropWeight(1.0f)
-    {
-    }
-};
-
 // Base Weapon Stats Data
 USTRUCT(BlueprintType)
 struct CRISTALCUBE_API FCristalCubeWeaponStats

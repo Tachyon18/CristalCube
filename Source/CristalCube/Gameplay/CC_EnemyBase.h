@@ -9,6 +9,8 @@
 #include "CC_Freezable.h"
 #include "CC_EnemyBase.generated.h"
 
+class ACC_Projectile;
+class ACC_EnemyAreaAttack;
 
 /**
  * 경량 Enemy 베이스 클래스
@@ -198,6 +200,44 @@ protected:
     void PerformAttack();
     void ResetAttackCooldown();
 
+    void FireProjectileAttack(float AttackDamage);
+    void LaunchAreaAttack(float AttackDamage);
+
+    /** 이 적이 낸 진행 중 공격(투사체/링) 추적 — Freeze 시 취소용 (임시, Track 6 전환 정리로 이관 예정) */
+    TArray<TWeakObjectPtr<AActor>> ActiveAttackActors;
+
+    void CancelActiveAttacks();
+
+public:
+
+    /** Blue 공격속도 배율이 반영된 실제 쿨다운 — 공격 방식이 늘어나도 계산은 여기 한 곳 */
+    UFUNCTION(BlueprintPure, Category = "Enemy|Combat")
+    float GetEffectiveAttackCooldown() const;
+
+    /** Green "가하는 공격력 감소"가 반영된 실제 공격력 — 발사 시점에 1회 계산해 투사체/링에 고정 */
+    UFUNCTION(BlueprintPure, Category = "Enemy|Combat")
+    float GetEffectiveAttackDamage() const;
+
+protected:
+
+    /** 투사체 발사형 기본 공격. 비어 있으면 AreaAttackClass(평면 링)로 폴백 */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Combat")
+    TSubclassOf<ACC_Projectile> AttackProjectileClass;
+
+    /** 0 이하면 투사체 BP의 Speed 기본값 사용 */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Combat")
+    float ProjectileSpeed = 0.f;
+
+    /** 발사 위치: 조준 방향(XY)으로 전방 오프셋 + 높이 오프셋 */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Combat")
+    float ProjectileForwardOffset = 40.f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Combat")
+    float ProjectileHeightOffset = 0.f;
+
+    /** 투사체가 없을 때 쓰는 전방향 평면 링 공격 (반경 = EnemyStats.AttackRange). 기본값 = C++ 클래스(VFX 없음) */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Combat")
+    TSubclassOf<ACC_EnemyAreaAttack> AreaAttackClass;
 
     //==========================================================================
     // HEALTH

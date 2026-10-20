@@ -10,7 +10,6 @@
 
 
 // Forward declarations
-class ACC_Projectile;
 class UNiagaraSystem;
 class USceneComponent;
 
@@ -239,10 +238,6 @@ protected:
 	//==========================================================================
 	// PROPERTIES
 	//==========================================================================
-
-	// Projectile Å¬·¡½º
-	UPROPERTY(EditDefaultsOnly, Category = "Skill System|Setup")
-	TSubclassOf<ACC_Projectile> ProjectileClass;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Skill System|Setup")
 	TSubclassOf <class ACC_SkillEffector> SkillEffectorClass;

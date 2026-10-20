@@ -4,159 +4,116 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
-#include "NiagaraSystem.h"
-#include "../CristalCubeStruct.h"
 #include "CC_Projectile.generated.h"
 
+class USphereComponent;
+class UProjectileMovementComponent;
+class UStaticMeshComponent;
+class UNiagaraSystem;
+class USoundBase;
+class UCC_EffectorPoolSubsystem;
+
+/**
+ * Enemy basic-attack projectile. The player is the only valid target.
+ * Pooled through UCC_EffectorPoolSubsystem: Fire() activates, Deactivate() returns it.
+ * Lifetime uses a manual timer (no InitialLifeSpan), so a pooled instance never
+ * receives a stale LifeSpan callback while it waits in the free list.
+ */
 UCLASS()
 class CRISTALCUBE_API ACC_Projectile : public AActor
 {
 	GENERATED_BODY()
-	
-public:	
-	// Sets default values for this actor's properties
+
+public:
 	ACC_Projectile();
 
+	// Pooled spawn. Falls back to a plain SpawnActor when no pool exists.
+	static ACC_Projectile* AcquirePooled(UWorld* World, TSubclassOf<ACC_Projectile> ProjectileClass);
+
+	// Activate (or re-activate) and launch. InSpeed <= 0 keeps the Blueprint default Speed.
+	void Fire(const FVector& SpawnLocation, const FVector& Direction, float InDamage, float InSpeed, AActor* InOwner);
+
+	// Stop, hide and return to the pool (Destroy when not pooled). Safe to call twice.
+	UFUNCTION(BlueprintCallable, Category = "Projectile")
+	void Deactivate();
+
+	void SetOwningPool(UCC_EffectorPoolSubsystem* InPool) { OwningPool = InPool; }
+
+	// Current shooter (null once deactivated) - lets the shooter cancel only its own live shots
+	AActor* GetProjectileOwner() const { return ProjectileOwner.Get(); }
+
 protected:
-	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
-public:	
-	// Called every frame
-	virtual void Tick(float DeltaTime) override;
-
-protected:
-	// Collision sphere
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
-	class USphereComponent* CollisionSphere;
-
-	// Projectile movement
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
-	class UProjectileMovementComponent* ProjectileMovement;
-
-	// Visual mesh (optional, can use particle effect instead)
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
-	UStaticMeshComponent* ProjectileMesh;
-
-protected:
-
-	//==========================================================================
-	// Skill System Reference
-	//==========================================================================
-
-	UPROPERTY()
-	class UCC_SkillSystem* SkillSystem;
-
-	// Current skill definition (for Addon checks)
-	FSkillDefinition CurrentSkill;
-
-	// Execution context (for Addon processing)
-	FSkillExecutionContext ExecutionContext;
-
-public:
-
-	// Set skill data for Addon processing
-	UFUNCTION(BlueprintCallable, Category = "Projectile")
-	void SetSkillData(UCC_SkillSystem* InSkillSystem,
-		const FSkillDefinition& InSkill,
-		const FSkillExecutionContext& InContext);
-
-protected:
-
-	//==========================================================================
-	// PROJECTILE PROPERTIES
-	//==========================================================================
-
-
-	// Base damage dealt on hit
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Projectile|Stats")
-	float Damage;
-
-	// Projectile speed
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Projectile|Stats")
-	float Speed;
-
-	// Max lifetime before auto-destroy (seconds)
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Projectile|Stats")
-	float Lifetime;
-
-	// Should destroy on hit?
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Projectile|Behavior")
-	bool bDestroyOnHit;
-
-public:
-
-	// Can pierce through enemies?
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Projectile|Behavior")
-	bool bCanPierce;
-
-	// Number of enemies to pierce through (if bCanPierce is true)
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Projectile|Behavior")
-	int32 PierceCount;
-
-protected:
-
-	// Current pierce count
-	UPROPERTY()
-	int32 CurrentPierceCount;
-
-
-
-protected:
-
-	//==========================================================================
-	// EFFECTS
-	//==========================================================================
-
-	// Hit effect (spawned on impact)
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Projectile|Effects")
-	UNiagaraSystem* HitEffect;
-
-	// Hit sound
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Projectile|Effects")
-	USoundBase* HitSound;
-
-protected:
-	//==========================================================================
-	// OWNERSHIP & TARGETING
-	//==========================================================================
-
-
-	// Who fired this projectile
-	UPROPERTY()
-	AActor* ProjectileOwner;
-
-public:
-	// Set the owner of this projectile
-	UFUNCTION(BlueprintCallable, Category = "Projectile")
-	void SetProjectileOwner(AActor* NewOwner);
-
-	// Initialize projectile with custom damage
-	UFUNCTION(BlueprintCallable, Category = "Projectile")
-	void InitializeProjectile(float InDamage, float InSpeed = 0.0f);
-
-protected:
-	//==========================================================================
-	// COLLISION & DAMAGE
-	//==========================================================================
-
-	UFUNCTION(BlueprintCallable)
+	UFUNCTION()
 	void OnOverlapBegin(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
 		UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
 
-	UFUNCTION()
-	void OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor,
-		UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit);
+	void PlayHitEffects(const FVector& HitLocation) const;
 
-	// Apply damage to hit actor
-	UFUNCTION(BlueprintCallable)
-	void ApplyDamageToActor(AActor* HitActor);
+protected:
+	//==========================================================================
+	// COMPONENTS
+	//==========================================================================
 
-	// Play hit effects
-	void PlayHitEffects(const FVector& HitLocation);
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	USphereComponent* CollisionSphere;
 
-	// Handle pierce behavior
-	bool ShouldPierceThrough(AActor* HitActor);
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	UProjectileMovementComponent* ProjectileMovement;
 
+	// Optional visual (a Niagara component can be added in the Blueprint instead)
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	UStaticMeshComponent* ProjectileMesh;
+
+	//==========================================================================
+	// PROPERTIES
+	//==========================================================================
+
+	// Overwritten by Fire()
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Projectile|Stats")
+	float Damage = 10.0f;
+
+	// Default speed when the shooter passes 0
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Projectile|Stats")
+	float Speed = 1000.0f;
+
+	// Seconds before auto-deactivate
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Projectile|Stats")
+	float Lifetime = 5.0f;
+
+	// Deactivate (return to pool) on hit
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Projectile|Behavior")
+	bool bDestroyOnHit = true;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Projectile|Behavior")
+	bool bCanPierce = false;
+
+	// Number of extra targets it can pass through when bCanPierce is true
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Projectile|Behavior")
+	int32 PierceCount = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Projectile|Effects")
+	UNiagaraSystem* HitEffect = nullptr;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Projectile|Effects")
+	USoundBase* HitSound = nullptr;
+
+private:
+	UPROPERTY()
+	UCC_EffectorPoolSubsystem* OwningPool = nullptr;
+
+	// Weak: the shooter can die while the projectile is still flying or pooled
+	UPROPERTY()
+	TWeakObjectPtr<AActor> ProjectileOwner;
+
+	TArray<TWeakObjectPtr<AActor>> HitActors;
+
+	int32 CurrentPierceCount = 0;
+
+	// True while waiting in the pool (and before the first Fire)
+	bool bIsPooledInactive = true;
+
+	FTimerHandle LifetimeTimerHandle;
 };
-

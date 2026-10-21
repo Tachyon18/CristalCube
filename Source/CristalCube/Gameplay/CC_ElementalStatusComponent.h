@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
@@ -7,6 +7,23 @@
 #include "../CristalCubeStruct.h"
 #include "CC_ElementalStatusComponent.generated.h"
 
+// Safety bounds for elemental effect values - worst-case guards only, NOT balance.
+// Balance lives in DA presets (FElementalApplyAddonData) and DT ValuePerPoint.
+// Shared by UCC_ElementalStatusComponent (apply time) and UCC_ElementalApplyAddon (upgrade time).
+struct FCCElementalLimits
+{
+	// Blue: 0 would freeze the target completely, > 1 would speed it up
+	static constexpr float BlueMultiplierMin = 0.05f;
+	static constexpr float BlueMultiplierMax = 1.0f;
+
+	// Green incoming: < 1 would turn "takes more damage" into damage reduction; upper bound stops runaway stacking
+	static constexpr float GreenIncomingMin = 1.0f;
+	static constexpr float GreenIncomingMax = 10.0f;
+
+	// Green outgoing / heal received: < 0 would invert the effect, > 1 would buff the target
+	static constexpr float GreenReductionMin = 0.0f;
+	static constexpr float GreenReductionMax = 1.0f;
+};
 
 /**
  * 대상에게 걸린 "원소 상태"를 원소 종류(ElementType) 단위로 관리.
@@ -34,9 +51,16 @@ public:
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
 public:
+	// Uses this component's BlueData/GreenData as default values.
 	// 원소 부여/갱신 — 이미 걸려있으면 스택 추가(MaxStacks 제한) + Duration Refresh
 	UFUNCTION(BlueprintCallable, Category = "ElementalStatus")
 	void ApplyElement(ESkillElementType ElementType, int32 StackAmount, int32 MaxStacks, float Duration, AActor* Instigator, UNiagaraSystem* ApplyEffect = nullptr);
+
+	// Same as ApplyElement, with explicit per-application values (CC_ElementalApplyAddon path).
+	// Re-apply keeps the stronger value: Blue = lower multipliers, Green = higher incoming / lower outgoing.
+	UFUNCTION(BlueprintCallable, Category = "ElementalStatus")
+	void ApplyElementWithData(ESkillElementType ElementType, int32 StackAmount, int32 MaxStacks, float Duration, AActor* Instigator,
+		UNiagaraSystem* ApplyEffect, const FElementBlueData& InBlueData, const FElementGreenData& InGreenData);
 
 	// 특정 원소가 걸려있는지 + 현재 스택 수 (Burst가 조회용으로 사용)
 	UFUNCTION(BlueprintCallable, Category = "ElementalStatus")
@@ -57,6 +81,7 @@ protected:
 	// FElementalApplyAddonData.RedData에 있음(일회성 프록이라 스킬 데이터가 있는 곳에서 계산).
 	// ActiveElements엔 지속시간/스택 추적용으로만 등록됨(Burst 소비 대상 조회 등).
 
+	// Default values - used only when ApplyElement() is called without explicit data
 	UPROPERTY(EditDefaultsOnly, Category = "ElementalStatus|Blue")
 	FElementBlueData BlueData;
 
@@ -67,22 +92,24 @@ protected:
 	bool bSpeedSlowed = false;
 	float SavedOriginalSpeed = -1.0f;
 
-	void ApplyBlueSlow();
+	void ApplyBlueSlow(float SlowMultiplier);
 	void RemoveBlueSlow();
 
 public:
-	// Blue 공격속도 배율(없으면 1.0) — ACC_EnemyBase::PerformAttack()이 쿨다운 계산 시 조회
+	// Blue attack speed multiplier (1.0 if none) - read by ACC_EnemyBase::GetEffectiveAttackCooldown()
 	float GetAttackSpeedMultiplier() const;
 
-	// 대상이 Green으로 "받는 피해"가 늘어나 있는지 조회 — UCC_SkillSystem::TakeDamage()에서 사용
+	// Green incoming damage multiplier (1.0 if none) - read by ACC_EnemyBase::TakeDamage()
 	float GetIncomingDamageMultiplier() const;
 
-	// 자기 자신이 Green으로 "가하는 공격력"이 줄어 있는지 조회 — Enemy 공격 판정에서 사용
+	// Green outgoing damage multiplier (1.0 if none) - read by ACC_EnemyBase::GetEffectiveAttackDamage()
 	float GetOutgoingDamageMultiplier() const;
 
 protected:
 	UPROPERTY()
 	TArray<FActiveElementalStatus> ActiveElements;
+
+	const FActiveElementalStatus* FindActiveElement(ESkillElementType ElementType) const;
 
 	// 원소 하나 스폰 헬퍼 (DoT의 SpawnAttachedTickEffect와 동일 패턴)
 	class UNiagaraComponent* SpawnAttachedElementEffect(UNiagaraSystem* Effect, ESkillElementType ElementType) const;

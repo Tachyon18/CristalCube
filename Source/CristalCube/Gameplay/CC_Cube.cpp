@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 
 #include "CC_Cube.h"
@@ -6,6 +6,7 @@
 #include "CC_Freezable.h"
 #include "../CC_CubeWorldManager.h"
 #include "../CC_EnemySpawner.h"
+#include "../CC_CollisionHelper.h"
 #include "CC_EnemyAIInterface.h"
 #include "DrawDebugHelpers.h"
 #include "GameFramework/Character.h"
@@ -401,6 +402,8 @@ void ACC_Cube::InitializeCube(FIntPoint Coordinate)
 	if (FloorMesh)
 	{
 		FloorMesh->SetWorldScale3D(FVector(CubeSize / 100.0f, CubeSize / 100.0f, 1.0f));
+		// 보이는 바닥 = 스킬 착탄 지형으로 지정 (기존 BP 콜리전은 유지, 투사체 Block만 추가)
+		FCC_CollisionHelper::ConfigureAsSkillTerrain(FloorMesh);
 	}
 
 	// Create boundary triggers

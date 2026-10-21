@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+ï»¿// Fill out your copyright notice in the Description page of Project Settings.
 
 
 #include "CC_CubeTrackerComponent.h"
@@ -23,7 +23,7 @@ void UCC_CubeTrackerComponent::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// Cube Ã£±â
+	// Cube ì°¾ê¸°
 	TArray<AActor*> FoundCubes;
 	UGameplayStatics::GetAllActorsOfClass(GetWorld(), ACC_Cube::StaticClass(), FoundCubes);
 
@@ -33,7 +33,7 @@ void UCC_CubeTrackerComponent::BeginPlay()
 
 		if (Cube)
 		{
-			// ÃÊ±â Å¸ÀÏ À§Ä¡ È®ÀÎ
+			// ì´ˆê¸° íƒ€ì¼ ìœ„ì¹˜ í™•ì¸
 			AActor* Owner = GetOwner();
 			if (Owner)
 			{
@@ -44,7 +44,7 @@ void UCC_CubeTrackerComponent::BeginPlay()
 				{
 					CurrentTileIndex = InitialTileIndex;
 
-					// Å¸ÀÏ¿¡ µî·Ï
+					// íƒ€ì¼ì— ë“±ë¡
 					ACC_Tile* InitialTile = Cube->GetTileAt(InitialTileIndex);
 					if (InitialTile)
 					{
@@ -56,7 +56,7 @@ void UCC_CubeTrackerComponent::BeginPlay()
 				}
 			}
 
-			// Å¸ÀÌ¸Ó ½ÃÀÛ
+			// íƒ€ì´ë¨¸ ì‹œìž‘
 			GetWorld()->GetTimerManager().SetTimer(
 				CheckTimerHandle,
 				this,
@@ -79,13 +79,13 @@ void UCC_CubeTrackerComponent::BeginPlay()
 
 void UCC_CubeTrackerComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
-	// Å¸ÀÌ¸Ó Á¤¸®
+	// íƒ€ì´ë¨¸ ì •ë¦¬
 	if (GetWorld())
 	{
 		GetWorld()->GetTimerManager().ClearTimer(CheckTimerHandle);
 	}
 
-	// ÇöÀç Å¸ÀÏ¿¡¼­ ÇØÁ¦
+	// í˜„ìž¬ íƒ€ì¼ì—ì„œ í•´ì œ
 	if (Cube && CurrentTileIndex != -1)
 	{
 		ACC_Tile* CurrentTile = Cube->GetTileAt(CurrentTileIndex);
@@ -122,17 +122,17 @@ void UCC_CubeTrackerComponent::CheckTileBoundary()
 	AActor* Owner = GetOwner();
 	if (!Owner) return;
 
-	// ÇöÀç À§Ä¡ÀÇ Å¸ÀÏ ÀÎµ¦½º È®ÀÎ
+	// í˜„ìž¬ ìœ„ì¹˜ì˜ íƒ€ì¼ ì¸ë±ìŠ¤ í™•ì¸
 	FVector CurrentPosition = Owner->GetActorLocation();
 	int32 NewTileIndex = Cube->GetTileIndexAtPosition(CurrentPosition);
 
-	// Å¸ÀÏÀÌ º¯°æµÇ¾ú´ÂÁö È®ÀÎ
+	// íƒ€ì¼ì´ ë³€ê²½ë˜ì—ˆëŠ”ì§€ í™•ì¸
 	if (NewTileIndex != -1 && NewTileIndex != CurrentTileIndex)
 	{
 		HandleTileTransition(NewTileIndex);
 	}
 
-	// Âü°í: ¼øÈ¯ ÀÌµ¿(NewTileIndex == -1)Àº CubeWallÀÌ Ã³¸®ÇÏ¹Ç·Î ¿©±â¼­´Â ½Å°æ ¾µ ÇÊ¿ä ¾øÀ½!
+	// ì°¸ê³ : ìˆœí™˜ ì´ë™(NewTileIndex == -1)ì€ CubeWallì´ ì²˜ë¦¬í•˜ë¯€ë¡œ ì—¬ê¸°ì„œëŠ” ì‹ ê²½ ì“¸ í•„ìš” ì—†ìŒ!
 }
 
 void UCC_CubeTrackerComponent::HandleTileTransition(int32 NewTileIndex)
@@ -144,7 +144,7 @@ void UCC_CubeTrackerComponent::HandleTileTransition(int32 NewTileIndex)
 
 	int32 OldTileIndex = CurrentTileIndex;
 
-	// ÀÌÀü Å¸ÀÏ¿¡¼­ ÇØÁ¦
+	// ì´ì „ íƒ€ì¼ì—ì„œ í•´ì œ
 	if (OldTileIndex != -1)
 	{
 		ACC_Tile* OldTile = Cube->GetTileAt(OldTileIndex);
@@ -154,23 +154,23 @@ void UCC_CubeTrackerComponent::HandleTileTransition(int32 NewTileIndex)
 		}
 	}
 
-	// »õ Å¸ÀÏ¿¡ µî·Ï
+	// ìƒˆ íƒ€ì¼ì— ë“±ë¡
 	ACC_Tile* NewTile = Cube->GetTileAt(NewTileIndex);
 	if (NewTile)
 	{
 		NewTile->RegisterActor(Owner);
 	}
 
-	// Å¸ÀÏ ÀÎµ¦½º ¾÷µ¥ÀÌÆ®
+	// íƒ€ì¼ ì¸ë±ìŠ¤ ì—…ë°ì´íŠ¸
 	CurrentTileIndex = NewTileIndex;
 
-	// µ¨¸®°ÔÀÌÆ® ºê·ÎµåÄ³½ºÆ®
+	// ë¸ë¦¬ê²Œì´íŠ¸ ë¸Œë¡œë“œìºìŠ¤íŠ¸
 	OnTileChanged.Broadcast(OldTileIndex, NewTileIndex);
 
-	UE_LOG(LogTemp, Log, TEXT("[CubeTracker] %s moved: Tile %d ¡æ Tile %d"),
+	UE_LOG(LogTemp, Log, TEXT("[CubeTracker] %s moved: Tile %d â†’ Tile %d"),
 		*Owner->GetName(), OldTileIndex, NewTileIndex);
 
-	// Cube¿¡ ÇÃ·¹ÀÌ¾î À§Ä¡ ¾÷µ¥ÀÌÆ® ¾Ë¸² (ÇÃ·¹ÀÌ¾îÀÎ °æ¿ì)
+	// Cubeì— í”Œë ˆì´ì–´ ìœ„ì¹˜ ì—…ë°ì´íŠ¸ ì•Œë¦¼ (í”Œë ˆì´ì–´ì¸ ê²½ìš°)
 	if (Owner->ActorHasTag("Player"))
 	{
 		Cube->ActivateTilesAroundPlayer(NewTileIndex);

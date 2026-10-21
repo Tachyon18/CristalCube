@@ -1,0 +1,5 @@
+root = true
+
+# C++ source: always save as UTF-8 with BOM so MSVC never falls back to the system code page (CP949)
+[*.{h,hpp,cpp,inl}]
+charset = utf-8-bom

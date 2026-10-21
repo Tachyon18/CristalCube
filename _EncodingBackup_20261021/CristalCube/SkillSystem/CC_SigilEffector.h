@@ -1,0 +1,66 @@
+// Fill out your copyright notice in the Description page of Project Settings.
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "GameFramework/Actor.h"
+#include "../CristalCubeStruct.h"
+#include "CC_SigilEffector.generated.h"
+
+
+class UNiagaraComponent;
+class UCC_SkillSystem;
+class UCC_EffectorPoolSubsystem;
+
+/**
+ * Sigil Addon 전용 실행 액터. OnHit 시점에 1회 스폰되어 고정 반경 안의
+ * 적에게 TickInterval마다 데미지를 주다가 Duration 종료 시 자멸.
+ * 각 틱에 실제로 맞은 적 하나하나가 '개별 타격'으로 취급되어,
+ * 자신만의 Context 사본으로 하위 Addon(예: Chain)을 다시 발동시킨다.
+ */
+UCLASS()
+class CRISTALCUBE_API ACC_SigilEffector : public AActor
+{
+	GENERATED_BODY()
+	
+public:	
+	// Sets default values for this actor's properties
+	ACC_SigilEffector();
+
+	void Initialize(FVector InOrigin, AActor* InInstigator, const FSigilAddonData& InData, UCC_SkillSystem* InSkillSystem, const FSkillDefinition& InSkill, const FSkillExecutionContext& InContext, int32 InStartIndex);
+
+	void SetOwningPool(UCC_EffectorPoolSubsystem* InPool);
+
+protected:
+
+	// LifeSpan 만료(정상 종료) 시 기본 Destroy() 대신 Deactivate() 경로를 타도록
+	virtual void LifeSpanExpired() override;
+
+private:
+
+	void Deactivate();
+
+	UPROPERTY(VisibleAnywhere)
+	class USceneComponent* Root = nullptr;
+
+	UPROPERTY()
+	UNiagaraComponent* SigilVFX = nullptr;
+
+	UPROPERTY()
+	UCC_EffectorPoolSubsystem* OwningPool = nullptr;
+
+	FVector Origin = FVector::ZeroVector;
+	FSigilAddonData Data;
+	TWeakObjectPtr<AActor> DamageInstigator;
+
+	// 하위 Addon 전파용 — 스킬 시전 시점의 Context/SkillSystem 참조를 틱마다 재사용
+	TWeakObjectPtr<UCC_SkillSystem> SkillSystemRef;
+	FSkillDefinition SkillDef;
+	FSkillExecutionContext BaseContext;
+	int32 AddonStartIndex = 0;
+
+	FTimerHandle TickTimer;
+
+	void ApplyTick();
+
+};

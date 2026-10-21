@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+ï»¿// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
@@ -39,25 +39,25 @@ public:
 	virtual void Tick(float DeltaTime) override;
 
 public:
-	// ========== ¼³Á¤ ==========
+	// ========== ì„¤ì • ==========
 
-	/** ÀÚµ¿ Å×½ºÆ® ½ÇÇà */
+	/** ìë™ í…ŒìŠ¤íŠ¸ ì‹¤í–‰ */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Testing")
 	bool bAutoRunTests = true;
 
-	/** Å×½ºÆ® ½ÃÀÛ µô·¹ÀÌ */
+	/** í…ŒìŠ¤íŠ¸ ì‹œì‘ ë”œë ˆì´ */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Testing")
 	float TestStartDelay = 2.0f;
 
-	/** Å×½ºÆ®¿ë Àû ¼ö */
+	/** í…ŒìŠ¤íŠ¸ìš© ì  ìˆ˜ */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Testing")
 	int32 NumTestEnemies = 20;
 
-	/** ¼º´É Å×½ºÆ®¿ë Àû ¼ö */
+	/** ì„±ëŠ¥ í…ŒìŠ¤íŠ¸ìš© ì  ìˆ˜ */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Testing")
 	int32 NumPerformanceTestActors = 100;
 
-	/** Å×½ºÆ® Enemy Å¬·¡½º */
+	/** í…ŒìŠ¤íŠ¸ Enemy í´ë˜ìŠ¤ */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Testing")
 	TSubclassOf<class ACC_TestActor> TestActorClass;
 
@@ -68,13 +68,13 @@ public:
 	TArray<FTestResult> TestResults;
 
 
-	// ========== »óÅÂ ==========
+	// ========== ìƒíƒœ ==========
 
-	/** Cube ÂüÁ¶ */
+	/** Cube ì°¸ì¡° */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Testing")
 	class ACC_Cube* Cube;
 
-	/** Å×½ºÆ® °á°ú */
+	/** í…ŒìŠ¤íŠ¸ ê²°ê³¼ */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Testing")
 	int32 TestsPassed = 0;
 
@@ -84,13 +84,13 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Testing")
 	TArray<FString> TestLog;
 
-	// ========== Å×½ºÆ® ÇÔ¼ö ==========
+	// ========== í…ŒìŠ¤íŠ¸ í•¨ìˆ˜ ==========
 
-	/** ¸ğµç Å×½ºÆ® ½ÇÇà */
+	/** ëª¨ë“  í…ŒìŠ¤íŠ¸ ì‹¤í–‰ */
 	UFUNCTION(BlueprintCallable, Category = "Testing")
 	void RunAllTests();
 
-	/** Å×½ºÆ® ¸®Æ÷Æ® Ãâ·Â */
+	/** í…ŒìŠ¤íŠ¸ ë¦¬í¬íŠ¸ ì¶œë ¥ */
 	UFUNCTION(BlueprintCallable, Category = "Testing")
 	void PrintTestReport();
 
@@ -98,15 +98,15 @@ public:
 	// Individual Tests
 	// ========================================
 
-	/** Test 1: Manager ÃÊ±âÈ­ */
+	/** Test 1: Manager ì´ˆê¸°í™” */
 	UFUNCTION(BlueprintCallable, Category = "Testing")
 	bool Test_ManagerInitialization();
 
-	/** Test 2: 3x3 ±×¸®µå »ı¼º */
+	/** Test 2: 3x3 ê·¸ë¦¬ë“œ ìƒì„± */
 	UFUNCTION(BlueprintCallable, Category = "Testing")
 	bool Test_GridGeneration();
 
-	/** Test 3: Å¥ºê Spawn */
+	/** Test 3: íë¸Œ Spawn */
 	UFUNCTION(BlueprintCallable, Category = "Testing")
 	bool Test_CubeSpawning();
 
@@ -114,19 +114,19 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Testing")
 	bool Test_FreezeSystem();
 
-	/** Test 5: °æ°è °¨Áö */
+	/** Test 5: ê²½ê³„ ê°ì§€ */
 	UFUNCTION(BlueprintCallable, Category = "Testing")
 	bool Test_BoundaryDetection();
 
-	/** Test 6: ¼øÈ¯ ÁÂÇ¥ °è»ê */
+	/** Test 6: ìˆœí™˜ ì¢Œí‘œ ê³„ì‚° */
 	UFUNCTION(BlueprintCallable, Category = "Testing")
 	bool Test_CoordinateWrapping();
 
-	/** Test 7: Å¥ºê ÀüÈ¯ (½Ã¹Ä·¹ÀÌ¼Ç) */
+	/** Test 7: íë¸Œ ì „í™˜ (ì‹œë®¬ë ˆì´ì…˜) */
 	UFUNCTION(BlueprintCallable, Category = "Testing")
 	bool Test_CubeTransition();
 
-	/** Test 8: Actor °ü¸® */
+	/** Test 8: Actor ê´€ë¦¬ */
 	UFUNCTION(BlueprintCallable, Category = "Testing")
 	bool Test_ActorManagement();
 
@@ -134,10 +134,10 @@ public:
 	// Utilities
 	// ========================================
 
-	/** Å×½ºÆ® °á°ú Ãß°¡ */
+	/** í…ŒìŠ¤íŠ¸ ê²°ê³¼ ì¶”ê°€ */
 	void AddTestResult(const FString& TestName, bool bPassed, const FString& Message);
 
-	/** Manager Ã£±â */
+	/** Manager ì°¾ê¸° */
 	void FindCubeManager();
 
 protected:

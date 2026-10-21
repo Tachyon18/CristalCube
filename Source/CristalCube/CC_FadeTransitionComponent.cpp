@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+ï»¿// Fill out your copyright notice in the Description page of Project Settings.
 
 
 #include "CC_FadeTransitionComponent.h"
@@ -78,7 +78,7 @@ void UCC_FadeTransitionComponent::SetClear()
 	CurrentFadeAlpha = 0.0f;
 	bIsFading = false;
 
-	// ÇÃ·¹ÀÌ¾î Ä«¸Ş¶ó¿¡ ÆäÀÌµå Àû¿ë
+	// í”Œë ˆì´ì–´ ì¹´ë©”ë¼ì— í˜ì´ë“œ ì ìš©
 	APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0);
 	if (PC && PC->PlayerCameraManager)
 	{
@@ -93,7 +93,7 @@ void UCC_FadeTransitionComponent::UpdateFade(float DeltaTime)
 	ElapsedTime += DeltaTime;
 	float Progress = FMath::Clamp(ElapsedTime / FadeDuration, 0.0f, 1.0f);
 
-	// ÆäÀÌµå ¹æÇâ¿¡ µû¶ó ¾ËÆÄ °è»ê
+	// í˜ì´ë“œ ë°©í–¥ì— ë”°ë¼ ì•ŒíŒŒ ê³„ì‚°
 	if (bFadeToBlack)
 	{
 		CurrentFadeAlpha = Progress; // 0 -> 1
@@ -103,14 +103,14 @@ void UCC_FadeTransitionComponent::UpdateFade(float DeltaTime)
 		CurrentFadeAlpha = 1.0f - Progress; // 1 -> 0
 	}
 
-	// ÇÃ·¹ÀÌ¾î Ä«¸Ş¶ó¿¡ ÆäÀÌµå Àû¿ë
+	// í”Œë ˆì´ì–´ ì¹´ë©”ë¼ì— í˜ì´ë“œ ì ìš©
 	APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0);
 	if (PC && PC->PlayerCameraManager)
 	{
 		PC->PlayerCameraManager->SetManualCameraFade(CurrentFadeAlpha, FLinearColor::Black, false);
 	}
 
-	// ¿Ï·á Ã¼Å©
+	// ì™„ë£Œ ì²´í¬
 	if (Progress >= 1.0f)
 	{
 		CompleteFade();
@@ -123,10 +123,10 @@ void UCC_FadeTransitionComponent::CompleteFade()
 
 	UE_LOG(LogTemp, Log, TEXT("[Fade] Fade complete (Alpha: %.2f)"), CurrentFadeAlpha);
 
-	// ÀÌº¥Æ® ¹ß»ı
+	// ì´ë²¤íŠ¸ ë°œìƒ
 	OnFadeComplete.Broadcast();
 
-	// Äİ¹é ½ÇÇà
+	// ì½œë°± ì‹¤í–‰
 	if (CompletionCallback)
 	{
 		CompletionCallback();

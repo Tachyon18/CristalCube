@@ -1,0 +1,248 @@
+// Fill out your copyright notice in the Description page of Project Settings.
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "GameFramework/PlayerState.h"
+#include "CristalCubeStruct.h"
+#include "CC_PlayerState.generated.h"
+
+class UCC_SkillBase;
+class UCC_SkillSystem;
+class UCC_AddonPresetAsset;
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnSkillsChanged);
+
+/**
+ * 플레이어의 스킬 로스터를 관리하는 PlayerState.
+ * - 스킬 인스턴스의 소유자 (GC Outer)
+ * - 쿨다운 Tick 관리
+ * - 스킬 부여 / 제거 / 조회 API 제공
+ * - 실제 실행은 UCC_SkillSystem을 반드시 경유
+ */
+
+UCLASS()
+class CRISTALCUBE_API ACC_PlayerState : public APlayerState
+{
+	GENERATED_BODY()
+	
+public:
+	ACC_PlayerState();
+
+	virtual void BeginPlay() override;
+	virtual void Tick(float DeltaTime) override;
+
+public:
+
+	//==========================================================================
+	// SKILL MANAGEMENT
+	//==========================================================================
+
+    /**
+     * 스킬 부여. 중복 SkillID 및 슬롯 초과 시 null 반환.
+     * Outer를 this로 설정하므로 GC에 안전.
+     */
+    UFUNCTION(BlueprintCallable, Category = "Skills")
+    UCC_SkillBase* GrantSkill(TSubclassOf<UCC_SkillBase> SkillClass);
+
+    /** SkillID로 스킬 제거. 성공 여부 반환. */
+    UFUNCTION(BlueprintCallable, Category = "Skills")
+    bool RemoveSkill(FName SkillID);
+
+    /** 모든 스킬 해제 */
+    UFUNCTION(BlueprintCallable, Category = "Skills")
+    void RemoveAllSkills();
+
+    /** 특정 슬롯에 명시적으로 스킬 장착. 슬롯이 이미 차있거나 범위 밖이면 실패. */
+    UFUNCTION(BlueprintCallable, Category = "Skills")
+    UCC_SkillBase* GrantSkillToSlot(TSubclassOf<UCC_SkillBase> SkillClass, int32 SlotIndex);
+
+    /** 특정 슬롯의 스킬 제거. RemoveSkill(SkillID)과 달리 압축하지 않고 그 자리를 비운다. */
+    UFUNCTION(BlueprintCallable, Category = "Skills")
+    bool RemoveSkillAtSlot(int32 SlotIndex);
+
+    /** 특정 슬롯 조회. 범위 밖이거나 비어있으면 nullptr. */
+    UFUNCTION(BlueprintPure, Category = "Skills")
+    UCC_SkillBase* GetSkillAtSlot(int32 SlotIndex) const;
+
+    /** 비어있는 첫 슬롯 인덱스. 꽉 찼으면 -1. */
+    UFUNCTION(BlueprintPure, Category = "Skills")
+    int32 FindFirstEmptySlot() const;
+
+    UPROPERTY(BlueprintAssignable, Category = "Skills")
+    FOnSkillsChanged OnSkillsChanged;
+
+    UPROPERTY(EditDefaultsOnly, Category = "Skills")
+    UDataTable* SkillDataTable;
+
+    UPROPERTY(EditDefaultsOnly, Category = "Skills")
+    UDataTable* AddonDataTable;
+
+    UPROPERTY()
+    class UCC_SkillLibrarySubsystem* SkillLibrary;
+
+    UFUNCTION(BlueprintCallable, Category = "Skills")
+    void InitializeSkillLibrary();
+
+    /** SkillLibrary에서 RowName으로 SkillClass를 찾아 기존 GrantSkill에 위임 */
+    UFUNCTION(BlueprintCallable, Category = "Skills")
+    UCC_SkillBase* GrantSkillByRowName(FName SkillRowName);
+
+    /** 시작 스킬 자동 장착 — InitializeSkillLibrary() 내부에서 호출.
+    *  DT_Skill에서 bIsStartingSkill=true로 표시된 로우를 전부 장착 시도. */
+    UFUNCTION(BlueprintCallable, Category = "Skills")
+    void EquipStartingSkills();
+
+    /** 두 슬롯의 스킬 위치를 교환. 인덱스 무효/동일하면 무시. */
+    UFUNCTION(BlueprintCallable, Category = "Skills")
+    bool SwapSlots(int32 SlotA, int32 SlotB);
+
+    //==========================================================================
+    // QUERIES
+    //==========================================================================
+
+    UFUNCTION(BlueprintPure, Category = "Skills")
+    UCC_SkillBase* FindSkill(FName SkillID) const;
+
+    UFUNCTION(BlueprintPure, Category = "Skills")
+    bool HasSkill(FName SkillID) const;
+
+    UFUNCTION(BlueprintPure, Category = "Skills")
+    bool CanGrantMoreSkills() const;
+
+    UFUNCTION(BlueprintPure, Category = "Skills")
+    int32 GetSkillCount() const;
+
+    UFUNCTION(BlueprintPure, Category = "Skills")
+    const TArray<UCC_SkillBase*>& GetAllSkills() const { return EquippedSkills; }
+
+    //==========================================================================
+    // CAST INTERFACE
+    //==========================================================================
+
+    /**
+     * 특정 스킬 발동. PlayerCharacter에서 SkillSystem과 연결해서 호출.
+     */
+    UFUNCTION(BlueprintCallable, Category = "Skills")
+    bool TryCastSkill(FName SkillID, UCC_SkillSystem* SkillSystem, FVector TargetLocation);
+
+    /**
+     * Ready 상태인 모든 스킬을 일괄 발동.
+     * Vampire Survivors 스타일의 자동 공격 루프에서 사용.
+     */
+    UFUNCTION(BlueprintCallable, Category = "Skills")
+    void CastAllReadySkills(UCC_SkillSystem* SkillSystem, FVector TargetLocation);
+
+protected:
+
+    /** 장착된 스킬 인스턴스 목록. Outer = this이므로 GC 보장. */
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Skills")
+    TArray<UCC_SkillBase*> EquippedSkills;
+
+    /** 최대 스킬 슬롯 수 */
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Skills")
+    int32 MaxSkillSlots = 6;
+
+public:
+    
+	//==========================================================================
+	// CUBE REWARD MANAGEMENT
+	//==========================================================================
+
+    // CC_PlayerState.h — public 섹션에 추가
+    UPROPERTY(EditDefaultsOnly, Category = "Cube Energy")
+    float CubeEnergyGaugeMax = 100.0f;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Cube Energy")
+    float CubeEnergyCurrent = 0.0f;
+
+    /** 게이지 완충 후 적립된, 아직 소진 안 된 보너스 픽 수 */
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Cube Energy")
+    int32 PendingBonusPicks = 0;
+
+    UFUNCTION(BlueprintCallable, Category = "Cube Energy")
+    void AddCubeEnergy(float Amount);
+
+    /** Cube Clear 시점 호출 — 기본 1장 + 적립된 보너스를 합쳐 반환하고 Pending은 0으로 리셋 */
+    UFUNCTION(BlueprintCallable, Category = "Cube Energy")
+    int32 ConsumeCubeClearPicks();
+
+    //==========================================================================
+    // SKILL CORE POINT BANK (LevelUp "포인트제" 강화, 2026-07-28 설계)
+    //==========================================================================
+
+    /** 스킬 ID별 미소진 Core 포인트. LevelUp CorePoint 카드가 여기 적립.
+     *  Addon 포인트와 달리 SkillID 단위(따라잡기 없음) — 스킬 중복 장착 계획이 없어서
+     *  포인트가 특정 스킬 인스턴스 하나에만 귀속됨.
+     *  실제 속성별 배분(소진)은 Addon 포인트와 동일하게 SkillInventory 확장 UI(8번)에서 처리. */
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Skills|Core Points")
+    TMap<FName, int32> SkillCoreUnspentPoints;
+
+    /** 지정한 스킬에 Core 포인트 N개를 은행에 적립 */
+    UFUNCTION(BlueprintCallable, Category = "Skills|Core Points")
+    void AddSkillCorePoints(FName SkillID, int32 Amount);
+
+    /** 은행에 적립된 포인트 조회 (UI 표시용) */
+    UFUNCTION(BlueprintPure, Category = "Skills|Core Points")
+    int32 GetSkillCoreUnspentPoints(FName SkillID) const;
+
+    /** 스킬 ID별, 속성(AttributeID)별 누적 배분량. Addon과 달리 따라잡기 없음 —
+     *  스킬 인스턴스 하나에만 귀속되므로 구조만 재사용(FAddonAttributeSpentPoints). */
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Skills|Core Points")
+    TMap<FName, FCoreAttributeSpentPoints> SkillCoreSpentPoints;
+
+    /** 은행에서 1포인트를 소진해 AttributeID에 배분. 은행 부족/MaxPoints 초과/스킬 미장착 시 false. */
+    UFUNCTION(BlueprintCallable, Category = "Skills|Core Points")
+    bool SpendSkillCorePoint(FName SkillID, ECoreUpgradeAttribute AttributeType, float ValuePerPoint, int32 MaxPoints);
+
+    /** 이미 배분한 포인트 1개를 회수해서 은행으로 되돌림. */
+    UFUNCTION(BlueprintCallable, Category = "Skills|Core Points")
+    bool RefundSkillCorePoint(FName SkillID, ECoreUpgradeAttribute AttributeType, float ValuePerPoint);
+
+    /** 이미 배분된 포인트 수 조회 (UI에서 "3/10" 같은 표시에 사용) */
+    UFUNCTION(BlueprintPure, Category = "Skills|Core Points")
+    int32 GetSkillCoreAttributeSpentPoints(FName SkillID, ECoreUpgradeAttribute AttributeType) const;
+
+    //==========================================================================
+    // ADDON POINT BANK (CubeClear "포인트제" 강화, SkillSystem.md 2026-07-23 설계)
+    //==========================================================================
+
+    /** Addon 타입별 미소진 포인트. CubeClear AddonUpgrade 보상이 여기 적립.
+     *  실제 속성별 배분(소진)은 SkillInventory 확장 UI(마스터 우선순위 8번)에서 처리 예정 —
+     *  지금은 은행 역할만 한다. */
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Skills|Addon Points")
+    TMap<ESkillAddonType, int32> AddonUnspentPoints;
+
+    /** Addon 타입별, 속성(AttributeID)별 누적 배분량. 따라잡기(GrantAddonWithCatchUp)가
+    *  새로 얻은 스킬에 얼마나 소급 적용할지 계산할 때 이 값을 그대로 곱해서 씀. */
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Skills|Addon Points")
+    TMap<ESkillAddonType, FAddonAttributeSpentPoints> AddonSpentPoints;
+
+    /** 지정한 Addon 타입에 포인트 N개를 은행에 적립 */
+    UFUNCTION(BlueprintCallable, Category = "Skills|Addon Points")
+    void AddAddonPoints(ESkillAddonType AddonType, int32 Amount);
+
+    /** 은행에 적립된 포인트 조회 (UI 표시용) */
+    UFUNCTION(BlueprintPure, Category = "Skills|Addon Points")
+    int32 GetAddonUnspentPoints(ESkillAddonType AddonType) const;
+
+    /** 은행에서 1포인트를 소진해 AttributeID에 배분. 은행 부족/MaxPoints 초과 시 false, 아무 것도 안 함.
+     *  MaxPoints는 카탈로그(FAddonUpgradeAttribute)에서 가져와 호출부(위젯)가 넘겨줌 — PlayerState는
+     *  카탈로그를 몰라도 되게 하려고 인자로 받는 방식 채택 (SkillLibrarySubsystem 의존 안 만듦). */
+    UFUNCTION(BlueprintCallable, Category = "Skills|Addon Points")
+    bool SpendAddonPoint(ESkillAddonType AddonType, FName AttributeID, float ValuePerPoint, int32 MaxPoints);
+
+    /** 이미 배분한 포인트 1개를 회수해서 은행으로 되돌림. 이 속성에 배분한 게 0이면 false, 아무 것도 안 함. */
+    UFUNCTION(BlueprintCallable, Category = "Skills|Addon Points")
+    bool RefundAddonPoint(ESkillAddonType AddonType, FName AttributeID, float ValuePerPoint);
+
+    /** 이미 배분된 포인트 수 조회 (UI에서 "3/10" 같은 표시에 사용) */
+    UFUNCTION(BlueprintPure, Category = "Skills|Addon Points")
+    int32 GetAddonAttributeSpentPoints(ESkillAddonType AddonType, FName AttributeID) const;
+
+    /** 스킬에 Addon을 부여하고, 그 Addon 타입에 이미 배분된 포인트가 있으면 즉시 소급 적용까지 처리.
+     *  AddonDataTable에서 카탈로그(UpgradeAttributes)를 조회해야 하므로 SkillLibrary 필요.
+     *  Grant 자체가 실패하면(이미 보유 등) false. */
+    UFUNCTION(BlueprintCallable, Category = "Skills|Addon Points")
+    bool GrantAddonWithCatchUp(UCC_SkillBase* Skill, ESkillAddonType AddonType);
+};

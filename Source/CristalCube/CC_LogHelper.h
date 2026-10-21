@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+ï»¿// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
@@ -7,8 +7,8 @@
 #include "CC_LogHelper.generated.h"
 
 /**
- * CristalCube ·Î±× À¯Æ¿¸®Æ¼ Å¬·¡½º
- * ±ò²ûÇÑ ·Î±× Ãâ·ÂÀ» À§ÇÑ ÇïÆÛ ÇÔ¼öµé°ú ¸ÅÅ©·Îµé
+ * CristalCube ë¡œê·¸ ìœ í‹¸ë¦¬í‹° í´ë˜ìŠ¤
+ * ê¹”ë”í•œ ë¡œê·¸ ì¶œë ¥ì„ ìœ„í•œ í—¬í¼ í•¨ìˆ˜ë“¤ê³¼ ë§¤í¬ë¡œë“¤
  */
 UCLASS()
 class CRISTALCUBE_API UCC_LogHelper : public UObject
@@ -16,28 +16,28 @@ class CRISTALCUBE_API UCC_LogHelper : public UObject
 	GENERATED_BODY()
 
 public:
-	// ±ò²ûÇÑ ¾×ÅÍ ÀÌ¸§ »ı¼º
+	// ê¹”ë”í•œ ì•¡í„° ì´ë¦„ ìƒì„±
 	UFUNCTION(BlueprintPure, Category = "CC Log", meta = (CallInEditor = "true"))
 	static FString GetCleanActorName(const AActor* Actor);
 
-	// ±ò²ûÇÑ Å¬·¡½º ÀÌ¸§ »ı¼º
+	// ê¹”ë”í•œ í´ë˜ìŠ¤ ì´ë¦„ ìƒì„±
 	UFUNCTION(BlueprintPure, Category = "CC Log")
 	static FString GetCleanClassName(const UObject* Object);
 
-	// ·Î±× Å¸ÀÔº° ÄÃ·¯ ¼³Á¤ (È­¸é Ãâ·Â¿ë)
+	// ë¡œê·¸ íƒ€ì…ë³„ ì»¬ëŸ¬ ì„¤ì • (í™”ë©´ ì¶œë ¥ìš©)
 	UFUNCTION(BlueprintPure, Category = "CC Log")
 	static FColor GetLogColor(const FString& InLogType);
 	
 };
 
 //==============================================================================
-// ÆíÀÇ ¸ÅÅ©·Îµé
+// í¸ì˜ ë§¤í¬ë¡œë“¤
 //==============================================================================
 
-// ¾×ÅÍ ÀÌ¸§ ÇïÆÛ
+// ì•¡í„° ì´ë¦„ í—¬í¼
 #define CC_ACTOR_NAME(Actor) (*UCC_LogHelper::GetCleanActorName(Actor))
 
-// ±âº» ·Î±× ¸ÅÅ©·Îµé
+// ê¸°ë³¸ ë¡œê·¸ ë§¤í¬ë¡œë“¤
 #define CC_LOG_PLAYER(Verbosity, Format, ...) \
     UE_LOG(LogTemp, Verbosity, TEXT("[PLAYER] " Format), ##__VA_ARGS__)
 
@@ -65,7 +65,7 @@ public:
 #define CC_LOG_ERROR(Verbosity, Format, ...) \
     UE_LOG(LogTemp, Verbosity, TEXT("[ERROR] " Format), ##__VA_ARGS__)
 
-// ¾×ÅÍ Á¤º¸ Æ÷ÇÔ ¹öÀü
+// ì•¡í„° ì •ë³´ í¬í•¨ ë²„ì „
 #define CC_LOG_PLAYER_ACTOR(Verbosity, Actor, Format, ...) \
     UE_LOG(LogTemp, Verbosity, TEXT("[PLAYER][%s] " Format), CC_ACTOR_NAME(Actor), ##__VA_ARGS__)
 
@@ -88,7 +88,7 @@ public:
     UE_LOG(LogTemp, Verbosity, TEXT("[SPAWNER][%s] " Format), CC_ACTOR_NAME(Actor), ##__VA_ARGS__)
 
 //==============================================================================
-// È­¸é Ãâ·Â ¸ÅÅ©·Îµé (ÄÃ·¯ Æ÷ÇÔ)
+// í™”ë©´ ì¶œë ¥ ë§¤í¬ë¡œë“¤ (ì»¬ëŸ¬ í¬í•¨)
 //==============================================================================
 
 #define CC_SCREEN_LOG(LogType, Duration, Format, ...) \
@@ -102,7 +102,7 @@ public:
         ); \
     }
 
-// È­¸é Ãâ·Â ÆíÀÇ ¸ÅÅ©·Îµé
+// í™”ë©´ ì¶œë ¥ í¸ì˜ ë§¤í¬ë¡œë“¤
 #define CC_SCREEN_ENEMY(Duration, Format, ...) CC_SCREEN_LOG(TEXT("ENEMY"), Duration, Format, ##__VA_ARGS__)
 #define CC_SCREEN_COMBAT(Duration, Format, ...) CC_SCREEN_LOG(TEXT("COMBAT"), Duration, Format, ##__VA_ARGS__)
 #define CC_SCREEN_SKILL(Duration, Format, ...) CC_SCREEN_LOG(TEXT("SKILL"), Duration, Format, ##__VA_ARGS__)

@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+ï»¿// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
@@ -27,31 +27,31 @@ public:
 	// Called every frame
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
-	// ========== ¼³Á¤ ==========
+	// ========== ì„¤ì • ==========
 
-	/** Å¸ÀÏ Ã¼Å© °£°İ (ÃÊ) */
+	/** íƒ€ì¼ ì²´í¬ ê°„ê²© (ì´ˆ) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cube Tracker")
 	float CheckInterval = 0.2f;
 
-	// ========== »óÅÂ ==========
+	// ========== ìƒíƒœ ==========
 
-	/** ÇöÀç Å¸ÀÏ ÀÎµ¦½º */
+	/** í˜„ì¬ íƒ€ì¼ ì¸ë±ìŠ¤ */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Cube Tracker")
 	int32 CurrentTileIndex = -1;
 
-	/** Cube ÂüÁ¶ */
+	/** Cube ì°¸ì¡° */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Cube Tracker")
 	class ACC_Cube* Cube;
 
-	// ========== µ¨¸®°ÔÀÌÆ® ==========
+	// ========== ë¸ë¦¬ê²Œì´íŠ¸ ==========
 
-	/** Å¸ÀÏ º¯°æ ½Ã È£Ãâ */
+	/** íƒ€ì¼ ë³€ê²½ ì‹œ í˜¸ì¶œ */
 	UPROPERTY(BlueprintAssignable, Category = "Cube Tracker")
 	FOnTileChanged OnTileChanged;
 
-	// ========== ÇÔ¼ö ==========
+	// ========== í•¨ìˆ˜ ==========
 
-	/** ÇöÀç Å¸ÀÏ °¡Á®¿À±â */
+	/** í˜„ì¬ íƒ€ì¼ ê°€ì ¸ì˜¤ê¸° */
 	UFUNCTION(BlueprintCallable, Category = "Cube Tracker")
 	class ACC_Tile* GetCurrentTile() const;
 
@@ -59,9 +59,9 @@ protected:
 
 	void CheckTileBoundary();
 
-	/** Å¸ÀÏ ÀüÈ¯ Ã³¸® */
+	/** íƒ€ì¼ ì „í™˜ ì²˜ë¦¬ */
 	void HandleTileTransition(int32 NewTileIndex);
 
-	/** Å¸ÀÌ¸Ó ÇÚµé */
+	/** íƒ€ì´ë¨¸ í•¸ë“¤ */
 	FTimerHandle CheckTimerHandle;
 };

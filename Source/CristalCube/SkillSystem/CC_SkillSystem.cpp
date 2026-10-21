@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+ï»¿// Fill out your copyright notice in the Description page of Project Settings.
 
 
 #include "CC_SkillSystem.h"
@@ -21,6 +21,7 @@
 #include "../Gameplay/CC_EnemyAIInterface.h"
 #include "../CC_CubeWorldManager.h"
 #include "../CC_EnemyManager.h"
+#include "../CC_CollisionHelper.h"
 #include "../Gameplay/CC_ElementalStatusComponent.h"
 #include "Components/SphereComponent.h"
 #include "GameFramework/ProjectileMovementComponent.h"
@@ -39,7 +40,7 @@ UCC_SkillSystem::UCC_SkillSystem()
 	// Set this component to be initialized when the game starts, and to be ticked every frame.  You can turn these features
 	// off to improve performance if you don't need them.
 	PrimaryComponentTick.bCanEverTick = true;
-	PrimaryComponentTick.bStartWithTickEnabled = false;  // ÇÊ¿äÇÒ ¶§¸¸ Tick
+	PrimaryComponentTick.bStartWithTickEnabled = false;  // í•„ìš”í•  ë•Œë§Œ Tick
 
 	// ...
 }
@@ -53,7 +54,7 @@ void UCC_SkillSystem::BeginPlay()
 	// ...
 	UE_LOG(LogTemp, Log, TEXT("SkillSystem initialized for %s"), *GetOwner()->GetName());
 
-	// CubeWorldManager°¡ ¾ÆÁ÷ ÁØºñ ¾È µÆÀ» ¼ö ÀÖ¾î ÇÑ Æ½ ´Ê°Ô ¹ÙÀÎµù
+	// CubeWorldManagerê°€ ì•„ì§ ì¤€ë¹„ ì•ˆ ëì„ ìˆ˜ ìˆì–´ í•œ í‹± ëŠ¦ê²Œ ë°”ì¸ë”©
 	FTimerHandle BindTimer;
 	GetWorld()->GetTimerManager().SetTimer(BindTimer, [this]()
 		{
@@ -88,12 +89,15 @@ void UCC_SkillSystem::ExecuteSkill(const FSkillDefinition& Skill, FVector Target
 		return;
 	}
 
-	// ÄÁÅØ½ºÆ® ÃÊ±âÈ­
+	// ì»¨í…ìŠ¤íŠ¸ ì´ˆê¸°í™”
 	FSkillExecutionContext Context;
 	Context.Caster = Owner;
 	Context.StartLocation = Owner->GetActorLocation();
 	Context.TargetLocation = TargetLocation;
-	Context.Direction = (TargetLocation - Context.StartLocation).GetSafeNormal();
+	// ë°©í–¥ì€ ìˆ˜í‰(XY) ê¸°ì¤€ â€” ëŒ€ìƒ ì§€ì ì´ ë°”ë‹¥(ì»¤ì„œ ì§€í˜• íŠ¸ë ˆì´ìŠ¤)ì´ì–´ë„ ë°©í–¥í˜• ìŠ¤í‚¬ì€ ì‹œì „ì ë†’ì´ì—ì„œ ìˆ˜í‰ìœ¼ë¡œ ë‚˜ê°
+	FVector FlatDelta = TargetLocation - Context.StartLocation;
+	FlatDelta.Z = 0.0f;
+	Context.Direction = FlatDelta.GetSafeNormal();
 	Context.CurrentDamage = Skill.BaseDamage * Skill.Passives.DamageMultiplier;
 
 	ProcessCastAddons(Skill, Context);
@@ -113,7 +117,7 @@ void UCC_SkillSystem::ExecuteSkill(const FSkillDefinition& Skill, FVector Target
 		PlaySound(Skill.CastSound, Context.StartLocation);
 	}
 
-	// Core ½ÇÇà
+	// Core ì‹¤í–‰
 	switch (Skill.CoreType)
 	{
 	case ESkillCoreType::Projectile:
@@ -156,7 +160,10 @@ void UCC_SkillSystem::ExecuteSkillOnTarget(const FSkillDefinition& Skill, AActor
 void UCC_SkillSystem::ExecuteSkillWithContext(const FSkillDefinition& Skill, FSkillExecutionContext Context, FVector TargetLocation, int32 StartIndex)
 {
 	Context.TargetLocation = TargetLocation;
-	Context.Direction = (TargetLocation - Context.StartLocation).GetSafeNormal();
+	// ë°©í–¥ì€ ìˆ˜í‰(XY) ê¸°ì¤€ â€” ëŒ€ìƒ ì§€ì ì´ ë°”ë‹¥(ì»¤ì„œ ì§€í˜• íŠ¸ë ˆì´ìŠ¤)ì´ì–´ë„ ë°©í–¥í˜• ìŠ¤í‚¬ì€ ì‹œì „ì ë†’ì´ì—ì„œ ìˆ˜í‰ìœ¼ë¡œ ë‚˜ê°
+	FVector FlatDelta = TargetLocation - Context.StartLocation;
+	FlatDelta.Z = 0.0f;
+	Context.Direction = FlatDelta.GetSafeNormal();
 
 	ProcessCastAddons(Skill, Context, StartIndex);
 
@@ -172,14 +179,16 @@ void UCC_SkillSystem::ExecuteSkillWithContext(const FSkillDefinition& Skill, FSk
 }
 
 //==============================================================================
-// CORE EXECUTION - STUBS (´ÙÀ½ ´Ü°è¿¡¼­ ±¸Çö)
+// CORE EXECUTION - STUBS (ë‹¤ìŒ ë‹¨ê³„ì—ì„œ êµ¬í˜„)
 //==============================================================================
 
 void UCC_SkillSystem::ExecuteProjectile(const FSkillDefinition& Skill, FSkillExecutionContext& Context)
 {
-	if(!SkillEffectorClass)
+	// ìŠ¤í‚¬ ì§€ì • BPê°€ ì—†ìœ¼ë©´ SkillSystem ê¸°ë³¸ í´ë˜ìŠ¤ë¡œ í´ë°± (FSkillDefinition::ProjectileClass ì£¼ì„ëŒ€ë¡œ)
+	const TSubclassOf<ACC_SkillEffector> EffectorClass = Skill.ProjectileClass ? Skill.ProjectileClass : SkillEffectorClass;
+	if (!EffectorClass)
 	{
-		UE_LOG(LogTemp, Error, TEXT("ExecuteProjectile: SkillEffector not set!"));
+		UE_LOG(LogTemp, Error, TEXT("ExecuteProjectile: [%s] ProjectileClass/SkillEffectorClass ë‘˜ ë‹¤ ë¹„ì–´ ìˆìŒ"), *Skill.SkillID.ToString());
 		return;
 	}
 
@@ -194,32 +203,32 @@ void UCC_SkillSystem::ExecuteProjectile(const FSkillDefinition& Skill, FSkillExe
 
 	for (int32 i = 0; i < ProjectileCount; ++i)
 	{
-		// 2-1. ½ºÆù À§Ä¡ (¾à°£ ¾ÕÂÊ)
+		// 2-1. ìŠ¤í° ìœ„ì¹˜ (ì•½ê°„ ì•ìª½)
 		FVector SpawnLocation = Context.StartLocation + Context.Direction * 50.0f;
 
-		// 2-2. ½ºÆù ¹æÇâ (¿©·¯ ¹ß»ç ½Ã °¢µµ ºĞ»ê)
+		// 2-2. ìŠ¤í° ë°©í–¥ (ì—¬ëŸ¬ ë°œì‚¬ ì‹œ ê°ë„ ë¶„ì‚°)
 		FVector SpawnDirection = Context.Direction;
 		if (ProjectileCount > 1)
 		{
-			// MultiShot: ºÎÃ¤²Ã ÇüÅÂ·Î ºĞ»ê (Áß¾Ó ±âÁØ ¡¾30µµ)
+			// MultiShot: ë¶€ì±„ê¼´ í˜•íƒœë¡œ ë¶„ì‚° (ì¤‘ì•™ ê¸°ì¤€ Â±30ë„)
 			float SpreadAngle = Skill.Passives.MultiShotData.SpreadAngle;
-			float AngleStep = SpreadAngle / (ProjectileCount - 1); // ÃÑ 60µµ ¹üÀ§
+			float AngleStep = SpreadAngle / (ProjectileCount - 1); // ì´ 60ë„ ë²”ìœ„
 			float Angle = -(SpreadAngle * 0.5f) + (i * AngleStep);
 
-			// ¹æÇâ º¤ÅÍ È¸Àü
+			// ë°©í–¥ ë²¡í„° íšŒì „
 			SpawnDirection = Context.Direction.RotateAngleAxis(Angle, FVector::UpVector);
 		}
 
-		// 2-3. Åõ»çÃ¼ ½ºÆù
+		// 2-3. íˆ¬ì‚¬ì²´ ìŠ¤í°
 		FTransform SpawnTransform;
 		SpawnTransform.SetLocation(SpawnLocation);
 		SpawnTransform.SetRotation(SpawnDirection.ToOrientationQuat());
 
-		ACC_SkillEffector* SkillEffectorProjectile = AcquireSkillEffector(Skill.ProjectileClass, SpawnTransform);
+		ACC_SkillEffector* SkillEffectorProjectile = AcquireSkillEffector(EffectorClass, SpawnTransform);
 
 		if (SkillEffectorProjectile)
 		{
-			// 3. Åõ»çÃ¼ ÃÊ±âÈ­
+			// 3. íˆ¬ì‚¬ì²´ ì´ˆê¸°í™”
 			SkillEffectorProjectile->SetSkillOwner(Context.Caster);
 			SkillEffectorProjectile->SetOwningSkillSystem(this);
 			SkillEffectorProjectile->SkillContext = Context;
@@ -229,7 +238,10 @@ void UCC_SkillSystem::ExecuteProjectile(const FSkillDefinition& Skill, FSkillExe
 
 			SkillEffectorProjectile->OnEffectorHit.AddDynamic(this, &UCC_SkillSystem::OnProjectileHit);
 
-			//// 4. Penetrate Addon ¼³Á¤
+			// ëª¨ë“  ì„¸íŒ…/ë°”ì¸ë”©ì´ ëë‚œ ë’¤ íŒì •Â·ì´ë™ ì‹œì‘
+			SkillEffectorProjectile->Launch();
+
+			//// 4. Penetrate Addon ì„¤ì •
 			//if (Skill.Addons.Contains(ESkillAddonType::Penetrate))
 			//{
 			//	SkillEffectorProjectile->bCanPierce = true;
@@ -238,7 +250,7 @@ void UCC_SkillSystem::ExecuteProjectile(const FSkillDefinition& Skill, FSkillExe
 
 			//SkillEffectorProjectile->SetSkillData(this, Skill, Context);
 
-			// 5. µğ¹ö±× Ç¥½Ã
+			// 5. ë””ë²„ê·¸ í‘œì‹œ
 			if (bShowDebugShapes)
 			{
 				DrawDebugLine(
@@ -279,7 +291,7 @@ void UCC_SkillSystem::ExecuteInstant(const FSkillDefinition& Skill, FSkillExecut
 	ApplyDamage(Target, Context.CurrentDamage, Context.Caster);
 	Context.HitActors.Add(Target);
 
-	FVector HitLocation = Target->GetActorLocation(); // °£´ÜÈ÷ Å¸°Ù À§Ä¡·Î È÷Æ® À§Ä¡ ¼³Á¤ (ÇâÈÄ °³¼± °¡´É)
+	FVector HitLocation = Target->GetActorLocation(); // ê°„ë‹¨íˆ íƒ€ê²Ÿ ìœ„ì¹˜ë¡œ íˆíŠ¸ ìœ„ì¹˜ ì„¤ì • (í–¥í›„ ê°œì„  ê°€ëŠ¥)
 
 	if(Skill.ImpactEffect)
 	{
@@ -328,7 +340,7 @@ void UCC_SkillSystem::ExecuteArea(const FSkillDefinition& Skill, FSkillExecution
 	const float EffectiveArea = Skill.Range * Skill.Passives.AreaMultiplier;
 
 	//==========================================================================
-	// 1. ¹üÀ§ ³» Àû Å½»ö (Skill.Range¸¦ Area ¹İ°æÀ¸·Î »ç¿ë, AreaMultiplier·Î °­È­ ¹İ¿µ)
+	// 1. ë²”ìœ„ ë‚´ ì  íƒìƒ‰ (Skill.Rangeë¥¼ Area ë°˜ê²½ìœ¼ë¡œ ì‚¬ìš©, AreaMultiplierë¡œ ê°•í™” ë°˜ì˜)
 	//==========================================================================
 	TArray<AActor*> EnemiesInRange = FindEnemiesInRadius(Context.StartLocation, EffectiveArea);
 
@@ -336,7 +348,7 @@ void UCC_SkillSystem::ExecuteArea(const FSkillDefinition& Skill, FSkillExecution
 		*Skill.SkillID.ToString(), EnemiesInRange.Num(), EffectiveArea);
 
 	//==========================================================================
-	// 2. ¹üÀ§ ³» ¸ğµç Àû¿¡°Ô µ¥¹ÌÁö
+	// 2. ë²”ìœ„ ë‚´ ëª¨ë“  ì ì—ê²Œ ë°ë¯¸ì§€
 	//==========================================================================
 	for (AActor* Enemy : EnemiesInRange)
 	{
@@ -348,13 +360,13 @@ void UCC_SkillSystem::ExecuteArea(const FSkillDefinition& Skill, FSkillExecution
 		ApplyDamage(Enemy, Context.CurrentDamage, Context.Caster);
 		Context.HitActors.Add(Enemy);
 
-		// °³º° Impact VFX
+		// ê°œë³„ Impact VFX
 		if (Skill.ImpactEffect)
 		{
 			SpawnEffect(Skill.ImpactEffect, Enemy->GetActorLocation(), FRotator::ZeroRotator, Skill.ElementType);
 		}
 
-		// °³º° Addon Ã³¸® (Areaµµ Chain/Explosion Á¶ÇÕ °¡´É)
+		// ê°œë³„ Addon ì²˜ë¦¬ (Areaë„ Chain/Explosion ì¡°í•© ê°€ëŠ¥)
 		FHitResult Hit;
 		Hit.HitObjectHandle = FActorInstanceHandle(Enemy);
 		Hit.ImpactPoint = Enemy->GetActorLocation();
@@ -365,7 +377,7 @@ void UCC_SkillSystem::ExecuteArea(const FSkillDefinition& Skill, FSkillExecution
 	}
 
 	//==========================================================================
-	// 3. Area Cast VFX (½ÃÀüÀÚ À§Ä¡ ±âÁØ)
+	// 3. Area Cast VFX (ì‹œì „ì ìœ„ì¹˜ ê¸°ì¤€)
 	//==========================================================================
 	if (Skill.SkillEffect)
 	{
@@ -373,7 +385,7 @@ void UCC_SkillSystem::ExecuteArea(const FSkillDefinition& Skill, FSkillExecution
 	}
 
 	//==========================================================================
-	// 4. µğ¹ö±×
+	// 4. ë””ë²„ê·¸
 	//==========================================================================
 	if (bShowDebugShapes)
 	{
@@ -399,25 +411,21 @@ void UCC_SkillSystem::ExecuteBeam(const FSkillDefinition& Skill, FSkillExecution
 	const float EffectiveRange = Skill.Range * Skill.Passives.RangeMultiplier;
 
 	FVector Start = Context.StartLocation;
-	FVector End = Context.TargetLocation;
-
-	FVector Direction = (End - Start).GetSafeNormal();
-	float Distance = FVector::Dist(Start, End);
-	if (Distance > EffectiveRange)
-	{
-		End = Start + Direction * EffectiveRange;
-	}
+	// ë¹”ì€ ì‹œì „ì ë†’ì´ì—ì„œ ìˆ˜í‰ìœ¼ë¡œ â€” ëŒ€ìƒ ì§€ì ì´ ë°”ë‹¥ì´ì–´ë„ ë¹„ìŠ¤ë“¬íˆ ê½‚íˆì§€ ì•Šê²Œ, ì‚¬ê±°ë¦¬ëŠ” ìˆ˜í‰ ê±°ë¦¬ ê¸°ì¤€
+	const float BeamLength = FMath::Min(FVector::Dist2D(Start, Context.TargetLocation), EffectiveRange);
+	FVector End = Start + Context.Direction * BeamLength;
 
 	FCollisionQueryParams QueryParams;
 	QueryParams.AddIgnoredActor(Context.Caster);
 	QueryParams.bTraceComplex = false;
 
+	// ì˜¤ë¸Œì íŠ¸ íƒ€ì…(Enemy) ì¿¼ë¦¬ â€” ì‘ë‹µê³¼ ë¬´ê´€í•˜ê²Œ ì„  ìœ„ì˜ ì ì„ ì „ë¶€ ë°˜í™˜(ì ì´ Pawnì„ Blockí•´ë„ ê´€í†µ ìœ ì§€)
 	TArray<FHitResult> HitResults;
-	bool bHit = World->LineTraceMultiByChannel(
+	bool bHit = World->LineTraceMultiByObjectType(
 		HitResults,
 		Start,
 		End,
-		ECC_Pawn,
+		FCollisionObjectQueryParams(FCC_CollisionHelper::ECC_CC_Enemy),
 		QueryParams
 	);
 
@@ -432,7 +440,7 @@ void UCC_SkillSystem::ExecuteBeam(const FSkillDefinition& Skill, FSkillExecution
 
 		if (HitActor->ActorHasTag(EnemyTag))
 		{
-			// µ¥¹ÌÁö Àû¿ë
+			// ë°ë¯¸ì§€ ì ìš©
 			ApplyDamageAtLocation(HitActor, Context.CurrentDamage, Context.Caster, Hit.ImpactPoint);
 			DamagedActors.Add(HitActor);
 
@@ -442,20 +450,20 @@ void UCC_SkillSystem::ExecuteBeam(const FSkillDefinition& Skill, FSkillExecution
 				SpawnEffect(Skill.ImpactEffect, Hit.ImpactPoint, FRotator::ZeroRotator, Skill.ElementType);
 			}
 
-			// Addon Ã³¸® (Explosion, Chain µî)
+			// Addon ì²˜ë¦¬ (Explosion, Chain ë“±)
 			ProcessAddons(Skill, Context, Hit);
 
 			UE_LOG(LogTemp, Log, TEXT("Beam hit: %s"), *HitActor->GetName());
 		}
 	}
 
-	// 4. Beam VFX ½ºÆù (Niagara Beam)
+	// 4. Beam VFX ìŠ¤í° (Niagara Beam)
 	if (Skill.SkillEffect)
 	{
 		SpawnTrajectoryEffect(Skill.SkillEffect, Start, End, 10.0f, Skill.ElementType);
 	}
 
-	// 5. µğ¹ö±× Ç¥½Ã
+	// 5. ë””ë²„ê·¸ í‘œì‹œ
 	if (bShowDebugShapes)
 	{
 		DrawDebugLine(
@@ -495,7 +503,7 @@ void UCC_SkillSystem::ExecuteRainfall(const FSkillDefinition& Skill, FSkillExecu
 	const FRainfallCoreData& RainfallData = Skill.RainfallData;
 	const float EffectiveAreaRadius = RainfallData.AreaRadius * Skill.Passives.AreaMultiplier;
 
-	// 1. ³«ÇÏ À§Ä¡ ¹è¿­ °è»ê
+	// 1. ë‚™í•˜ ìœ„ì¹˜ ë°°ì—´ ê³„ì‚°
 	TArray<FVector> DropLocations = CalculateDropLocations(
 		Context.TargetLocation,
 		EffectiveAreaRadius,
@@ -511,18 +519,18 @@ void UCC_SkillSystem::ExecuteRainfall(const FSkillDefinition& Skill, FSkillExecu
 	{
 		FVector DropFloorLocation = DropLocations[i];
 
-		// 2. Warning VFX (Áï½Ã, ÂøÁö ¿¹Á¤ À§Ä¡¿¡ ¸¶Ä¿)
+		// 2. Warning VFX (ì¦‰ì‹œ, ì°©ì§€ ì˜ˆì • ìœ„ì¹˜ì— ë§ˆì»¤)
 		if (RainfallData.bShowWarningIndicator && RainfallData.WarningEffect)
 		{
 			SpawnEffect(RainfallData.WarningEffect, DropFloorLocation);
 		}
 
-		// 3. ½Ã°£Â÷ Åõ»çÃ¼ ½ºÆù (WarningÀÌ ³¡³¯ ¶§ Ã¹ ¹øÂ° ½ºÆù)
+		// 3. ì‹œê°„ì°¨ íˆ¬ì‚¬ì²´ ìŠ¤í° (Warningì´ ëë‚  ë•Œ ì²« ë²ˆì§¸ ìŠ¤í°)
 		float Delay = RainfallData.WarningDuration + (i * RainfallData.DropInterval);
 
 		FTimerHandle TimerHandle;
 
-		// °ª Ä¸Ã³ (·¹ÆÛ·±½º ±İÁö ? ÇÔ¼ö ½ºÅÃÀÌ »ç¶óÁö¹Ç·Î)
+		// ê°’ ìº¡ì²˜ (ë ˆí¼ëŸ°ìŠ¤ ê¸ˆì§€ ? í•¨ìˆ˜ ìŠ¤íƒì´ ì‚¬ë¼ì§€ë¯€ë¡œ)
 		FSkillDefinition SkillCopy = Skill;
 		FSkillExecutionContext ContextCopy = Context;
 
@@ -536,11 +544,11 @@ void UCC_SkillSystem::ExecuteRainfall(const FSkillDefinition& Skill, FSkillExecu
 					}
 				}),
 			Delay,
-			false   // ¹İº¹ ¾øÀ½
+			false   // ë°˜ë³µ ì—†ìŒ
 		);
 	}
 
-	// 4. µğ¹ö±×
+	// 4. ë””ë²„ê·¸
 	if (bShowDebugShapes)
 	{
 		DrawDebugCylinder(
@@ -562,20 +570,21 @@ void UCC_SkillSystem::SpawnRainfallProjectile(const FSkillDefinition& Skill, con
 
 	const FRainfallCoreData& RainfallData = Skill.RainfallData;
 
-	// ÂøÁö ¸ñÇ¥ À§Ä¡ À§ SpawnHeight¿¡¼­ ½ºÆù
+	// ì°©ì§€ ëª©í‘œ ìœ„ì¹˜ ìœ„ SpawnHeightì—ì„œ ìŠ¤í°
 	FVector SpawnLocation = TargetFloorLocation + FVector(0.0f, 0.0f, RainfallData.SpawnHeight);
 
-	// ¹æÇâ: ¼öÁ÷ ³«ÇÏ
+	// ë°©í–¥: ìˆ˜ì§ ë‚™í•˜
 	FVector FallDirection = FVector(0.0f, 0.0f, -1.0f);
 	FRotator SpawnRotation = FallDirection.ToOrientationRotator();
 
 	FTransform SpawnTransform(SpawnRotation, SpawnLocation);
 
-	ACC_SkillEffector* Effector = AcquireSkillEffector(Skill.ProjectileClass, SpawnTransform);
+	const TSubclassOf<ACC_SkillEffector> EffectorClass = Skill.ProjectileClass ? Skill.ProjectileClass : SkillEffectorClass;
+	ACC_SkillEffector* Effector = AcquireSkillEffector(EffectorClass, SpawnTransform);
 
 	if (!Effector) return;
 
-	// Context °»½Å (³«ÇÏ °³º° ÄÁÅØ½ºÆ®)
+	// Context ê°±ì‹  (ë‚™í•˜ ê°œë³„ ì»¨í…ìŠ¤íŠ¸)
 	FSkillExecutionContext NewContext = Context;
 	NewContext.StartLocation = SpawnLocation;
 	NewContext.TargetLocation = TargetFloorLocation;
@@ -589,8 +598,9 @@ void UCC_SkillSystem::SpawnRainfallProjectile(const FSkillDefinition& Skill, con
 	RegisterActiveSkillInstance(Effector);
 
 	Effector->OnEffectorHit.AddDynamic(this, &UCC_SkillSystem::OnProjectileHit);
+	Effector->Launch();
 
-	UE_LOG(LogTemp, Log, TEXT("SpawnRainfallProjectile: at Z=%.0f ¡æ floor Z=%.0f"),
+	UE_LOG(LogTemp, Log, TEXT("SpawnRainfallProjectile: at Z=%.0f â†’ floor Z=%.0f"),
 		SpawnLocation.Z, TargetFloorLocation.Z);
 }
 
@@ -602,7 +612,7 @@ TArray<FVector> UCC_SkillSystem::CalculateDropLocations(FVector Center, float Ra
 	switch (Pattern)
 	{
 		//------------------------------------------------------------------
-		// Random: ¹İ°æ ³» ±ÕÀÏ ·£´ı ºĞÆ÷ (Sqrt·Î Áß½É ¹ĞÁı ¹æÁö)
+		// Random: ë°˜ê²½ ë‚´ ê· ì¼ ëœë¤ ë¶„í¬ (Sqrtë¡œ ì¤‘ì‹¬ ë°€ì§‘ ë°©ì§€)
 		//------------------------------------------------------------------
 	case EDropPattern::Random:
 	default:
@@ -619,7 +629,7 @@ TArray<FVector> UCC_SkillSystem::CalculateDropLocations(FVector Center, float Ra
 		break;
 
 		//------------------------------------------------------------------
-		// Ring: ¿ø µÑ·¹¸¦ ±Õµî ºĞÇÒ
+		// Ring: ì› ë‘˜ë ˆë¥¼ ê· ë“± ë¶„í• 
 		//------------------------------------------------------------------
 	case EDropPattern::Ring:
 		for (int32 i = 0; i < Count; ++i)
@@ -634,7 +644,7 @@ TArray<FVector> UCC_SkillSystem::CalculateDropLocations(FVector Center, float Ra
 		break;
 
 		//------------------------------------------------------------------
-		// Grid: Á¤»ç°¢ °İÀÚ·Î Count°³ ¹èÄ¡ (¹Ù¿îµù ¹Ú½º = Radius*2 Á¤»ç°¢Çü)
+		// Grid: ì •ì‚¬ê° ê²©ìë¡œ Countê°œ ë°°ì¹˜ (ë°”ìš´ë”© ë°•ìŠ¤ = Radius*2 ì •ì‚¬ê°í˜•)
 		//------------------------------------------------------------------
 	case EDropPattern::Grid:
 	{
@@ -656,8 +666,8 @@ TArray<FVector> UCC_SkillSystem::CalculateDropLocations(FVector Center, float Ra
 	}
 
 	//------------------------------------------------------------------
-	// Wave: ¾ÈÂÊ¿¡¼­ ¹Ù±ùÀ¸·Î ¼ø¼­ º¸Àå (°Å¸® ±â¹İ Á¤·Ä)
-	// ¡æ Random »ı¼º ÈÄ Áß½É °Å¸® ¿À¸§Â÷¼ø Á¤·Ä
+	// Wave: ì•ˆìª½ì—ì„œ ë°”ê¹¥ìœ¼ë¡œ ìˆœì„œ ë³´ì¥ (ê±°ë¦¬ ê¸°ë°˜ ì •ë ¬)
+	// â†’ Random ìƒì„± í›„ ì¤‘ì‹¬ ê±°ë¦¬ ì˜¤ë¦„ì°¨ìˆœ ì •ë ¬
 	//------------------------------------------------------------------
 	case EDropPattern::Wave:
 	{
@@ -671,7 +681,7 @@ TArray<FVector> UCC_SkillSystem::CalculateDropLocations(FVector Center, float Ra
 				0.0f
 			));
 		}
-		// Áß½É¿¡¼­ °¡±î¿î ¼øÀ¸·Î Á¤·Ä ¡æ ¾ÈÂÊºÎÅÍ Â÷·Ê·Î ³«ÇÏ
+		// ì¤‘ì‹¬ì—ì„œ ê°€ê¹Œìš´ ìˆœìœ¼ë¡œ ì •ë ¬ â†’ ì•ˆìª½ë¶€í„° ì°¨ë¡€ë¡œ ë‚™í•˜
 		Locations.Sort([&Center](const FVector& A, const FVector& B)
 			{
 				return FVector::DistSquared(A, Center) < FVector::DistSquared(B, Center);
@@ -697,8 +707,8 @@ void UCC_SkillSystem::ProcessAddons(const FSkillDefinition& Skill, FSkillExecuti
 		HitTarget = nullptr;
 	}
 
-	// Penetrate / MultiShotÀº SkillEffector / ExecuteProjectile¿¡¼­ º°µµ Ã³¸® ?
-	// Core °íÀ¯ °­È­¶ó ¾ÖÃÊ¿¡ GrantAddon()À» °ÅÄ¡Áö ¾ÊÀ¸¹Ç·Î Skill.Addons¿¡ ³ªÅ¸³ªÁö ¾Ê´Â´Ù.
+	// Penetrate / MultiShotì€ SkillEffector / ExecuteProjectileì—ì„œ ë³„ë„ ì²˜ë¦¬ ?
+	// Core ê³ ìœ  ê°•í™”ë¼ ì• ì´ˆì— GrantAddon()ì„ ê±°ì¹˜ì§€ ì•Šìœ¼ë¯€ë¡œ Skill.Addonsì— ë‚˜íƒ€ë‚˜ì§€ ì•ŠëŠ”ë‹¤.
 	for (int32 i = StartIndex; i < Skill.Addons.Num(); ++i)
 	{
 		UCC_SkillAddonBase* Addon = Skill.Addons[i];
@@ -734,20 +744,20 @@ void UCC_SkillSystem::ApplyExplosion(const FSkillDefinition& Skill, FSkillExecut
 	{
 		if (!Enemy || Context.HitActors.Contains(Enemy))
 		{
-			continue;  // ÀÌ¹Ì ¸ÂÀº Àû ½ºÅµ
+			continue;  // ì´ë¯¸ ë§ì€ ì  ìŠ¤í‚µ
 		}
 
 		float Distance = FVector::Dist(Location, Enemy->GetActorLocation());
 		float DistanceRatio = FMath::Clamp(Distance / ExplosionData.Radius, 0.0f, 1.0f);
 
-		// Áß½É: 100%, ¿Ü°û: 50% ? ¼±Çü °¨¼Ò Àû¿ë (°Å¸® º° µ¥¹ÌÁö ºñÀ²Àº ÃßÈÄ Àü¿ë µ¥ÀÌÅÍ »ç¿ë)
+		// ì¤‘ì‹¬: 100%, ì™¸ê³½: 50% ? ì„ í˜• ê°ì†Œ ì ìš© (ê±°ë¦¬ ë³„ ë°ë¯¸ì§€ ë¹„ìœ¨ì€ ì¶”í›„ ì „ìš© ë°ì´í„° ì‚¬ìš©)
 		float DamageMultiplier = FMath::Lerp(1.0f, ExplosionData.MinDamageRatio, DistanceRatio);
 		float ExplosionDamage = Context.CurrentDamage * DamageMultiplier;
 
 		ApplyDamage(Enemy, ExplosionDamage, Context.Caster);
 		Context.HitActors.Add(Enemy);
 
-		UE_LOG(LogTemp, Log, TEXT("ApplyExplosion: Hit %s ? %.0fcm ¡æ %.1f dmg (x%.2f)"),
+		UE_LOG(LogTemp, Log, TEXT("ApplyExplosion: Hit %s ? %.0fcm â†’ %.1f dmg (x%.2f)"),
 			*Enemy->GetName(), Distance, ExplosionDamage, DamageMultiplier);
 	}
 
@@ -756,7 +766,7 @@ void UCC_SkillSystem::ApplyExplosion(const FSkillDefinition& Skill, FSkillExecut
 		SpawnEffect(Skill.Passives.ExplosionData.ExplosionEffect, Location, FRotator::ZeroRotator, Skill.ElementType);
 	}
 
-	// µğ¹ö±× ±¸Ã¼
+	// ë””ë²„ê·¸ êµ¬ì²´
 	if (bShowDebugShapes)
 	{
 		DrawDebugSphere(
@@ -806,7 +816,7 @@ void UCC_SkillSystem::ApplyChain(const FSkillDefinition& Skill, FSkillExecutionC
 	FVector CurrentHitLocation = HitTarget ? HitTarget->GetActorLocation() : Context.StartLocation;
 	FVector NextHitLocation = NextTarget->GetActorLocation();
 
-	UE_LOG(LogTemp, Log, TEXT("ApplyChain [%s]: Chain %d ¡æ %s (%.1f dmg)"),
+	UE_LOG(LogTemp, Log, TEXT("ApplyChain [%s]: Chain %d â†’ %s (%.1f dmg)"),
 		*Skill.SkillID.ToString(), Context.CurrentChainCount,
 		*NextTarget->GetName(), Context.CurrentDamage);
 
@@ -815,7 +825,7 @@ void UCC_SkillSystem::ApplyChain(const FSkillDefinition& Skill, FSkillExecutionC
 		SpawnChainEffect(Skill.Passives.ChainData.ChainEffect, CurrentHitLocation, NextHitLocation);
 	}
 
-	// Ã¼ÀÎ ÀÌÆåÆ® ·ÎÁ÷ È®Á¤ ÈÄ Àû¿ë
+	// ì²´ì¸ ì´í™íŠ¸ ë¡œì§ í™•ì • í›„ ì ìš©
 	//if (Skill.Passives.ChainData.ChainEffect)
 	//{
 	//	UNiagaraComponent* ChainEffect = UNiagaraFunctionLibrary::SpawnSystemAtLocation(
@@ -835,7 +845,7 @@ void UCC_SkillSystem::ApplyChain(const FSkillDefinition& Skill, FSkillExecutionC
 	//	}
 	//}
 
-	// µğ¹ö±×
+	// ë””ë²„ê·¸
 	if (bShowDebugShapes && HitTarget)
 	{
 		DrawDebugLine(
@@ -903,7 +913,7 @@ void UCC_SkillSystem::SpawnChainEffect(UNiagaraSystem* Effect, FVector StartLoca
 		FVector(1.0f),
 		true,  // Auto Destroy
 		false,  // Auto Activate
-		ENCPoolMethod::AutoRelease  // Ç®¸µ!
+		ENCPoolMethod::AutoRelease  // í’€ë§!
 	);
 
 	if(ChainNiagara)
@@ -937,8 +947,8 @@ void UCC_SkillSystem::SpawnTrajectoryEffect(UNiagaraSystem* Effect, FVector Star
 		FRotator::ZeroRotator,
 		FVector(1.0f),
 		true,   // Auto Destroy
-		false,  // Auto Activate ? ÆÄ¶ó¹ÌÅÍ¸¦ ¸ÕÀú ¼¼ÆÃÇÑ µÚ ¼öµ¿À¸·Î Activate
-		ENCPoolMethod::AutoRelease  // Ç®¸µ!
+		false,  // Auto Activate ? íŒŒë¼ë¯¸í„°ë¥¼ ë¨¼ì € ì„¸íŒ…í•œ ë’¤ ìˆ˜ë™ìœ¼ë¡œ Activate
+		ENCPoolMethod::AutoRelease  // í’€ë§!
 	);
 
 	if (TrajectoryVFX)
@@ -980,7 +990,7 @@ void UCC_SkillSystem::OnProjectileHit(ACC_SkillEffector* Effector, AActor* HitAc
 	
 	if (Skill.ImpactEffect)
 	{
-		// ½ÇÁ¦ Ãæµ¹Á¡(HitLocation) + ¿ø¼Ò»ö ÁÖÀÔ (Instant/Area/Beam °æ·Î¿Í ÅëÀÏ)
+		// ì‹¤ì œ ì¶©ëŒì (HitLocation) + ì›ì†Œìƒ‰ ì£¼ì… (Instant/Area/Beam ê²½ë¡œì™€ í†µì¼)
 		SpawnEffect(Skill.ImpactEffect, HitLocation, FRotator::ZeroRotator, Skill.ElementType);
 	}
 
@@ -1001,32 +1011,34 @@ void UCC_SkillSystem::OnProjectileHit(ACC_SkillEffector* Effector, AActor* HitAc
 
 		if (!CanPenetrate(Skill, Context))
 		{
-			//Effector->DeactivateAndDestroy();
-			if (Effector->CollisionSphere)
-			{
-				Effector->CollisionSphere->SetGenerateOverlapEvents(false);
-				Effector->CollisionSphere->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-			}
-			if (Effector->ProjectileMovement)
-			{
-				Effector->ProjectileMovement->SetActive(false);
-			}
+			// Gameplay ends now; body VFX drains naturally, then returns to the pool
+			Effector->DeactivateAndDestroy();
 		}
 	}
 	else
 	{
-		//Effector->DeactivateAndDestroy();
-		if (Effector->CollisionSphere)
-		{
-			Effector->CollisionSphere->SetGenerateOverlapEvents(false);
-			Effector->CollisionSphere->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-		}
-		if (Effector->ProjectileMovement)
-		{
-			Effector->ProjectileMovement->SetActive(false);
-		}
+		Effector->DeactivateAndDestroy();
+	}
+}
+
+void UCC_SkillSystem::OnEffectorTerrainHit(ACC_SkillEffector* Effector, const FHitResult& Hit)
+{
+	if (!IsValid(Effector))
+	{
+		return;
 	}
 
+	const FSkillDefinition& Skill = Effector->SkillDef;
+
+	// ì‹¤ì œ ì¶©ëŒ ì§€ì ì—ì„œ ì°©íƒ„ ì—°ì¶œ â€” ì  íƒ€ê²©ê³¼ ê°™ì€ ImpactEffect ìŠ¬ë¡¯ ì‚¬ìš©
+	if (Skill.ImpactEffect)
+	{
+		SpawnEffect(Skill.ImpactEffect, Hit.ImpactPoint, FRotator::ZeroRotator, Skill.ElementType);
+	}
+
+	// ì°©íƒ„ ë²”ìœ„ ë°ë¯¸ì§€ ë“± ì§€í˜• ì°©íƒ„ ì‹œ ì²˜ë¦¬ëŠ” ì´í›„ ì´ ì§€ì ì— ì¶”ê°€ (ì„¤ê³„ ê²°ì • ëŒ€ê¸°)
+
+	Effector->DeactivateAndDestroy();
 }
 
 void UCC_SkillSystem::OnCubeTransitioned(FIntPoint NewCoordinate)
@@ -1050,11 +1062,11 @@ void UCC_SkillSystem::OnCubeTransitioned(FIntPoint NewCoordinate)
 					TEXT("[SkillSystem] Cube transition ? persisting skill instance: %s"),
 					*Instance->GetName());
 			}
-			// true(À¯Áö)¸é ¾Æ¹«°Íµµ ¾È ÇÔ , ¼Õ´ëÁö ¾Ê°í ±×´ë·Î °è¼Ó µ¿ÀÛ
+			// true(ìœ ì§€)ë©´ ì•„ë¬´ê²ƒë„ ì•ˆ í•¨ , ì†ëŒ€ì§€ ì•Šê³  ê·¸ëŒ€ë¡œ ê³„ì† ë™ì‘
 		}
 		else
 		{
-			// ICC_SkillInstance ¹Ì±¸Çö ÀÎ½ºÅÏ½º°¡ ¼¯¿© µé¾î¿Â °æ¿ì¿£ ¾ÈÀüÇÏ°Ô ±âº»°ª(¼Ò¸ê) Ã³¸®
+			// ICC_SkillInstance ë¯¸êµ¬í˜„ ì¸ìŠ¤í„´ìŠ¤ê°€ ì„ì—¬ ë“¤ì–´ì˜¨ ê²½ìš°ì—” ì•ˆì „í•˜ê²Œ ê¸°ë³¸ê°’(ì†Œë©¸) ì²˜ë¦¬
 			UE_LOG(LogTemp, Warning,
 				TEXT("[SkillSystem] %s in ActiveSkillInstances doesn't implement ICC_SkillInstance ? destroying as fallback"),
 				*Instance->GetName());
@@ -1103,14 +1115,14 @@ ACC_SkillEffector* UCC_SkillSystem::AcquireSkillEffector(TSubclassOf<ACC_SkillEf
 
 AActor* UCC_SkillSystem::FindNearestEnemy(FVector Origin, float Radius, const TArray<AActor*>& ExcludeActors) const
 {
-	// EnemyManager°¡ ¹İ°æ ÇÊÅÍ + Frozen ÇÊÅÍ¸¦ ÀÌ¹Ì ¼öÇà (·¹º§ Àü¼ö ½ºÄµ Á¦°Å)
+	// EnemyManagerê°€ ë°˜ê²½ í•„í„° + Frozen í•„í„°ë¥¼ ì´ë¯¸ ìˆ˜í–‰ (ë ˆë²¨ ì „ìˆ˜ ìŠ¤ìº” ì œê±°)
 	ACC_EnemyManager* EnemyManager = ACC_EnemyManager::Get(this);
 	if (!EnemyManager)
 	{
 		return nullptr;
 	}
 
-	// GetNearestEnemy()´Â Á¦¿Ü ¸ñ·ÏÀ» ¹ŞÁö ¾ÊÀ¸¹Ç·Î ¹İ°æ ÈÄº¸¸¦ ¹Ş¾Æ Á÷Á¢ ÃÖ±ÙÁ¢ ¼±ÅÃ
+	// GetNearestEnemy()ëŠ” ì œì™¸ ëª©ë¡ì„ ë°›ì§€ ì•Šìœ¼ë¯€ë¡œ ë°˜ê²½ í›„ë³´ë¥¼ ë°›ì•„ ì§ì ‘ ìµœê·¼ì ‘ ì„ íƒ
 	const TArray<AActor*> Candidates = EnemyManager->GetEnemiesInRadius(Origin, Radius);
 
 	AActor* NearestEnemy = nullptr;
@@ -1179,7 +1191,7 @@ void UCC_SkillSystem::SpawnEffect(UNiagaraSystem* Effect, FVector Location, FRot
 		FVector(1.0f),
 		true,  // Auto Destroy
 		true,  // Auto Activate
-		ENCPoolMethod::AutoRelease  // Ç®¸µ!
+		ENCPoolMethod::AutoRelease  // í’€ë§!
 	);
 
 	if (SpawnedVFX && ElementType != ESkillElementType::None)
@@ -1204,9 +1216,9 @@ UNiagaraComponent* UCC_SkillSystem::SpawnPersistentAttachedVFX(UNiagaraSystem* E
 		FVector::ZeroVector,
 		FRotator::ZeroRotator,
 		EAttachLocation::SnapToTarget,
-		false,  // bAutoDestroy ? ¼ö¸íÀº È£ÃâÀÚ(¾×ÅÍ/ÄÄÆ÷³ÍÆ®)°¡ Á÷Á¢ °ü¸®
+		false,  // bAutoDestroy ? ìˆ˜ëª…ì€ í˜¸ì¶œì(ì•¡í„°/ì»´í¬ë„ŒíŠ¸)ê°€ ì§ì ‘ ê´€ë¦¬
 		true,   // bAutoActivate
-		ENCPoolMethod::None,  // ¼ö¸íÀ» È£ÃâÀÚ°¡ Á÷Á¢ °ü¸®ÇÏ¹Ç·Î Ç®¸µ ºñ»ç¿ë
+		ENCPoolMethod::None,  // ìˆ˜ëª…ì„ í˜¸ì¶œìê°€ ì§ì ‘ ê´€ë¦¬í•˜ë¯€ë¡œ í’€ë§ ë¹„ì‚¬ìš©
 		true    // bPreCullCheck
 	);
 

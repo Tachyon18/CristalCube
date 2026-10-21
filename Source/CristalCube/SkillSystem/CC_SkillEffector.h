@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
@@ -10,6 +10,8 @@
 
 class UCC_EffectorPoolSubsystem;
 class UCC_SkillSystem;
+class UNiagaraComponent;
+class UPrimitiveComponent;
 
 // SkillSystem으로 충돌 이벤트를 위임하는 델리게이트
 // Effector는 충돌 및 판정 감지만, 판단·처리는 SkillSystem이 담당
@@ -43,9 +45,6 @@ public:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Collision")
 	class USphereComponent* CollisionSphere;
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "VFX")
-	USceneComponent* VFXRoot;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	class UProjectileMovementComponent* ProjectileMovement;
@@ -100,10 +99,20 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Skill Effector")
 	void Initialize(ESkillCoreType InCoreType, const FSkillDefinition& InSkillDef);
 
-	/** Destroy() 직접 호출 대신 항상 이걸 사용 — VFX가 Death Event/잔여 파티클을
-	*  끊기지 않고 정상 종료할 수 있도록 Detach 후 파괴함. */
+	/** Ends gameplay now (collision, movement, hit delegate, instance registration),
+	 *  lets resident Niagara finish on its own (drain), then hides and returns to the pool.
+	 *  Always use this instead of Destroy(). */
 	UFUNCTION(BlueprintCallable, Category = "Skill Effector")
 	void DeactivateAndDestroy();
+
+	/** Same as DeactivateAndDestroy but skips the drain - for cube transition and other
+	 *  cases where the visual must disappear at once. */
+	UFUNCTION(BlueprintCallable, Category = "Skill Effector")
+	void DeactivateImmediately();
+
+	// Safety net: max seconds to wait for resident Niagara to finish before forcing release
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "VFX")
+	float MaxDrainTime = 2.0f;
 
 	UFUNCTION()
 	void OnOverlapBegin(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
@@ -134,6 +143,10 @@ public:
 	// NewTransform에 재배치. 풀이 신규 스폰 시/재사용 시 둘 다 호출.
 	void ActivateAtTransform(const FTransform& NewTransform);
 
+	// 소유자/컨텍스트/Initialize/히트 바인딩이 모두 끝난 뒤 마지막에 호출 — 이때 처음으로 판정과 이동이 켜짐.
+	// (판정을 먼저 켜면 스폰 직후 오버랩이 SkillOwner 미설정 상태로 처리되어 시전자 자신이 걸림)
+	void Launch();
+
 	// ICC_SkillInstance 구현
 	virtual bool ShouldPersistThroughCubeTransition_Implementation() const override
 	{
@@ -142,8 +155,9 @@ public:
 
 	virtual void OnRemovedByCubeTransition_Implementation() override
 	{
-		DeactivateAndDestroy();
+		DeactivateImmediately();
 	}
+
 protected:
 
 	// LifeSpan 타임아웃(아무것도 못 맞추고 EffectDuration 지남)도 같은 경로를 타도록 오버라이드
@@ -152,6 +166,41 @@ protected:
 	// 풀 반납/파괴 처리가 이미 끝났는지 — 중복 호출(예: 큐브 전환 정리와 LifeSpan 타이머가
 	// 겹치는 경우) 방지용 가드.
 	bool bIsPooledInactive = false;
+
+	// Drain phase: gameplay already ended, waiting for resident Niagara to finish
+	bool bIsDraining = false;
+	bool bReleasedToPool = false;
+	int32 PendingDrainVFXCount = 0;
+	FTimerHandle DrainTimeoutHandle;
+
+	// Non-Niagara primitives hidden at drain start (mesh cores etc.), restored on reuse
+	TArray<TWeakObjectPtr<UPrimitiveComponent>> DrainHiddenComponents;
+
+	// Shared first half of both end paths. Returns false if gameplay had already ended.
+	bool EndGameplay();
+	void BeginDrain();
+	void FinishRelease();
+	void OnDrainTimeout();
+
+	// 콜리전 디버그 (CC.ShowSkillCollision 1일 때만 타이머 가동)
+	FTimerHandle CollisionDebugTimer;
+	void StartCollisionDebugIfEnabled();
+	void DrawCollisionDebug();
+	void DrawOverlapDebug(const AActor* OtherActor, const UPrimitiveComponent* OtherComp, const FVector& Point, const FColor& Color) const;
+
+	// 지형(WorldStatic)에 막혀 ProjectileMovement가 멈췄을 때 — 감지만 하고 처리는 SkillSystem에 위임
+	UFUNCTION()
+	void OnProjectileStopped(const FHitResult& ImpactResult);
+
+	// 디버그: 발사 시점의 실제 콜리전 값 로그 + 이동 스윕과 같은 조건으로 아래 방향 차단 대상 검사
+	void DebugReportCollision() const;
+
+	// Resident = Niagara still attached to this actor (BP components). One-shots from AddVFX
+	// are detached in EndGameplay and finish on their own, so they are excluded.
+	void GetResidentNiagara(TArray<UNiagaraComponent*>& OutVFX) const;
+
+	UFUNCTION()
+	void OnResidentVFXFinished(UNiagaraComponent* FinishedComponent);
 
 	UPROPERTY()
 	UCC_EffectorPoolSubsystem* OwningPool = nullptr;

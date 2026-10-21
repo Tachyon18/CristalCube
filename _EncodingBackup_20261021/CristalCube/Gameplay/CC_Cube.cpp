@@ -1,0 +1,921 @@
+// Fill out your copyright notice in the Description page of Project Settings.
+
+
+#include "CC_Cube.h"
+#include "CC_Tile.h"
+#include "CC_Freezable.h"
+#include "../CC_CubeWorldManager.h"
+#include "../CC_EnemySpawner.h"
+#include "CC_EnemyAIInterface.h"
+#include "DrawDebugHelpers.h"
+#include "GameFramework/Character.h"
+#include "Kismet/GameplayStatics.h"
+#include "AIController.h"
+#include "BrainComponent.h"
+#include "Components/BoxComponent.h"
+
+
+// Sets default values
+ACC_Cube::ACC_Cube()
+{
+	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
+	PrimaryActorTick.bCanEverTick = true;
+
+	RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("RootComponent"));
+
+	// Floor Mesh (visual floor)
+	FloorMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("FloorMesh"));
+	FloorMesh->SetupAttachment(RootComponent);
+	FloorMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
+	CubeState = ECubeLifeState::Inactive;
+
+	ScatterComponent = CreateDefaultSubobject<UCC_CubeScatterComponent>(TEXT("ScatterComponent"));
+	ScatterComponent->SetOwnerCube(this);
+	
+	MoodComponent = CreateDefaultSubobject<UCC_CubeMoodComponent>(TEXT("MoodComponent"));
+
+}
+
+// Called when the game starts or when spawned
+void ACC_Cube::BeginPlay()
+{
+	Super::BeginPlay();
+
+	//if (ScatterComponent)
+	//{
+	//	ScatterComponent->Generate(1);
+	//}
+}
+
+// Called every frame
+void ACC_Cube::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+
+	// ManagedActors 방어적 정화 — 정상 경로는 OnEnemyUnregistered 체인이
+	// 처리하지만, 누락되는 경우를 대비해 EnemyManager/Spawner와 동일하게
+	// 주기적으로 무효 포인터를 걸러냄
+	ManagedActorsCleanupTimer += DeltaTime;
+	if (ManagedActorsCleanupTimer >= 3.0f)
+	{
+		ManagedActorsCleanupTimer = 0.0f;
+
+		int32 Before = ManagedActors.Num();
+		ManagedActors.RemoveAll([](AActor* A) { return !IsValid(A); });
+		int32 Removed = Before - ManagedActors.Num();
+
+		if (Removed > 0)
+		{
+			UE_LOG(LogTemp, Warning,
+				TEXT("[Cube %d,%d] Defensive cleanup removed %d stale ManagedActors entries"),
+				CubeCoordinate.X, CubeCoordinate.Y, Removed);
+		}
+	}
+}
+
+void ACC_Cube::GenerateCube()
+{
+	if (!TileClass)
+	{
+		UE_LOG(LogTemp, Error, TEXT("Cube: TileClass not set!"));
+		return;
+	}
+
+	// Remove existing tiles
+	for (ACC_Tile* Tile : CubeTiles)
+	{
+		if (Tile)
+		{
+			Tile->Destroy();
+		}
+	}
+	CubeTiles.Empty();
+
+	// Generate 3x3 tiles
+	for (int32 Row = 0; Row < 3; ++Row)
+	{
+		for (int32 Col = 0; Col < 3; ++Col)
+		{
+			int32 Index = Row * 3 + Col;
+
+			// Tile position calculation
+			float X = (Col - 1) * TileSize;  // -2000, 0, 2000
+			float Y = (Row - 1) * TileSize;  // -2000, 0, 2000
+			FVector TileCenter = GetActorLocation() + FVector(X, Y, 0);
+
+			// Spawn tile
+			FActorSpawnParameters SpawnParams;
+			SpawnParams.Owner = this;
+			ACC_Tile* NewTile = GetWorld()->SpawnActor<ACC_Tile>(
+				TileClass,
+				TileCenter,
+				FRotator::ZeroRotator,
+				SpawnParams
+			);
+
+			if (NewTile)
+			{
+				NewTile->InitializeTile(Index, TileCenter, TileSize);
+				CubeTiles.Add(NewTile);
+			}
+		}
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("Cube: Generated 9 tiles in 3x3 grid"));
+}
+
+ACC_Tile* ACC_Cube::GetTileAt(int32 Index) const
+{
+	if (Index >= 0 && Index < CubeTiles.Num())
+	{
+		return CubeTiles[Index];
+	}
+	return nullptr;
+}
+
+int32 ACC_Cube::GetTileIndexAtPosition(const FVector& Position) const
+{
+	for (int32 i = 0; i < CubeTiles.Num(); ++i)
+	{
+		if (CubeTiles[i] && CubeTiles[i]->IsPositionInTile(Position))
+		{
+			return i;
+		}
+	}
+	return -1;
+}
+
+void ACC_Cube::ActivateTilesAroundPlayer(int32 PlayerTileIndex)
+{
+	// Activate only the tile the player is currently on
+	ActivateOnlyTile(PlayerTileIndex);
+	CurrentPlayerTileIndex = PlayerTileIndex;
+}
+
+void ACC_Cube::ActivateOnlyTile(int32 TileIndex)
+{
+	for (int32 i = 0; i < CubeTiles.Num(); ++i)
+	{
+		if (CubeTiles[i])
+		{
+			if (i == TileIndex)
+			{
+				CubeTiles[i]->ActivateTile();
+			}
+			else
+			{
+				CubeTiles[i]->DeactivateTile();
+			}
+		}
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("Cube: Activated tile %d only"), TileIndex);
+}
+
+void ACC_Cube::ActivateAllTiles()
+{
+	for (ACC_Tile* Tile : CubeTiles)
+	{
+		if (Tile)
+		{
+			Tile->ActivateTile();
+		}
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("Cube: All tiles activated"));
+}
+
+void ACC_Cube::DeactivateAllTiles()
+{
+	for (ACC_Tile* Tile : CubeTiles)
+	{
+		if (Tile)
+		{
+			Tile->DeactivateTile();
+		}
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("Cube: All tiles deactivated"));
+}
+
+void ACC_Cube::ApplyTheme(const FCubeThemeData& ThemeData)
+{
+	if (!FloorMesh || !ThemeData.FloorMaterial) return;
+
+	// Dynamic Material Instance 생성
+	FloorMID = UMaterialInstanceDynamic::Create(ThemeData.FloorMaterial, this);
+	if (!FloorMID) return;
+
+	//// World Position 기반 타일 크기 — 큐브 스케일과 무관하게 일정
+	//FloorMID->SetScalarParameterValue(TEXT("TextureTileSize"), ThemeData.TextureTileSize);
+
+	// 테마 색상
+	FloorMID->SetVectorParameterValue(TEXT("ThemeColor"), ThemeData.ThemeColor);
+	FloorMID->SetVectorParameterValue(TEXT("ThemeColorSecondary"), ThemeData.ThemeColorSecondary);
+	FloorMID->SetScalarParameterValue(TEXT("EmissiveStrength"), ThemeData.EmissiveStrength);
+
+	FloorMesh->SetMaterial(0, FloorMID);
+
+	//UE_LOG(LogTemp, Log, TEXT("[Cube %d,%d] Theme applied — TileSize: %.0f"), CubeCoordinate.X, CubeCoordinate.Y, ThemeData.TextureTileSize);
+
+	if (ScatterComponent)
+	{
+		ScatterComponent->ApplyThemeData(ThemeData);
+	}
+
+	UE_LOG(LogTemp, Log,
+		TEXT("[Cube %d,%d] ApplyTheme Completed — FloorMat: %s, ScatterMeshes: %d"),
+		CubeCoordinate.X, CubeCoordinate.Y,
+		ThemeData.FloorMaterial ? *ThemeData.FloorMaterial->GetName() : TEXT("No Material"),
+		ThemeData.ScatterMeshEntries.Num());
+}
+
+void ACC_Cube::SetLockWall(bool bLock)
+{
+	for (UBoxComponent* Trigger : BoundaryTriggers)
+	{
+		if (!Trigger) continue;
+
+		if (bLock)
+		{
+			Trigger->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+			Trigger->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
+			Trigger->SetGenerateOverlapEvents(false);
+		}
+		else
+		{
+			Trigger->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+			Trigger->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
+			Trigger->SetGenerateOverlapEvents(true);
+		}
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("[Cube %d,%d] LockWall %s"),
+		CubeCoordinate.X, CubeCoordinate.Y,
+		bLock ? TEXT("ON (Block)") : TEXT("OFF (Overlap)"));
+}
+
+// ========== Cube Wall Overlap Events ==========
+
+void ACC_Cube::OnCubeWallHit_Right(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
+	UPrimitiveComponent* OtherComp, int32 OtherBodyIndex,
+	bool bFromSweep, const FHitResult& SweepResult)
+{
+	if (!OtherActor) return;
+
+	// Right wall hit: teleport to left side
+	FVector CurrentPos = OtherActor->GetActorLocation();
+	FVector NewPos = CurrentPos - FVector(CubeSize, 0, 0);
+	OtherActor->SetActorLocation(NewPos);
+
+	UE_LOG(LogTemp, Warning, TEXT("[CubeWall] %s: Right -> Left (X: %.1f -> %.1f)"),
+		*OtherActor->GetName(), CurrentPos.X, NewPos.X);
+}
+
+void ACC_Cube::OnCubeWallHit_Left(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
+	UPrimitiveComponent* OtherComp, int32 OtherBodyIndex,
+	bool bFromSweep, const FHitResult& SweepResult)
+{
+	if (!OtherActor) return;
+
+	// Left wall hit: teleport to right side
+	FVector CurrentPos = OtherActor->GetActorLocation();
+	FVector NewPos = CurrentPos + FVector(CubeSize, 0, 0);
+	OtherActor->SetActorLocation(NewPos);
+
+	UE_LOG(LogTemp, Warning, TEXT("[CubeWall] %s: Left -> Right (X: %.1f -> %.1f)"),
+		*OtherActor->GetName(), CurrentPos.X, NewPos.X);
+}
+
+void ACC_Cube::OnCubeWallHit_Top(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
+	UPrimitiveComponent* OtherComp, int32 OtherBodyIndex,
+	bool bFromSweep, const FHitResult& SweepResult)
+{
+	if (!OtherActor) return;
+
+	// Top wall hit: teleport to bottom side
+	FVector CurrentPos = OtherActor->GetActorLocation();
+	FVector NewPos = CurrentPos - FVector(0, CubeSize, 0);
+	OtherActor->SetActorLocation(NewPos);
+
+	UE_LOG(LogTemp, Warning, TEXT("[CubeWall] %s: Top -> Bottom (Y: %.1f -> %.1f)"),
+		*OtherActor->GetName(), CurrentPos.Y, NewPos.Y);
+}
+
+void ACC_Cube::OnCubeWallHit_Bottom(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
+	UPrimitiveComponent* OtherComp, int32 OtherBodyIndex,
+	bool bFromSweep, const FHitResult& SweepResult)
+{
+	if (!OtherActor) return;
+
+	// Bottom wall hit: teleport to top side
+	FVector CurrentPos = OtherActor->GetActorLocation();
+	FVector NewPos = CurrentPos + FVector(0, CubeSize, 0);
+	OtherActor->SetActorLocation(NewPos);
+
+	UE_LOG(LogTemp, Warning, TEXT("[CubeWall] %s: Bottom -> Top (Y: %.1f -> %.1f)"),
+		*OtherActor->GetName(), CurrentPos.Y, NewPos.Y);
+}
+
+void ACC_Cube::IndexToRowCol(int32 Index, int32& OutRow, int32& OutCol) const
+{
+	OutRow = Index / 3;
+	OutCol = Index % 3;
+}
+
+int32 ACC_Cube::RowColToIndex(int32 Row, int32 Col) const
+{
+	return Row * 3 + Col;
+}
+
+void ACC_Cube::InitializeCubeWalls()
+{
+	float HalfCube = CubeSize / 2.0f;
+	float HalfHeight = CubeHeight / 2.0f;
+	float HalfThickness = WallThickness / 2.0f;
+
+	// Right wall (X+) - Red
+	CubeWall_Right = CreateDefaultSubobject<UBoxComponent>(TEXT("CubeWall_Right"));
+	CubeWall_Right->SetupAttachment(RootComponent);
+	CubeWall_Right->SetRelativeLocation(FVector(HalfCube + HalfThickness, 0, HalfHeight));
+	CubeWall_Right->SetBoxExtent(FVector(HalfThickness, HalfCube, HalfHeight));
+	CubeWall_Right->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+	CubeWall_Right->SetCollisionResponseToAllChannels(ECR_Ignore);
+	CubeWall_Right->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
+	CubeWall_Right->SetGenerateOverlapEvents(true);
+	CubeWall_Right->ShapeColor = FColor::Red;
+
+	// Left wall (X-) - Blue
+	CubeWall_Left = CreateDefaultSubobject<UBoxComponent>(TEXT("CubeWall_Left"));
+	CubeWall_Left->SetupAttachment(RootComponent);
+	CubeWall_Left->SetRelativeLocation(FVector(-HalfCube - HalfThickness, 0, HalfHeight));
+	CubeWall_Left->SetBoxExtent(FVector(HalfThickness, HalfCube, HalfHeight));
+	CubeWall_Left->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+	CubeWall_Left->SetCollisionResponseToAllChannels(ECR_Ignore);
+	CubeWall_Left->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
+	CubeWall_Left->SetGenerateOverlapEvents(true);
+	CubeWall_Left->ShapeColor = FColor::Blue;
+
+	// Top wall (Y+) - Green
+	CubeWall_Top = CreateDefaultSubobject<UBoxComponent>(TEXT("CubeWall_Top"));
+	CubeWall_Top->SetupAttachment(RootComponent);
+	CubeWall_Top->SetRelativeLocation(FVector(0, HalfCube + HalfThickness, HalfHeight));
+	CubeWall_Top->SetBoxExtent(FVector(HalfCube, HalfThickness, HalfHeight));
+	CubeWall_Top->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+	CubeWall_Top->SetCollisionResponseToAllChannels(ECR_Ignore);
+	CubeWall_Top->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
+	CubeWall_Top->SetGenerateOverlapEvents(true);
+	CubeWall_Top->ShapeColor = FColor::Green;
+
+	// Bottom wall (Y-) - Yellow
+	CubeWall_Bottom = CreateDefaultSubobject<UBoxComponent>(TEXT("CubeWall_Bottom"));
+	CubeWall_Bottom->SetupAttachment(RootComponent);
+	CubeWall_Bottom->SetRelativeLocation(FVector(0, -HalfCube - HalfThickness, HalfHeight));
+	CubeWall_Bottom->SetBoxExtent(FVector(HalfCube, HalfThickness, HalfHeight));
+	CubeWall_Bottom->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+	CubeWall_Bottom->SetCollisionResponseToAllChannels(ECR_Ignore);
+	CubeWall_Bottom->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
+	CubeWall_Bottom->SetGenerateOverlapEvents(true);
+	CubeWall_Bottom->ShapeColor = FColor::Yellow;
+}
+
+void ACC_Cube::InitializeCube(FIntPoint Coordinate)
+{
+	UE_LOG(LogTemp, Error, TEXT("[InitializeCube] Received Coordinate: (%d,%d)"),
+		Coordinate.X, Coordinate.Y);
+	CubeCoordinate = Coordinate;
+	CubeState = ECubeLifeState::Active;
+
+	UE_LOG(LogTemp, Log, TEXT("[Cube] Initializing at CubeSize is :(%f)"), CubeSize);
+
+	// Set cube world location based on coordinate
+	FVector CubeWorldLocation(
+		-Coordinate.X * CubeSize,
+		Coordinate.Y * CubeSize,
+		0.0f
+	);
+	SetActorLocation(CubeWorldLocation);
+
+	// Scale floor mesh to cube size
+	if (FloorMesh)
+	{
+		FloorMesh->SetWorldScale3D(FVector(CubeSize / 100.0f, CubeSize / 100.0f, 1.0f));
+	}
+
+	// Create boundary triggers
+	CreateBoundaryTriggers();
+
+	//DrawDebugInfo();
+
+	//UE_LOG(LogTemp, Log, TEXT("[Cube] Initialized at (%d, %d) - Location: %s"), Coordinate.X, Coordinate.Y, *CubeWorldLocation.ToString());
+
+	if (ScatterComponent && !ScatterComponent->bGenerated)
+	{
+		ScatterComponent->ScatterRadius = CubeSize / 2.0f;
+
+	}
+
+	//if (MoodComponent)
+	//{
+	//	MoodComponent->ApplyMood(0);
+	//}
+}
+
+void ACC_Cube::CreateBoundaryTriggers()
+{
+	BoundaryTriggers.Empty();
+	BoundaryDirectionMap.Empty();
+
+	float HalfSize = CubeSize / 2.0f;
+	float TriggerThickness = 100.0f;
+	float TriggerHeight = 500.0f;
+
+	struct FBoundaryInfo
+	{
+		EBoundaryDirection Direction;
+		FVector Location;
+		FVector Extent;
+		FName Name;
+		FLinearColor Color;
+	};
+
+	TArray<FBoundaryInfo> Boundaries = {
+		{ EBoundaryDirection::Up,    FVector(HalfSize,  0,         0), FVector(TriggerThickness, HalfSize,         TriggerHeight), TEXT("UpBoundary"),    FLinearColor::Red    },
+		{ EBoundaryDirection::Down,  FVector(-HalfSize, 0,         0), FVector(TriggerThickness, HalfSize,         TriggerHeight), TEXT("DownBoundary"),  FLinearColor::Blue   },
+		{ EBoundaryDirection::Left,  FVector(0,         -HalfSize, 0), FVector(HalfSize,         TriggerThickness, TriggerHeight), TEXT("LeftBoundary"),  FLinearColor::Green  },
+		{ EBoundaryDirection::Right, FVector(0,         HalfSize,  0), FVector(HalfSize,         TriggerThickness, TriggerHeight), TEXT("RightBoundary"), FLinearColor::Yellow }
+	};
+
+	for (const FBoundaryInfo& Info : Boundaries)
+	{
+		UBoxComponent* Trigger = NewObject<UBoxComponent>(this, Info.Name);
+		if (Trigger)
+		{
+			Trigger->RegisterComponent();
+			Trigger->AttachToComponent(RootComponent, FAttachmentTransformRules::KeepRelativeTransform);
+			Trigger->SetRelativeLocation(Info.Location);
+			Trigger->SetBoxExtent(Info.Extent);
+			Trigger->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+			Trigger->SetCollisionResponseToAllChannels(ECR_Ignore);
+			Trigger->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
+			Trigger->SetGenerateOverlapEvents(true);
+			Trigger->ShapeColor = Info.Color.ToFColor(true);
+
+			// Bind overlap event
+			Trigger->OnComponentBeginOverlap.AddDynamic(this, &ACC_Cube::OnBoundaryOverlap);
+
+			BoundaryTriggers.Add(Trigger);
+			BoundaryDirectionMap.Add(Trigger, Info.Direction);
+
+			UE_LOG(LogTemp, Log, TEXT("[Cube] Created boundary: %s at %s"),
+				*Info.Name.ToString(), *Info.Location.ToString());
+		}
+	}
+}
+
+void ACC_Cube::SetBoundaryTriggersEnabled(bool bEnabled)
+{
+	for (UBoxComponent* Trigger : BoundaryTriggers)
+	{
+		if (!Trigger) continue;
+
+		Trigger->SetGenerateOverlapEvents(bEnabled);
+		Trigger->SetCollisionEnabled(
+			bEnabled ? ECollisionEnabled::QueryOnly : ECollisionEnabled::NoCollision);
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("[Cube %d,%d] Boundary triggers %s"),
+		CubeCoordinate.X, CubeCoordinate.Y,
+		bEnabled ? TEXT("ENABLED") : TEXT("DISABLED"));
+}
+
+void ACC_Cube::RegisterActor(AActor* Actor)
+{
+	if (!Actor || ManagedActors.Contains(Actor))
+		return;
+
+	ManagedActors.Add(Actor);
+
+	// Spawner 연결 시점에 NormalLockTarget 스냅샷 (WaveSize 딱 한 번만 읽고, 이후 실시간 참조 안 함)
+	if (ACC_EnemySpawner* Spawner = Cast<ACC_EnemySpawner>(Actor))
+	{
+		CubeLockTarget = Spawner->GetWaveSize();
+		UE_LOG(LogTemp, Log, TEXT("[Cube %d,%d] CubeLockTarget snapshotted: %d"),
+			CubeCoordinate.X, CubeCoordinate.Y, CubeLockTarget);
+	}
+	// Enemy 판별은 타입(Pawn 여부)이 아니라 실제 "Enemy인가" 인터페이스로 —
+	// Gem/향후 다른 Actor 기반 픽업이 섞여도 안전
+	else if (Actor->GetClass()->ImplementsInterface(UCC_EnemyAIInterface::StaticClass()))
+	{
+		++NormalRegisteredCount;
+		CheckCubeLockCondition();
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("[Cube %d,%d] Registered actor: %s (Total: %d)"),
+		CubeCoordinate.X, CubeCoordinate.Y, *Actor->GetName(), ManagedActors.Num());
+}
+
+void ACC_Cube::UnregisterActor(AActor* Actor)
+{
+	if (!Actor)
+		return;
+
+	ManagedActors.Remove(Actor);
+
+	if (Actor->GetClass()->ImplementsInterface(UCC_EnemyAIInterface::StaticClass()))
+	{
+		NormalRegisteredCount = FMath::Max(0, NormalRegisteredCount - 1);
+		CheckCubeLockCondition();
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("[Cube %d,%d] Unregistered actor: %s (Total: %d)"),
+		CubeCoordinate.X, CubeCoordinate.Y, *Actor->GetName(), ManagedActors.Num());
+}
+
+void ACC_Cube::AccumulateNeglect()
+{
+	if (CubeState == ECubeLifeState::Inactive && bHasBeenVisited)
+	{
+		++NeglectTransitionCount;
+	}
+}
+
+void ACC_Cube::CheckCubeLockCondition()
+{
+	if (CubeLockTarget <= 0) return;
+	if (CubeState != ECubeLifeState::Active) return;
+
+	ACC_CubeWorldManager* Manager = ACC_CubeWorldManager::Get(this);
+	if (!Manager) return;
+
+	const int32 Combined = NormalRegisteredCount + Manager->PersistentEnemyCount;
+	const bool bQuotaMet = (Combined >= CubeLockTarget);
+
+	if (bQuotaMet)
+	{
+		if (Manager->IsCubeLocked()) return; // 이미 잠긴 상태 — 새 그레이스 불필요
+
+		if (!GetWorldTimerManager().IsTimerActive(LockGraceTimerHandle))
+		{
+			const float Grace = FMath::Max(MinLockGraceSeconds,
+				BaseLockGraceSeconds - Manager->PersistentEnemyCount * GraceReductionPerPersistent);
+
+			GetWorldTimerManager().SetTimer(
+				LockGraceTimerHandle, this, &ACC_Cube::OnLockGraceExpired, Grace, false);
+
+			UE_LOG(LogTemp, Warning,
+				TEXT("[Cube %d,%d] Lock quota met (%d+%d/%d) — grace timer started (%.1fs, Persistent=%d)"),
+				CubeCoordinate.X, CubeCoordinate.Y, NormalRegisteredCount, Manager->PersistentEnemyCount,
+				CubeLockTarget, Grace, Manager->PersistentEnemyCount);
+		}
+	}
+	else
+	{
+		if (GetWorldTimerManager().IsTimerActive(LockGraceTimerHandle))
+		{
+			GetWorldTimerManager().ClearTimer(LockGraceTimerHandle);
+			UE_LOG(LogTemp, Log, TEXT("[Cube %d,%d] Lock quota no longer met — grace timer cancelled"),
+				CubeCoordinate.X, CubeCoordinate.Y);
+		}
+	}
+}
+
+bool ACC_Cube::IsActorInCube(AActor* Actor) const
+{
+	if (!Actor)
+		return false;
+
+	FVector ActorLocation = Actor->GetActorLocation();
+	FBox CubeBounds = GetCubeBounds();
+
+	return CubeBounds.IsInside(ActorLocation);
+}
+
+void ACC_Cube::Freeze()
+{
+	if (IsFrozen())
+		return;
+
+	// [신규] Stabilized(클리어 완료) 상태에서 떠나는 경우만 카운터 리셋
+	// — 4-1절 B안(웨이브 리셋)과 같은 타이밍. 그 외(미클리어 스킵)는 계속 누적.
+
+	const bool bWasStabilized = (CubeState == ECubeLifeState::Stabilized);
+	if (bWasStabilized)
+	{
+		NeglectTransitionCount = 0;
+	}
+
+	CubeState = ECubeLifeState::Inactive;
+
+	// CubeLock(Normal) 그레이스가 도는 중이었다면 취소 — 떠나는 순간 유예도 함께 사라짐
+	GetWorldTimerManager().ClearTimer(LockGraceTimerHandle);
+
+	// Hide and disable the entire cube
+	SetActorHiddenInGame(true);
+	SetActorTickEnabled(false);
+
+	//if (PCGComponent) PCGComponent->CleanupLocalGeneration(false, false);
+
+	// Freeze all managed actors
+	TArray<AActor*> ActorsToFreeze = ManagedActors;
+	for (AActor* Actor : ActorsToFreeze)
+	{
+		if (!IsValid(Actor)) continue;
+
+		// Basic deactivation
+		Actor->SetActorHiddenInGame(true);
+		Actor->SetActorTickEnabled(false);
+		Actor->SetActorEnableCollision(false);
+
+		// Actor implementing Freezable interface
+		if (Actor->GetClass()->ImplementsInterface(UCC_Freezable::StaticClass()))
+		{
+			ICC_Freezable::Execute_Freeze(Actor);
+		}
+		else
+		{
+			// Default freeze handling for Characters
+			if (ACharacter* Character = Cast<ACharacter>(Actor))
+			{
+				// Stop AI
+				if (AAIController* AI = Cast<AAIController>(Character->GetController()))
+				{
+					AI->StopMovement();
+					if (AI->BrainComponent)
+					{
+						AI->BrainComponent->StopLogic("Frozen");
+					}
+				}
+
+				// Stop time dilation
+				Character->CustomTimeDilation = 0.0f;
+
+				// Pause animation
+				if (USkeletalMeshComponent* Mesh = Character->GetMesh())
+				{
+					Mesh->bPauseAnims = true;
+				}
+			}
+
+			// Stop physics simulation
+			TArray<UActorComponent*> Components;
+			Actor->GetComponents(UPrimitiveComponent::StaticClass(), Components);
+			for (UActorComponent* Comp : Components)
+			{
+				if (UPrimitiveComponent* Prim = Cast<UPrimitiveComponent>(Comp))
+				{
+					if (Prim->IsSimulatingPhysics())
+					{
+						Prim->SetSimulatePhysics(false);
+					}
+				}
+			}
+		}
+	}
+
+	if (ScatterComponent)
+	{
+		ScatterComponent->FreezeScatter();
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("[Cube %d,%d] FROZEN (%d actors)"),
+		CubeCoordinate.X, CubeCoordinate.Y, ManagedActors.Num());
+}
+
+void ACC_Cube::Unfreeze()
+{
+	if (!IsFrozen())
+		return;
+
+	CubeState = ECubeLifeState::Active;
+	bHasBeenVisited = true;
+
+	// Show and enable the entire cube
+	SetActorHiddenInGame(false);
+	SetActorTickEnabled(true);
+
+	//if (PCGComponent) PCGComponent->GenerateLocal(false);
+
+	// Unfreeze all managed actors
+	TArray<AActor*> ActorsToUnfreeze = ManagedActors;
+
+	for (AActor* Actor : ActorsToUnfreeze)
+	{
+		if (!IsValid(Actor)) continue;
+
+		// Basic reactivation
+		Actor->SetActorHiddenInGame(false);
+		Actor->SetActorTickEnabled(true);
+		Actor->SetActorEnableCollision(true);
+
+		// Actor implementing Freezable interface
+		if (Actor->GetClass()->ImplementsInterface(UCC_Freezable::StaticClass()))
+		{
+			ICC_Freezable::Execute_Unfreeze(Actor);
+		}
+		else
+		{
+			// Default unfreeze handling for Characters
+			if (ACharacter* Character = Cast<ACharacter>(Actor))
+			{
+				// Resume AI
+				if (AAIController* AI = Cast<AAIController>(Character->GetController()))
+				{
+					if (AI->BrainComponent)
+					{
+						AI->BrainComponent->RestartLogic();
+					}
+				}
+
+				// Resume time dilation
+				Character->CustomTimeDilation = 1.0f;
+
+				// Resume animation
+				if (USkeletalMeshComponent* Mesh = Character->GetMesh())
+				{
+					Mesh->bPauseAnims = false;
+				}
+			}
+		}
+	}
+
+	if (ScatterComponent)
+	{
+		if (!ScatterComponent->bGenerated)
+		{
+			ScatterComponent->Generate(CubeCoordinate);
+		}
+		else
+		{
+			ScatterComponent->UnfreezeScatter();
+		}
+	}
+
+	if (MoodComponent)
+	{
+		MoodComponent->ApplyMood(0);
+	}
+
+	ApplyNeglectMultiplierToManagedActors();
+
+	CheckCubeLockCondition();
+
+	UE_LOG(LogTemp, Warning, TEXT("[Cube %d,%d] UNFROZEN (%d actors)"),
+		CubeCoordinate.X, CubeCoordinate.Y, ManagedActors.Num());
+}
+
+void ACC_Cube::OnBoundaryOverlap(UPrimitiveComponent* OverlappedComp, AActor* OtherActor,
+	UPrimitiveComponent* OtherComp, int32 OtherBodyIndex,
+	bool bFromSweep, const FHitResult& SweepResult)
+{
+	UE_LOG(LogTemp, Warning, TEXT("[Cube %d,%d] Boundary overlap detected by %s"),
+		CubeCoordinate.X, CubeCoordinate.Y,
+		*OtherActor->GetName());
+
+	if (IsFrozen())
+		return;
+
+	// Check if it is the player
+	ACharacter* Player = Cast<ACharacter>(OtherActor);
+	if (!Player || !Player->IsPlayerControlled())
+		return;
+
+	UBoxComponent* Trigger = Cast<UBoxComponent>(OverlappedComp);
+	if (!Trigger || !BoundaryDirectionMap.Contains(Trigger))
+		return;
+
+	EBoundaryDirection Direction = BoundaryDirectionMap[Trigger];
+
+	UE_LOG(LogTemp, Warning, TEXT("[Cube %d,%d] Player crossed boundary: %s"),
+		CubeCoordinate.X, CubeCoordinate.Y,
+		*UEnum::GetValueAsString(Direction));
+
+	// Find CubeWorldManager and request transition
+	TArray<AActor*> FoundActors;
+	UGameplayStatics::GetAllActorsOfClass(GetWorld(), ACC_CubeWorldManager::StaticClass(), FoundActors);
+
+	if (FoundActors.Num() > 0)
+	{
+		ACC_CubeWorldManager* Manager = Cast<ACC_CubeWorldManager>(FoundActors[0]);
+		if (Manager)
+		{
+			// [수정] PerformTransition은 Actor 스폰(SummonPersistentEnemies)/텔레포트/콜리전 토글까지
+			// 포함하는 무거운 로직인데, 지금처럼 물리 오버랩 콜백(OnComponentBeginOverlap) 안에서
+			// 그대로 실행하면 재진입 상태에서 World가 일시적으로 불안정해질 수 있음
+			// (SetPersistentVisualState의 GetWorldTimerManager() 널 크레시로 확인됨).
+			// 콜백 스택이 완전히 풀린 다음 틱으로 미뤄서 안전한 시점에 실행.
+			TWeakObjectPtr<ACC_CubeWorldManager> WeakManager = Manager;
+			EBoundaryDirection CapturedDirection = Direction;
+			GetWorldTimerManager().SetTimerForNextTick([WeakManager, CapturedDirection]()
+			{
+				if (WeakManager.IsValid())
+				{
+					WeakManager->RequestTransition(CapturedDirection);
+				}
+			});
+		}
+	}
+}
+
+FVector ACC_Cube::GetCubeCenter() const
+{
+	return GetActorLocation();
+}
+
+FBox ACC_Cube::GetCubeBounds() const
+{
+	FVector Center = GetCubeCenter();
+	FVector HalfExtent(CubeSize / 2.0f);
+	return FBox(Center - HalfExtent, Center + HalfExtent);
+}
+
+void ACC_Cube::DrawDebugInfo()
+{
+	if (!GetWorld())
+		return;
+
+	FColor Color = (CubeState == ECubeLifeState::Active) ? FColor::Green : (CubeState == ECubeLifeState::Stabilized) ? FColor::Cyan : FColor::Red;
+
+	//DrawDebugBox(GetWorld(), Bounds.GetCenter(), Bounds.GetExtent(),
+	//	Color, false, -1.0f, 0, 50.0f);
+
+	// Coordinate text
+	FString CoordText = FString::Printf(TEXT("Cube [%d, %d]"), CubeCoordinate.X, CubeCoordinate.Y);
+	DrawDebugString(GetWorld(), GetCubeCenter() + FVector(0, 0, 500),
+		CoordText, nullptr, Color, -1.0f, true, 2.0f);
+
+	for (UBoxComponent* Trigger : BoundaryTriggers)
+	{
+		if (!Trigger)
+			continue;
+
+		FVector TriggerLocation = Trigger->GetComponentLocation();
+		FVector TriggerExtent = Trigger->GetScaledBoxExtent();
+		FRotator TriggerRotation = Trigger->GetComponentRotation();
+		FColor TriggerColor = Trigger->ShapeColor;
+
+		DrawDebugBox(GetWorld(), TriggerLocation, TriggerExtent, TriggerRotation.Quaternion(),
+			TriggerColor, false, 10.0f, 0, 5.0f);
+
+		EBoundaryDirection* Direction = BoundaryDirectionMap.Find(Trigger);
+		if (Direction)
+		{
+			FString DirectionText = UEnum::GetValueAsString(*Direction);
+			// "EBoundaryDirection::Right" -> "Right"
+			DirectionText.RemoveFromStart(TEXT("EBoundaryDirection::"));
+
+			DrawDebugString(GetWorld(), TriggerLocation,
+				DirectionText, nullptr, TriggerColor, -1.0f, true, 1.5f);
+		}
+	}
+}
+
+void ACC_Cube::HandleSpawnerWaveCleared(ACC_EnemySpawner* Spawner)
+{
+	if (CubeState == ECubeLifeState::Stabilized) return;
+
+	if (ACC_CubeWorldManager* Manager = ACC_CubeWorldManager::Get(this))
+	{
+		Manager->ResolveCubeLock();
+	}
+
+	CubeState = ECubeLifeState::Stabilized;
+
+	UE_LOG(LogTemp, Warning, TEXT("[Cube] (%d,%d) Spawner wave cleared — local wave-model bookkeeping only."),
+		CubeCoordinate.X, CubeCoordinate.Y);
+}
+
+void ACC_Cube::OnLockGraceExpired()
+{
+	ACC_CubeWorldManager* Manager = ACC_CubeWorldManager::Get(this);
+	if (!Manager) return;
+
+	if (NormalRegisteredCount + Manager->PersistentEnemyCount < CubeLockTarget) return;
+	if (CubeState != ECubeLifeState::Active) return;
+
+	Manager->TriggerCubeLock();
+}
+
+void ACC_Cube::ApplyNeglectMultiplierToManagedActors()
+{
+	if (NeglectTransitionCount <= 0) return;
+
+	const float Multiplier = 1.0f + NeglectTransitionCount * NeglectMultiplierPerTransition;
+
+	int32 AppliedCount = 0;
+	for (AActor* Actor : ManagedActors)
+	{
+		if (!IsValid(Actor)) continue;
+		if (Actor->GetClass()->ImplementsInterface(UCC_EnemyAIInterface::StaticClass()))
+		{
+			ICC_EnemyAIInterface::Execute_ApplyStatMultiplier(Actor, Multiplier);
+			++AppliedCount;
+		}
+	}
+
+	UE_LOG(LogTemp, Log,
+		TEXT("[Cube %d,%d] Neglect multiplier x%.2f applied to %d enemies (%d transitions accumulated)"),
+		CubeCoordinate.X, CubeCoordinate.Y, Multiplier, AppliedCount, NeglectTransitionCount);
+
+}

@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 
 #include "CC_ElementalApplyAddon.h"
@@ -13,7 +13,8 @@ void UCC_ElementalApplyAddon::OnHit_Implementation(UCC_SkillSystem* SkillSystem,
     UCC_ElementalStatusComponent* ElementalComp = HitTarget->FindComponentByClass<UCC_ElementalStatusComponent>();
     if (!ElementalComp) return;
 
-    ElementalComp->ApplyElement(Skill.ElementType, Data.StackAmount, Data.MaxStacks, Data.Duration, Context.Caster, Data.ApplyEffect);
+    ElementalComp->ApplyElementWithData(Skill.ElementType, Data.StackAmount, Data.MaxStacks, Data.Duration, Context.Caster,
+        Data.ApplyEffect, Data.BlueData, Data.GreenData);
 
     // Red 전용 — 속성 부여 시점에 추가 데미지 1회 적용
     if (Skill.ElementType == ESkillElementType::Red && SkillSystem)
@@ -32,6 +33,24 @@ void UCC_ElementalApplyAddon::ApplyModifier_Implementation(FName AttributeID, fl
     else if (AttributeID == TEXT("ElementalApplyDuration"))
     {
         Data.Duration += ValuePerPoint;
+    }
+    else if (AttributeID == TEXT("ElementalApplyBlueSlow"))
+    {
+        // Blue = tempo reduction: one point moves move/attack tempo together (negative value = stronger)
+        Data.BlueData.SlowMultiplier = FMath::Clamp(Data.BlueData.SlowMultiplier + ValuePerPoint,
+            FCCElementalLimits::BlueMultiplierMin, FCCElementalLimits::BlueMultiplierMax);
+        Data.BlueData.AttackSpeedMultiplier = FMath::Clamp(Data.BlueData.AttackSpeedMultiplier + ValuePerPoint,
+            FCCElementalLimits::BlueMultiplierMin, FCCElementalLimits::BlueMultiplierMax);
+    }
+    else if (AttributeID == TEXT("ElementalApplyGreenIncoming"))
+    {
+        Data.GreenData.IncomingDamageMultiplier = FMath::Clamp(Data.GreenData.IncomingDamageMultiplier + ValuePerPoint,
+            FCCElementalLimits::GreenIncomingMin, FCCElementalLimits::GreenIncomingMax);
+    }
+    else if (AttributeID == TEXT("ElementalApplyGreenOutgoing"))
+    {
+        Data.GreenData.OutgoingDamageMultiplier = FMath::Clamp(Data.GreenData.OutgoingDamageMultiplier + ValuePerPoint,
+            FCCElementalLimits::GreenReductionMin, FCCElementalLimits::GreenReductionMax);
     }
     else
     {

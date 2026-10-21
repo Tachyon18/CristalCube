@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+ï»¿// Fill out your copyright notice in the Description page of Project Settings.
 
 
 #include "CC_LogHelper.h"
@@ -10,18 +10,18 @@ FString UCC_LogHelper::GetCleanActorName(const AActor* Actor)
         return TEXT("NULL");
     }
 
-    // Å¬·¡½º ÀÌ¸§ Á¤¸®
+    // í´ë˜ìŠ¤ ì´ë¦„ ì •ë¦¬
     FString ClassName = Actor->GetClass()->GetName();
 
-    // Blueprint Á¢µÎ»ç/Á¢¹Ì»ç Á¦°Å
+    // Blueprint ì ‘ë‘ì‚¬/ì ‘ë¯¸ì‚¬ ì œê±°
     ClassName = ClassName.Replace(TEXT("BP_"), TEXT(""));
     ClassName = ClassName.Replace(TEXT("_C"), TEXT(""));
 
-    // CristalCube Á¢µÎ»çµµ Á¦°ÅÇØ¼­ ´õ Âª°Ô
+    // CristalCube ì ‘ë‘ì‚¬ë„ ì œê±°í•´ì„œ ë” ì§§ê²Œ
     ClassName = ClassName.Replace(TEXT("CristalCube"), TEXT(""));
     ClassName = ClassName.Replace(TEXT("CC_"), TEXT(""));
 
-    // °íÀ¯ ID Ãß°¡ (¸¶Áö¸· 3ÀÚ¸®¸¸ »ç¿ë)
+    // ê³ ìœ  ID ì¶”ê°€ (ë§ˆì§€ë§‰ 3ìë¦¬ë§Œ ì‚¬ìš©)
     int32 UniqueID = Actor->GetUniqueID() % 1000;
 
     return FString::Printf(TEXT("%s_%d"), *ClassName, UniqueID);
@@ -36,7 +36,7 @@ FString UCC_LogHelper::GetCleanClassName(const UObject* Object)
 
     FString ClassName = Object->GetClass()->GetName();
 
-    // °øÅë Á¢µÎ»ç/Á¢¹Ì»ç Á¦°Å
+    // ê³µí†µ ì ‘ë‘ì‚¬/ì ‘ë¯¸ì‚¬ ì œê±°
     ClassName = ClassName.Replace(TEXT("BP_"), TEXT(""));
     ClassName = ClassName.Replace(TEXT("_C"), TEXT(""));
     ClassName = ClassName.Replace(TEXT("CristalCube"), TEXT(""));
@@ -47,7 +47,7 @@ FString UCC_LogHelper::GetCleanClassName(const UObject* Object)
 
 FColor UCC_LogHelper::GetLogColor(const FString& InLogType)
 {
-    // ·Î±× Å¸ÀÔº° ÄÃ·¯ ¼³Á¤
+    // ë¡œê·¸ íƒ€ì…ë³„ ì»¬ëŸ¬ ì„¤ì •
     if (InLogType == TEXT("PLAYER"))
     {
         return FColor::Cyan;
@@ -74,6 +74,6 @@ FColor UCC_LogHelper::GetLogColor(const FString& InLogType)
     }
     else
     {
-        return FColor::White;  // ±âº» »ö»ó
+        return FColor::White;  // ê¸°ë³¸ ìƒ‰ìƒ
     }
 }

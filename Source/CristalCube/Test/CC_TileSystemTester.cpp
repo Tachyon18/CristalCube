@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+ï»¿// Fill out your copyright notice in the Description page of Project Settings.
 
 
 #include "CC_TileSystemTester.h"
@@ -17,12 +17,12 @@ void ACC_TileSystemTester::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// TileManager Ã£±â
+	// TileManager ì°¾ê¸°
 	//TileManager = ACC_TileManager::Get(GetWorld());
 
 	//if (bAutoRunTests)
 	//{
-	//	// µô·¹ÀÌ ÈÄ Å×½ºÆ® ½ÃÀÛ
+	//	// ë”œë ˆì´ í›„ í…ŒìŠ¤íŠ¸ ì‹œìž‘
 	//	FTimerHandle TimerHandle;
 	//	GetWorld()->GetTimerManager().SetTimer(
 	//		TimerHandle,
@@ -381,7 +381,7 @@ void ACC_TileSystemTester::Tick(float DeltaTime)
 //		return false;
 //	}
 //
-//	LogTest(TestName, true, FString::Printf(TEXT("Wrap around successful: %.1f ¡æ %.1f"), TestPos.X, WrappedPos.X));
+//	LogTest(TestName, true, FString::Printf(TEXT("Wrap around successful: %.1f â†’ %.1f"), TestPos.X, WrappedPos.X));
 //	return true;
 //}
 //

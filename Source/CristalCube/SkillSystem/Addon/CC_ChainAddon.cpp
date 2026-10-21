@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 
 #include "CC_ChainAddon.h"
@@ -23,9 +23,6 @@ void UCC_ChainAddon::OnHit_Implementation(UCC_SkillSystem* SkillSystem, const FS
         ChainState.CurrentChainCount++;
         ChainState.HitActors.Add(NextTarget);
         SkillSystem->ApplyDamage(NextTarget, ChainState.CurrentDamage, ChainState.Caster);
-
-        UE_LOG(LogTemp, Warning, TEXT("[ChainDebug] Hop %d -> %s | ChainEffect valid: %s"),
-            ChainState.CurrentChainCount, *NextTarget->GetName(), Data.ChainEffect ? TEXT("YES") : TEXT("NO"));
 
         if (Data.ChainEffect)
         {

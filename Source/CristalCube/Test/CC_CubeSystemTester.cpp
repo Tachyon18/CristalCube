@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+ï»¿// Fill out your copyright notice in the Description page of Project Settings.
 
 
 #include "CC_CubeSystemTester.h"
@@ -23,7 +23,7 @@ void ACC_CubeSystemTester::BeginPlay()
 
 	if (bAutoRunTests)
 	{
-		// µô·¹ÀÌ ÈÄ Å×½ºÆ® ½ÇÇà
+		// ë”œë ˆì´ í›„ í…ŒìŠ¤íŠ¸ ì‹¤í–‰
 		GetWorld()->GetTimerManager().SetTimer(
 			TestTimerHandle,
 			this,
@@ -56,7 +56,7 @@ void ACC_CubeSystemTester::RunAllTests()
 		return;
 	}
 
-	// 8°¡Áö Å×½ºÆ® ½ÇÇà
+	// 8ê°€ì§€ í…ŒìŠ¤íŠ¸ ì‹¤í–‰
 	Test_ManagerInitialization();
 	Test_GridGeneration();
 	Test_CubeSpawning();
@@ -66,7 +66,7 @@ void ACC_CubeSystemTester::RunAllTests()
 	Test_CubeTransition();
 	Test_ActorManagement();
 
-	// ¸®Æ÷Æ® Ãâ·Â
+	// ë¦¬í¬íŠ¸ ì¶œë ¥
 	PrintTestReport();
 }
 
@@ -153,7 +153,7 @@ bool ACC_CubeSystemTester::Test_CubeSpawning()
         return false;
     }
 
-    // Áß¾Ó Å¥ºê°¡ SpawnµÇ¾ú´ÂÁö È®ÀÎ
+    // ì¤‘ì•™ íë¸Œê°€ Spawnë˜ì—ˆëŠ”ì§€ í™•ì¸
     ACC_Cube* CentralCube = CubeManager->FindCube(FIntPoint(1, 1));
     bool bPassed = (CentralCube != nullptr);
 
@@ -173,7 +173,7 @@ bool ACC_CubeSystemTester::Test_FreezeSystem()
         return false;
     }
 
-    // Å×½ºÆ® Å¥ºê »ý¼º
+    // í…ŒìŠ¤íŠ¸ íë¸Œ ìƒì„±
     ACC_Cube* TestCube = CubeManager->FindOrSpawnCube(FIntPoint(0, 0));
     if (!TestCube)
     {
@@ -181,7 +181,7 @@ bool ACC_CubeSystemTester::Test_FreezeSystem()
         return false;
     }
 
-    // Freeze Å×½ºÆ®
+    // Freeze í…ŒìŠ¤íŠ¸
     TestCube->Unfreeze();
     bool bActiveState = (TestCube->CubeState == ECubeLifeState::Active);
 
@@ -212,7 +212,7 @@ bool ACC_CubeSystemTester::Test_BoundaryDetection()
         return false;
     }
 
-    // °æ°è Æ®¸®°Å È®ÀÎ
+    // ê²½ê³„ íŠ¸ë¦¬ê±° í™•ì¸
     int32 ExpectedTriggers = 4; // Right, Left, Up, Down
     int32 ActualTriggers = TestCube->BoundaryTriggers.Num();
 
@@ -232,8 +232,8 @@ bool ACC_CubeSystemTester::Test_CoordinateWrapping()
         return false;
     }
 
-    // ¼øÈ¯ °è»ê Å×½ºÆ®
-    FIntPoint TestCoord(2, 2); // ¿À¸¥ÂÊ ÇÏ´Ü
+    // ìˆœí™˜ ê³„ì‚° í…ŒìŠ¤íŠ¸
+    FIntPoint TestCoord(2, 2); // ì˜¤ë¥¸ìª½ í•˜ë‹¨
 
     FIntPoint RightWrap = CubeManager->GetNextCubeCoord(TestCoord, EBoundaryDirection::Right);
     FIntPoint DownWrap = CubeManager->GetNextCubeCoord(TestCoord, EBoundaryDirection::Down);
@@ -258,10 +258,10 @@ bool ACC_CubeSystemTester::Test_CubeTransition()
         return false;
     }
 
-    // ÀüÈ¯ Àü »óÅÂ ÀúÀå
+    // ì „í™˜ ì „ ìƒíƒœ ì €ìž¥
     FIntPoint BeforeCoord = CubeManager->CurrentCubeCoord;
 
-    // ÀüÈ¯ ½Ã¹Ä·¹ÀÌ¼Ç (½ÇÁ¦·Ð ¾È ÇÔ - Å×½ºÆ®¿ë)
+    // ì „í™˜ ì‹œë®¬ë ˆì´ì…˜ (ì‹¤ì œë¡  ì•ˆ í•¨ - í…ŒìŠ¤íŠ¸ìš©)
     FIntPoint SimulatedNext = CubeManager->GetNextCubeCoord(BeforeCoord, EBoundaryDirection::Right);
 
     bool bPassed = (SimulatedNext != BeforeCoord);
@@ -287,18 +287,18 @@ bool ACC_CubeSystemTester::Test_ActorManagement()
         return false;
     }
 
-    // Å×½ºÆ® Actor »ý¼º
+    // í…ŒìŠ¤íŠ¸ Actor ìƒì„±
     AActor* TestActor = GetWorld()->SpawnActor<AActor>(AActor::StaticClass(), TestCube->GetCubeCenter(), FRotator::ZeroRotator);
 
-    // µî·Ï
+    // ë“±ë¡
     TestCube->RegisterActor(TestActor);
     bool bRegistered = TestCube->ManagedActors.Contains(TestActor);
 
-    // ÇØÁ¦
+    // í•´ì œ
     TestCube->UnregisterActor(TestActor);
     bool bUnregistered = !TestCube->ManagedActors.Contains(TestActor);
 
-    // Á¤¸®
+    // ì •ë¦¬
     if (TestActor)
     {
         TestActor->Destroy();

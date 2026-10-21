@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+ï»¿// Fill out your copyright notice in the Description page of Project Settings.
 
 
 #include "CC_TileManager.h"
@@ -162,7 +162,7 @@ void ACC_TileManager::UpdatePlayerPosition(const FVector& PlayerPosition)
 
 FVector ACC_TileManager::HandleWrapAround(const FVector& PlayerPosition, int32 FromTileIndex, int32 ToTileIndex)
 {
-	// ¼øÈ¯ ÀÌµ¿ÀÌ ÇÊ¿äÇÑÁö È®ÀÎ
+	// ìˆœí™˜ ì´ë™ì´ í•„ìš”í•œì§€ í™•ì¸
 	int32 FromRow, FromCol, ToRow, ToCol;
 	IndexToRowCol(FromTileIndex, FromRow, FromCol);
 	IndexToRowCol(ToTileIndex, ToRow, ToCol);
@@ -173,30 +173,30 @@ FVector ACC_TileManager::HandleWrapAround(const FVector& PlayerPosition, int32 F
 	UE_LOG(LogTemp, Warning, TEXT("[TileManager] HandleWrapAround: From Tile %d (Row %d, Col %d) -> To Tile %d (Row %d, Col %d)"),
 		FromTileIndex, FromRow, FromCol, ToTileIndex, ToRow, ToCol);
 
-	// ÁÂ¿ì ¼øÈ¯ (0¿­ ¡ê 2¿­)
+	// ì¢Œìš° ìˆœí™˜ (0ì—´ â†” 2ì—´)
 	if (FromCol == 0 && ToCol == 2)
 	{
-		// ¿ŞÂÊ ¡æ ¿À¸¥ÂÊ
+		// ì™¼ìª½ â†’ ì˜¤ë¥¸ìª½
 		NewPosition.Y += TileSize * 3;
 		bWrapped = true;
 	}
 	else if (FromCol == 2 && ToCol == 0)
 	{
-		// ¿À¸¥ÂÊ ¡æ ¿ŞÂÊ
+		// ì˜¤ë¥¸ìª½ â†’ ì™¼ìª½
 		NewPosition.Y -= TileSize * 3;
 		bWrapped = true;
 	}
 
-	// »óÇÏ ¼øÈ¯ (0Çà ¡ê 2Çà)
+	// ìƒí•˜ ìˆœí™˜ (0í–‰ â†” 2í–‰)
 	if (FromRow == 0 && ToRow == 2)
 	{
-		// À§ ¡æ ¾Æ·¡
+		// ìœ„ â†’ ì•„ë˜
 		NewPosition.X += TileSize * 3;
 		bWrapped = true;
 	}
 	else if (FromRow == 2 && ToRow == 0)
 	{
-		// ¾Æ·¡ ¡æ À§
+		// ì•„ë˜ â†’ ìœ„
 		NewPosition.X -= TileSize * 3;
 		bWrapped = true;
 	}
@@ -219,27 +219,27 @@ bool ACC_TileManager::IsPositionOnTileBoundary(const FVector& Position, int32 Ti
 	FVector Min = Bounds.Min;
 	FVector Max = Bounds.Max;
 
-	const float Threshold = 50.0f; // °æ°è ÀÓ°è°ª
+	const float Threshold = 50.0f; // ê²½ê³„ ì„ê³„ê°’
 
-	// °¢ °æ°è Ã¼Å©
+	// ê° ê²½ê³„ ì²´í¬
 	if (FMath::Abs(Position.X - Min.X) < Threshold)
 	{
-		OutDirection = FVector(-1, 0, 0); // ¿ŞÂÊ
+		OutDirection = FVector(-1, 0, 0); // ì™¼ìª½
 		return true;
 	}
 	if (FMath::Abs(Position.X - Max.X) < Threshold)
 	{
-		OutDirection = FVector(1, 0, 0); // ¿À¸¥ÂÊ
+		OutDirection = FVector(1, 0, 0); // ì˜¤ë¥¸ìª½
 		return true;
 	}
 	if (FMath::Abs(Position.Y - Min.Y) < Threshold)
 	{
-		OutDirection = FVector(0, -1, 0); // ¾Æ·¡
+		OutDirection = FVector(0, -1, 0); // ì•„ë˜
 		return true;
 	}
 	if (FMath::Abs(Position.Y - Max.Y) < Threshold)
 	{
-		OutDirection = FVector(0, 1, 0); // À§
+		OutDirection = FVector(0, 1, 0); // ìœ„
 		return true;
 	}
 

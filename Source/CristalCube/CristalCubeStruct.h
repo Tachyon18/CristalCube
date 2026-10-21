@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
@@ -152,35 +152,10 @@ public:
     int32 Weight;                   // ���� Ȯ�� ����ġ
 };
 
-//==============================================================================
-// WEAPON SYSTEM STRUCTS
-//==============================================================================
-
-// Weapon Categories
-UENUM(BlueprintType)
-enum class EWeaponCategory : uint8
-{
-    None        UMETA(DisplayName = "None"),
-    Melee       UMETA(DisplayName = "Melee"),        
-    Ranged      UMETA(DisplayName = "Ranged"),       
-    Magic       UMETA(DisplayName = "Magic")         
-};
-
-// Weapon Target Types
-UENUM(BlueprintType)
-enum class ETargetingMode : uint8
-{
-	None       UMETA(DisplayName = "No Targeting"),
-    Single     UMETA(DisplayName = "Single Target"),
-    Multi      UMETA(DisplayName = "Multi Target"),
-    Area       UMETA(DisplayName = "Area(All in Range)"),
-    Self       UMETA(DisplayName = "Self")
-};
-
-
 //------------------------------------------------------------------------------
 // Element Types - 원소 속성
 //------------------------------------------------------------------------------
+
 UENUM(BlueprintType)
 enum class ESkillElementType : uint8
 {
@@ -226,11 +201,11 @@ struct FElementGreenData
 {
     GENERATED_BODY()
 
-    // 1.2 = 받는 피해 20% 증가 — UCC_SkillSystem::ApplyDamage()에서 조회
+    // 1.2 = +20% incoming damage. Read in ACC_EnemyBase::TakeDamage()
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     float IncomingDamageMultiplier = 1.2f;
 
-    // 0.8 = 가하는 공격력 20% 감소 — Enemy 공격 판정 시점에 자기 자신을 조회
+    // 0.8 = -20% outgoing damage. Read in ACC_EnemyBase::GetEffectiveAttackDamage()
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     float OutgoingDamageMultiplier = 0.8f;
 
@@ -334,6 +309,22 @@ struct FRainfallCoreData
     // 착지 경고 이펙트 (NS_Rainfall_Warning)
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rainfall")
     UNiagaraSystem* WarningEffect = nullptr;
+
+    // 낙하체 판정 구체 반경(cm)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rainfall|Fall", meta = (ClampMin = "1.0"))
+    float CollisionRadius = 20.0f;
+
+    // 낙하 시작 속도(cm/s, 아래 방향)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rainfall|Fall", meta = (ClampMin = "0.0"))
+    float FallInitialSpeed = 600.0f;
+
+    // 낙하 최고 속도(cm/s). 0이면 제한 없음
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rainfall|Fall", meta = (ClampMin = "0.0"))
+    float FallMaxSpeed = 2000.0f;
+
+    // 중력 배율 — 0이면 등속 낙하
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rainfall|Fall", meta = (ClampMin = "0.0"))
+    float FallGravityScale = 2.5f;
 };
 
 //------------------------------------------------------------------------------
@@ -377,6 +368,13 @@ struct FExplosionAddonData
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|Explosion",
         meta = (ClampMin = "0.0", ClampMax = "1.0"))
     float MinDamageRatio = 0.5f;
+
+    // Fraction of Radius that takes max (100%) damage. 0.5 = inner half of the explosion.
+    // Ratio (not cm) so the falloff shape stays the same for any explosion size / Radius upgrade.
+    // 0 = falloff starts at the center, 1 = whole radius takes max damage.
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|Explosion",
+        meta = (ClampMin = "0.0", ClampMax = "1.0"))
+    float MaxDamageRadiusRatio = 0.0f;
 
     // 폭발 전용 VFX — SkillDefinition에서 분리, 폭발 Addon이 책임짐
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|Explosion")
@@ -556,14 +554,21 @@ struct FElementalApplyAddonData
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|ElementalApply")
     UNiagaraSystem* ApplyEffect = nullptr;
 
-    // NOTE: "부여된 원소가 걸려있는 동안 정확히 무슨 효과를 내는가"(Fire=지속 화상? Ice=둔화?
-    // Lightning=주기적 감전?)는 원소별로 성격이 전부 달라서 여기서 수치화하지 않음.
-    // UCC_ElementalStatusComponent::TickComponent() 안에 원소별 분기 지점을 비워두고,
-    // 각 원소 컨셉이 확정되는 대로 하나씩 채워나가는 구조로 설계함.
+    // Per-color effect values. Only the block matching Skill.ElementType is used.
+    // Red is a one-shot proc computed in the addon; Blue/Green are passed to
+    // UCC_ElementalStatusComponent::ApplyElementWithData() and stored per status.
     
     // Red 전용 — 속성 부여 시점에 즉시 추가되는 데미지(다른 색엔 사용 안 함)
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|ElementalApply|Red")
     FElementRedData RedData;
+
+    // Blue only - move/attack tempo multipliers (0.1 ~ 1.0, lower = stronger)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|ElementalApply|Blue")
+    FElementBlueData BlueData;
+
+    // Green only - incoming (>= 1.0) / outgoing (0.1 ~ 1.0) damage multipliers
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|ElementalApply|Green")
+    FElementGreenData GreenData;
 };
 
 USTRUCT(BlueprintType)
@@ -675,6 +680,14 @@ struct FActiveElementalStatus
     // 부여 중 지속 재생되는 VFX (오라 등) — DoT의 ActiveVFXComponent와 동일한 Attach/수명 패턴
     UPROPERTY()
     TWeakObjectPtr<UNiagaraComponent> ActiveVFXComponent;
+
+    // Effect values captured at apply time (addon data or component default).
+    // Re-applying the same element keeps the stronger value - see ApplyElementWithData().
+    UPROPERTY()
+    FElementBlueData BlueData;
+
+    UPROPERTY()
+    FElementGreenData GreenData;
 };
 
 USTRUCT()
@@ -862,6 +875,17 @@ struct FSkillDefinition
     // null이면 SkillSystem의 기본 SkillEffectorClass로 폴백.
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Core")
     TSubclassOf<class ACC_SkillEffector> ProjectileClass;
+
+    // Projectile Core 전용 — 판정 구체가 실제로 나아가는 속도(cm/s). Passives.SpeedMultiplier가 곱해짐.
+    // 나이아가라에는 User.ProjectileSpeed로 전달(트레일 길이 등 연출 보정용, 헤드 이동용 아님).
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Core",
+        meta = (EditCondition = "CoreType == ESkillCoreType::Projectile", EditConditionHides, ClampMin = "0.0"))
+    float ProjectileSpeed = 1000.0f;
+
+    // Projectile Core 전용 — 판정 구체 반경(cm). CC.ShowSkillCollision 1로 실제 크기 확인.
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Core",
+        meta = (EditCondition = "CoreType == ESkillCoreType::Projectile", EditConditionHides, ClampMin = "1.0"))
+    float ProjectileCollisionRadius = 25.0f;
 
     // Rainfall Core 전용 데이터
     // EditCondition으로 Rainfall일 때만 에디터에 노출
@@ -1158,108 +1182,6 @@ struct FLevelUpCandidate
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LevelUp|UI")
     UTexture2D* Icon = nullptr;
-};
-
-// Base Weapon Stats Data
-USTRUCT(BlueprintType)
-struct CRISTALCUBE_API FCristalCubeWeaponStats
-{
-    GENERATED_BODY()
-
-public:
-    //FCristalCubeWeaponStats();
-
-    // Basic Properties
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Basic")
-    EWeaponCategory WeaponCategory;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Basic")
-    FString WeaponName;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Basic")
-    float BaseDamage;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Basic")
-    float AttackSpeed;
-
-    FCristalCubeWeaponStats()
-        : WeaponCategory(EWeaponCategory::None)
-        , BaseDamage(10.0f)
-        , AttackSpeed(1.0f)
-    {
-        // Default weapon stats
-        // - BaseDamage: 10 damage per hit
-        // - AttackSpeed: 1 attack per second
-    }
-};
-
-// Melee Weapon Specific Stats
-USTRUCT(BlueprintType)
-struct CRISTALCUBE_API FCristalCubeMeleeStats
-{
-    GENERATED_BODY()
-
-public:
-    //FCristalCubeMeleeStats();
-
-    // Melee-specific stats (3-4 key stats)
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Melee")
-    float AttackRange;          // ���� ����
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Melee")
-    float SwingAngle;           // �ֵθ��� ���� (��)
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Melee")
-    int32 ComboCount;           // ���� ���� Ƚ��
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Melee")
-    float KnockbackForce;       // �˹� ����
-};
-
-// Ranged Weapon Specific Stats  
-USTRUCT(BlueprintType)
-struct CRISTALCUBE_API FCristalCubeRangedStats
-{
-    GENERATED_BODY()
-
-public:
-    //FCristalCubeRangedStats();
-
-    // Ranged-specific stats (3-4 key stats)
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ranged")
-    float ProjectileSpeed;      // ����ü �ӵ�
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ranged")
-    float MaxRange;             // �ִ� ��Ÿ�
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ranged")
-    int32 ProjectileCount;      // ���� �߻� ����
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ranged")
-    float Accuracy;             // ��Ȯ�� (0.0~1.0)
-};
-
-// Magic Weapon Specific Stats
-USTRUCT(BlueprintType)
-struct CRISTALCUBE_API FCristalCubeMagicStats
-{
-    GENERATED_BODY()
-
-public:
-    //FCristalCubeMagicStats();
-
-    // Magic-specific stats (3-4 key stats)
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Magic")
-    float CastTime;             // ��â �ð�
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Magic")
-    float EffectRadius;         // ���� ȿ�� ����
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Magic")
-    float Duration;             // ���ӽð� (����/�������)
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Magic")
-    float ManaCost;             // ���� �Ҹ�
 };
 
 //==============================================================================

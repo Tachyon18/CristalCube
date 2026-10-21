@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+ï»¿// Fill out your copyright notice in the Description page of Project Settings.
 
 
 #include "CC_PlayerCharacter.h"
@@ -44,7 +44,7 @@ ACC_PlayerCharacter::ACC_PlayerCharacter()
 
 	if (UCapsuleComponent* Capsule = GetCapsuleComponent())
 	{
-		FCC_CollisionHelper::ConfigureAsSkillHittable(GetCapsuleComponent());
+		FCC_CollisionHelper::ConfigureAsPlayerHitbox(GetCapsuleComponent());
 	}
 
 	// Initialize player stats (all start at 1.0 = no bonus)
@@ -80,6 +80,9 @@ ACC_PlayerCharacter::ACC_PlayerCharacter()
 void ACC_PlayerCharacter::BeginPlay()
 {
 	Super::BeginPlay();
+
+	// BP Collision Presetsê°€ ìƒì„±ì ì„¤ì •ì„ ë®ì–´ì¨ë„ ëŸ°íƒ€ì„ì— ì—­í•  ì½œë¦¬ì „ ë³´ì¥
+	FCC_CollisionHelper::ConfigureAsPlayerHitbox(GetCapsuleComponent());
 
 	CC_LOG_PLAYER(Warning, "PlayerCharacter BeginPlay completed - Input handled by PlayerController");
 	CC_LOG_PLAYER(Warning, "Camera Distance: %.1f, Angle: %.1f",
@@ -132,7 +135,7 @@ void ACC_PlayerCharacter::ApplyStatUpgrade(EUpgradeType Type, float Value)
 {
 	switch (Type)
 	{
-		// ¦¡¦¡ BasicStats ¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡
+		// â”€â”€ BasicStats â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 	case EUpgradeType::Damage:
 		PlayerStats.BasicStats.DamageMultiplier += Value;
 		break;
@@ -149,7 +152,7 @@ void ACC_PlayerCharacter::ApplyStatUpgrade(EUpgradeType Type, float Value)
 		PlayerStats.BasicStats.HealthMultiplier += Value;
 		break;
 
-		// ¦¡¦¡ AdvancedStats (EUpgradeType È®Àå ÈÄ È°¼ºÈ­) ¦¡¦¡¦¡¦¡¦¡¦¡¦¡
+		// â”€â”€ AdvancedStats (EUpgradeType í™•ì¥ í›„ í™œì„±í™”) â”€â”€â”€â”€â”€â”€â”€
 		// case EUpgradeType::CritChance:
 		//     PlayerStats.AdvancedStats.CriticalChance += Value;
 		//     break;
@@ -158,12 +161,12 @@ void ACC_PlayerCharacter::ApplyStatUpgrade(EUpgradeType Type, float Value)
 		UE_LOG(LogTemp, Warning,
 			TEXT("[Stats] ApplyStatUpgrade: Unhandled EUpgradeType(%d)"),
 			static_cast<int32>(Type));
-		return;  // ¾Ë ¼ö ¾ø´Â Å¸ÀÔ ¡æ Àû¿ë ¾øÀÌ ¸®ÅÏ
+		return;  // ì•Œ ìˆ˜ ì—†ëŠ” íƒ€ì… â†’ ì ìš© ì—†ì´ ë¦¬í„´
 	}
 
 	UE_LOG(LogTemp, Log, TEXT("[Stats] Upgraded %d by %.3f"), static_cast<int32>(Type), Value);
 
-	// º¯°æµÈ ½ºÅÈ¸¸ UE ½Ã½ºÅÛ¿¡ ¹İ¿µ
+	// ë³€ê²½ëœ ìŠ¤íƒ¯ë§Œ UE ì‹œìŠ¤í…œì— ë°˜ì˜
 	RefreshStats();
 }
 
@@ -178,14 +181,14 @@ void ACC_PlayerCharacter::ApplyStatOverride(const FCristalCubePlayerStats& InSta
 
 void ACC_PlayerCharacter::RefreshStats()
 {
-	// ¦¡¦¡ ÀÌµ¿¼Óµµ ¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡
+	// â”€â”€ ì´ë™ì†ë„ â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 	if (UCharacterMovementComponent* Movement = GetCharacterMovement())
 	{
 		float FinalSpeed = BaseMoveSpeed * PlayerStats.BasicStats.MoveSpeedMultiplier;
 		Movement->MaxWalkSpeed = FinalSpeed;
 	}
 
-	// ¦¡¦¡ Ã¼·Â »óÇÑ ¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡
+	// â”€â”€ ì²´ë ¥ ìƒí•œ â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 	float NewMaxHealth = BaseMaxHealth * PlayerStats.BasicStats.HealthMultiplier;
 
 	if (FMath::IsNearlyEqual(CurrentHealth, MaxHealth))
@@ -225,7 +228,7 @@ void ACC_PlayerCharacter::TestProjectileSkill()
 		return;
 	}
 
-	// °£´ÜÇÑ Å×½ºÆ® ½ºÅ³ (VFX ¾øÀ½)
+	// ê°„ë‹¨í•œ í…ŒìŠ¤íŠ¸ ìŠ¤í‚¬ (VFX ì—†ìŒ)
 	FSkillDefinition TestSkill;
 	TestSkill.SkillID = FName("TestProj");
 	TestSkill.CoreType = ESkillCoreType::Projectile;
@@ -233,16 +236,16 @@ void ACC_PlayerCharacter::TestProjectileSkill()
 	TestSkill.Range = 2000.0f;
 	TestSkill.Passives.ProjectileCount = 1;
 
-	// Addon Å×½ºÆ®
+	// Addon í…ŒìŠ¤íŠ¸
 	TestSkill.bMultiShot = true;
 	TestSkill.bCanPenetrate = true;
 	TestSkill.Passives.PierceData.PierceCount = 3;
 
-	// VFX´Â nullptr·Î (¾ÈÀü)
+	// VFXëŠ” nullptrë¡œ (ì•ˆì „)
 	TestSkill.SkillEffect = nullptr;
 	TestSkill.ImpactEffect = nullptr;
 
-	// ¸¶¿ì½º ¹æÇâÀ¸·Î ¹ß»ç
+	// ë§ˆìš°ìŠ¤ ë°©í–¥ìœ¼ë¡œ ë°œì‚¬
 	FVector TargetLocation = GetActorLocation() + GetActorForwardVector() * 1000.0f;
 	SkillSystem->ExecuteSkill(TestSkill, TargetLocation);
 
@@ -258,7 +261,7 @@ void ACC_PlayerCharacter::CastFireball()
 
 	UE_LOG(LogTemp, Warning, TEXT("[Test] Casting Fireball!"));
 
-	// È­¿°±¸: Åõ»çÃ¼ + Æø¹ß
+	// í™”ì—¼êµ¬: íˆ¬ì‚¬ì²´ + í­ë°œ
 	FSkillDefinition Fireball;
 	Fireball.SkillID = FName("Fireball");
 	Fireball.DisplayName = FText::FromString("Fireball");
@@ -267,14 +270,14 @@ void ACC_PlayerCharacter::CastFireball()
 	Fireball.Range = 2000.0f;
 	Fireball.Cooldown = 1.5f;
 
-	// Æø¹ß È¿°ú
+	// í­ë°œ íš¨ê³¼
 	UCC_ExplosionAddon* FireballExplosion = NewObject<UCC_ExplosionAddon>(this);
 	TestAddonInstances.Add(FireballExplosion);
 	Fireball.Addons.Add(FireballExplosion);
-	Fireball.Passives.SizeMultiplier = 1.5f;  // Æø¹ß ¹üÀ§ Áõ°¡
+	Fireball.Passives.SizeMultiplier = 1.5f;  // í­ë°œ ë²”ìœ„ ì¦ê°€
 	Fireball.Passives.ProjectileCount = 1;
 
-	// ¿ø¼Ò: È­¿°
+	// ì›ì†Œ: í™”ì—¼
 	Fireball.ElementType = ESkillElementType::Red;
 
 	FVector TargetLocation = GetActorLocation() + GetActorForwardVector() * 1000.0f;
@@ -290,7 +293,7 @@ void ACC_PlayerCharacter::CastLightningBolt()
 		return;
 	}
 
-	// ¹ø°³: Áï¹ß + ¿¬¼â
+	// ë²ˆê°œ: ì¦‰ë°œ + ì—°ì‡„
 	FSkillDefinition Lightning;
 	Lightning.SkillID = FName("Lightning");
 	Lightning.DisplayName = FText::FromString("Lightning Bolt");
@@ -304,14 +307,13 @@ void ACC_PlayerCharacter::CastLightningBolt()
 		Lightning.ImpactEffect = TestLightningEffect;
 	}
 
-	// ¿¬¼â È¿°ú (ÃÖ´ë 4¹ø)
+	// ì—°ì‡„ íš¨ê³¼ (ìµœëŒ€ 4ë²ˆ)
 	UCC_ChainAddon* LightningChain = NewObject<UCC_ChainAddon>(this);
 	LightningChain->Data.ChainCount = 4;
 	TestAddonInstances.Add(LightningChain);
 	Lightning.Addons.Add(LightningChain);
-	Lightning.Passives.ChainData.ChainCount = 4;
 
-	// ¿ø¼Ò: ¹ø°³
+	// ì›ì†Œ: ë²ˆê°œ
 	Lightning.ElementType = ESkillElementType::Red;
 
 	FVector TargetLocation = GetActorLocation() + GetActorForwardVector() * 1000.0f;
@@ -327,7 +329,7 @@ void ACC_PlayerCharacter::CastIceShard()
 		return;
 	}
 
-	// ¾óÀ½ ÆÄÆí: Åõ»çÃ¼ + ¸ÖÆ¼¼¦
+	// ì–¼ìŒ íŒŒí¸: íˆ¬ì‚¬ì²´ + ë©€í‹°ìƒ·
 	FSkillDefinition IceShard;
 	IceShard.SkillID = FName("IceShard");
 	IceShard.DisplayName = FText::FromString("Ice Shard");
@@ -336,12 +338,12 @@ void ACC_PlayerCharacter::CastIceShard()
 	IceShard.Range = 1800.0f;
 	IceShard.Cooldown = 0.5f;
 
-	// ¸ÖÆ¼¼¦ (3¹ß ¡æ 5¹ß)
+	// ë©€í‹°ìƒ· (3ë°œ â†’ 5ë°œ)
 	IceShard.bMultiShot = true;
 	IceShard.Passives.ProjectileCount = 3;
 	IceShard.Passives.SpeedMultiplier = 1.2f;
 
-	// ¿ø¼Ò: ¾óÀ½
+	// ì›ì†Œ: ì–¼ìŒ
 	IceShard.ElementType = ESkillElementType::Blue;
 
 	FVector TargetLocation = GetActorLocation() + GetActorForwardVector() * 1000.0f;
@@ -357,22 +359,22 @@ void ACC_PlayerCharacter::CastPoisonNova()
 		return;
 	}
 
-	// µ¶ Æø¹ß: ¹üÀ§ °ø°İ
+	// ë… í­ë°œ: ë²”ìœ„ ê³µê²©
 	FSkillDefinition PoisonNova;
 	PoisonNova.SkillID = FName("PoisonNova");
 	PoisonNova.DisplayName = FText::FromString("Poison Nova");
 	PoisonNova.CoreType = ESkillCoreType::Area;
 	PoisonNova.BaseDamage = 30.0f;
-	PoisonNova.Range = 400.0f;  // ¹İ°æ
+	PoisonNova.Range = 400.0f;  // ë°˜ê²½
 	PoisonNova.Cooldown = 3.0f;
 
-	// ¹üÀ§ Áõ°¡
+	// ë²”ìœ„ ì¦ê°€
 	PoisonNova.Passives.SizeMultiplier = 2.0f;
 
-	// ¿ø¼Ò: µ¶
+	// ì›ì†Œ: ë…
 	PoisonNova.ElementType = ESkillElementType::Red;
 
-	// ÇÃ·¹ÀÌ¾î À§Ä¡¿¡¼­ ¹ßµ¿
+	// í”Œë ˆì´ì–´ ìœ„ì¹˜ì—ì„œ ë°œë™
 	FVector TargetLocation = GetActorLocation();
 	SkillSystem->ExecuteSkill(PoisonNova, TargetLocation);
 
@@ -386,7 +388,7 @@ void ACC_PlayerCharacter::CastPiercingArrow()
 		return;
 	}
 
-	// °üÅë È­»ì: Åõ»çÃ¼ + °üÅë
+	// ê´€í†µ í™”ì‚´: íˆ¬ì‚¬ì²´ + ê´€í†µ
 	FSkillDefinition Arrow;
 	Arrow.SkillID = FName("PiercingArrow");
 	Arrow.DisplayName = FText::FromString("Piercing Arrow");
@@ -395,12 +397,12 @@ void ACC_PlayerCharacter::CastPiercingArrow()
 	Arrow.Range = 2500.0f;
 	Arrow.Cooldown = 1.0f;
 
-	// °üÅë (5¸í)
+	// ê´€í†µ (5ëª…)
 	Arrow.bCanPenetrate = true;
 	Arrow.Passives.PierceData.PierceCount = 5;
 	Arrow.Passives.SpeedMultiplier = 1.5f;
 
-	// ¿ø¼Ò: ¹°¸®
+	// ì›ì†Œ: ë¬¼ë¦¬
 	Arrow.ElementType = ESkillElementType::Black;
 
 	FVector TargetLocation = GetActorLocation() + GetActorForwardVector() * 1000.0f;
@@ -435,10 +437,8 @@ void ACC_PlayerCharacter::CastThunderStrike()
 	ThunderExplosion->Data.MinDamageRatio = 0.5f;
 	TestAddonInstances.Add(ThunderExplosion);
 	ThunderStrike.Addons.Add(ThunderExplosion);
-	ThunderStrike.Passives.ExplosionData.Radius = 350.0f;
-	ThunderStrike.Passives.ExplosionData.MinDamageRatio = 0.5f;
 
-	// ¼Ó¼º: ¹ø°³
+	// ì†ì„±: ë²ˆê°œ
 	ThunderStrike.ElementType = ESkillElementType::Red;
 
 	FVector TargetLocation = GetActorLocation() + GetActorForwardVector() * 1000.0f;
@@ -455,7 +455,7 @@ void ACC_PlayerCharacter::StartVectorLaser()
 		return;
 	}
 
-	// ¸¶¿ì½º Ä¿¼­ À§Ä¡¸¦ ¿ùµå ÁÂÇ¥·Î º¯È¯
+	// ë§ˆìš°ìŠ¤ ì»¤ì„œ ìœ„ì¹˜ë¥¼ ì›”ë“œ ì¢Œí‘œë¡œ ë³€í™˜
 	FHitResult HitResult;
 	PC->GetHitResultUnderCursor(ECC_Visibility, false, HitResult);
 
@@ -464,7 +464,7 @@ void ACC_PlayerCharacter::StartVectorLaser()
 		LaserStartPoint = HitResult.ImpactPoint;
 		bIsChargingLaser = true;
 
-		// ½ÃÀÛÁ¡ ½Ã°¢ ÇÇµå¹é
+		// ì‹œì‘ì  ì‹œê° í”¼ë“œë°±
 		if (GetWorld())
 		{
 			DrawDebugSphere(
@@ -497,7 +497,7 @@ void ACC_PlayerCharacter::ReleaseVectorLaser()
 		return;
 	}
 
-	// ¸¶¿ì½º ¸±¸®Áî À§Ä¡
+	// ë§ˆìš°ìŠ¤ ë¦´ë¦¬ì¦ˆ ìœ„ì¹˜
 	FHitResult HitResult;
 	PC->GetHitResultUnderCursor(ECC_Visibility, false, HitResult);
 
@@ -505,7 +505,7 @@ void ACC_PlayerCharacter::ReleaseVectorLaser()
 	{
 		FVector LaserEndPoint = HitResult.ImpactPoint;
 
-		// º¤ÅÍ ·¹ÀÌÀú: Beam Core
+		// ë²¡í„° ë ˆì´ì €: Beam Core
 		FSkillDefinition VectorLaser;
 		VectorLaser.SkillID = FName("VectorLaser");
 		VectorLaser.DisplayName = FText::FromString("Vector Laser");
@@ -514,14 +514,14 @@ void ACC_PlayerCharacter::ReleaseVectorLaser()
 		VectorLaser.Range = 3000.0f;
 		VectorLaser.Cooldown = 2.0f;
 
-		// °üÅë Ãß°¡
+		// ê´€í†µ ì¶”ê°€
 		VectorLaser.bCanPenetrate = true;
 		VectorLaser.Passives.PierceData.PierceCount = 10;
 
-		// ¿ø¼Ò: ¹ø°³
+		// ì›ì†Œ: ë²ˆê°œ
 		VectorLaser.ElementType = ESkillElementType::Red;
 
-		// Context ¼³Á¤ (½ÃÀÛÁ¡ ¡æ ³¡Á¡)
+		// Context ì„¤ì • (ì‹œì‘ì  â†’ ëì )
 		FSkillExecutionContext Context;
 		Context.Caster = this;
 		Context.StartLocation = LaserStartPoint;
@@ -529,7 +529,7 @@ void ACC_PlayerCharacter::ReleaseVectorLaser()
 		Context.Direction = (LaserEndPoint - LaserStartPoint).GetSafeNormal();
 		Context.CurrentDamage = VectorLaser.BaseDamage;
 
-		// ½ÇÇà!
+		// ì‹¤í–‰!
 		SkillSystem->ExecuteSkill(VectorLaser, LaserEndPoint);
 
 		UE_LOG(LogTemp, Warning, TEXT("Vector Laser fired from %s to %s"),
@@ -696,8 +696,8 @@ void ACC_PlayerCharacter::OnLevelUpCandidateSelected(FLevelUpCandidate SelectedC
 
 	PendingLevelUpCount = FMath::Max(0, PendingLevelUpCount - 1);
 
-	// ÇöÀç À§Á¬À» ¸ÕÀú Á¤¸® ? ShowLevelUpUI()ÀÇ CurrentLevelUpUI °¡µå ¶§¹®¿¡
-	// Áö¿ìÁö ¾ÊÀ¸¸é ´ÙÀ½ ·¹º§¾÷ Ä«µå°¡ ¾È ¶á´Ù.
+	// í˜„ì¬ ìœ„ì ¯ì„ ë¨¼ì € ì •ë¦¬ ? ShowLevelUpUI()ì˜ CurrentLevelUpUI ê°€ë“œ ë•Œë¬¸ì—
+	// ì§€ìš°ì§€ ì•Šìœ¼ë©´ ë‹¤ìŒ ë ˆë²¨ì—… ì¹´ë“œê°€ ì•ˆ ëœ¬ë‹¤.
 	if (CurrentLevelUpUI)
 	{
 		CurrentLevelUpUI->RemoveFromParent();
@@ -706,7 +706,7 @@ void ACC_PlayerCharacter::OnLevelUpCandidateSelected(FLevelUpCandidate SelectedC
 
 	if (PendingLevelUpCount > 0)
 	{
-		// ¾ÆÁ÷ Ã³¸® ¾È µÈ ·¹º§¾÷ÀÌ ³²¾ÆÀÖÀ½ ? °ÔÀÓÀº °è¼Ó ¸ØÃá Ã¤·Î ´ÙÀ½ Ä«µå ¹Ù·Î Ç¥½Ã
+		// ì•„ì§ ì²˜ë¦¬ ì•ˆ ëœ ë ˆë²¨ì—…ì´ ë‚¨ì•„ìˆìŒ ? ê²Œì„ì€ ê³„ì† ë©ˆì¶˜ ì±„ë¡œ ë‹¤ìŒ ì¹´ë“œ ë°”ë¡œ í‘œì‹œ
 		ShowLevelUpUI();
 	}
 	else

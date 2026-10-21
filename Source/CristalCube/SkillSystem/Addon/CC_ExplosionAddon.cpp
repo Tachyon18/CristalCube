@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 
 #include "CC_ExplosionAddon.h"
@@ -16,8 +16,14 @@ void UCC_ExplosionAddon::OnHit_Implementation(UCC_SkillSystem* SkillSystem, cons
     {
         if (!IsValidHitTarget(Enemy) || AlreadyExploded.Contains(Enemy)) continue;
 
-        float DistanceRatio = FMath::Clamp(FVector::Dist(HitLocation, Enemy->GetActorLocation()) / Data.Radius, 0.0f, 1.0f);
-        float DamageMultiplier = FMath::Lerp(1.0f, Data.MinDamageRatio, DistanceRatio);
+        // Max damage inside Radius * MaxDamageRadiusRatio, then linear falloff to MinDamageRatio at Radius
+        const float Dist = FVector::Dist(HitLocation, Enemy->GetActorLocation());
+        const float MaxRadius = Data.Radius * FMath::Clamp(Data.MaxDamageRadiusRatio, 0.0f, 1.0f);
+        const float FalloffRange = Data.Radius - MaxRadius;
+        const float DistanceRatio = (FalloffRange > KINDA_SMALL_NUMBER)
+            ? FMath::Clamp((Dist - MaxRadius) / FalloffRange, 0.0f, 1.0f)
+            : 0.0f;
+        const float DamageMultiplier = FMath::Lerp(1.0f, Data.MinDamageRatio, DistanceRatio);
         const float ActualDamage = Context.CurrentDamage * DamageMultiplier;
 
         SkillSystem->ApplyDamage(Enemy, ActualDamage, Context.Caster);
@@ -45,11 +51,15 @@ void UCC_ExplosionAddon::ApplyModifier_Implementation(FName AttributeID, float V
 {
     if (AttributeID == TEXT("ExplosionRadius"))
     {
-        Data.Radius += ValuePerPoint;
+        Data.Radius = FMath::Max(Data.Radius + ValuePerPoint, 0.0f);
     }
     else if (AttributeID == TEXT("ExplosionMinDamageRatio"))
     {
         Data.MinDamageRatio = FMath::Clamp(Data.MinDamageRatio + ValuePerPoint, 0.f, 1.f);
+    }
+    else if (AttributeID == TEXT("ExplosionMaxDamageRadiusRatio"))
+    {
+        Data.MaxDamageRadiusRatio = FMath::Clamp(Data.MaxDamageRadiusRatio + ValuePerPoint, 0.0f, 1.0f);
     }
     else
     {

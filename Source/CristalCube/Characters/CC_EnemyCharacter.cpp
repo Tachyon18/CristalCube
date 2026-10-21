@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+ï»¿// Fill out your copyright notice in the Description page of Project Settings.
 
 
 #include "CC_EnemyCharacter.h"
@@ -37,14 +37,14 @@ ACC_EnemyCharacter::ACC_EnemyCharacter()
 
 	if(UCapsuleComponent* Capsule = GetCapsuleComponent())
 	{
-		FCC_CollisionHelper::ConfigureAsSkillHittable(GetCapsuleComponent());
+		FCC_CollisionHelper::ConfigureAsEnemyHitbox(GetCapsuleComponent());
 	}
 
-	// ¦¡¦¡¦¡ RVO Avoidance: Enemy °£ ¼ÒÇÁÆ® ºĞ»ê ¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡
+	// â”€â”€â”€ RVO Avoidance: Enemy ê°„ ì†Œí”„íŠ¸ ë¶„ì‚° â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 	if (UCharacterMovementComponent* CMC = GetCharacterMovement())
 	{
 		CMC->bUseRVOAvoidance = true;
-		CMC->AvoidanceWeight = 0.5f;   // 0=È¸ÇÇ ¹«½Ã / 1=¿ÏÀü È¸ÇÇ
+		CMC->AvoidanceWeight = 0.5f;   // 0=íšŒí”¼ ë¬´ì‹œ / 1=ì™„ì „ íšŒí”¼
 		CMC->AvoidanceConsiderationRadius =
 			GetCapsuleComponent()->GetScaledCapsuleRadius() * 3.0f;
 	}
@@ -88,7 +88,7 @@ void ACC_EnemyCharacter::BeginPlay()
 	// Find player
 	FindPlayer();
 
-	// ¦¡¦¡¦¡ ¸ñÇ¥ ¿ÀÇÁ¼Â ÃÊ±âÈ­ (ÇÃ·¹ÀÌ¾î ÁÖº¯ ¿øÇü ¹èÄ¡) ¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡
+	// â”€â”€â”€ ëª©í‘œ ì˜¤í”„ì…‹ ì´ˆê¸°í™” (í”Œë ˆì´ì–´ ì£¼ë³€ ì›í˜• ë°°ì¹˜) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 	if (TargetOffsetRadius > 0.f)
 	{
 		const float Angle = FMath::FRandRange(0.f, 360.f);
@@ -125,7 +125,7 @@ void ACC_EnemyCharacter::BeginPlay()
 		SkeletalMesh->VisibilityBasedAnimTickOption =
 			EVisibilityBasedAnimTickOption::OnlyTickPoseWhenRendered;
 
-		// URO °Å¸®º° ÇÁ·¹ÀÓ ½ºÅµ ¸í½Ã (BP ¼³Á¤ µ¤¾î¾²±â ¹æÁö)
+		// URO ê±°ë¦¬ë³„ í”„ë ˆì„ ìŠ¤í‚µ ëª…ì‹œ (BP ì„¤ì • ë®ì–´ì“°ê¸° ë°©ì§€)
 		if (SkeletalMesh->AnimUpdateRateParams)
 		{
 			SkeletalMesh->AnimUpdateRateParams->bShouldUseLodMap = true;
@@ -190,7 +190,7 @@ void ACC_EnemyCharacter::Tick(float DeltaTime)
 		return;
 	}
 
-	// AILogicInterval¸¶´Ù MoveTarget °»½Å
+	// AILogicIntervalë§ˆë‹¤ MoveTarget ê°±ì‹ 
 	AILogicTimer += DeltaTime;
 	if (AILogicTimer >= AILogicInterval)
 	{
@@ -210,17 +210,17 @@ void ACC_EnemyCharacter::PerformMove(float DeltaTime)
 		break;
 
 	case EMovementBehavior::Step:
-		// Phase 3 ±¸Çö ¿¹Á¤
+		// Phase 3 êµ¬í˜„ ì˜ˆì •
 		PerformMove_Step(DeltaTime);
 		break;
 
 	case EMovementBehavior::Teleport:
-		// Phase 3 ±¸Çö ¿¹Á¤
+		// Phase 3 êµ¬í˜„ ì˜ˆì •
 		PerformMove_Teleport(DeltaTime);
 		break;
 
 	case EMovementBehavior::Waypoint:
-		// ÈÄ¼øÀ§ ±¸Çö ¿¹Á¤
+		// í›„ìˆœìœ„ êµ¬í˜„ ì˜ˆì •
 		PerformMove_Direct(DeltaTime);
 		break;
 	}
@@ -336,13 +336,13 @@ void ACC_EnemyCharacter::UpdateMoveTarget()
 
 	if (DistSq <= DetectionRange * DetectionRange)
 	{
-		// TargetOffset Æ÷ÇÔÇÑ ¸ñÀûÁö ¼³Á¤
+		// TargetOffset í¬í•¨í•œ ëª©ì ì§€ ì„¤ì •
 		MoveTarget = TargetPlayer->GetActorLocation() + TargetOffset;
 
-		// ÀÌµ¿ ¹æÇâ Ä³½Ã
+		// ì´ë™ ë°©í–¥ ìºì‹œ
 		CachedMoveDirection = (MoveTarget - GetActorLocation()).GetSafeNormal();
 
-		// °ø°İ ¹üÀ§ Ã¼Å© (AttackRangeSphere OverlapÀÌ ¾øÀ» °æ¿ì Æú¹é)
+		// ê³µê²© ë²”ìœ„ ì²´í¬ (AttackRangeSphere Overlapì´ ì—†ì„ ê²½ìš° í´ë°±)
 		const float AttackRangeSq = EnemyStats.AttackRange * EnemyStats.AttackRange;
 		if (DistSq <= AttackRangeSq && !bPlayerInRange)
 		{
@@ -388,7 +388,7 @@ bool ACC_EnemyCharacter::PerformAttackHit(const FAttackHitData& HitData, TArray<
 	{
 		case EAttackHitType::Point:
 		{
-			// ´ÜÀÏ Å¸°Ù¸¸
+			// ë‹¨ì¼ íƒ€ê²Ÿë§Œ
 			if (!TargetPlayer) return false;
 
 			float Distance = FVector::Dist(Start, TargetPlayer->GetActorLocation());
@@ -401,7 +401,7 @@ bool ACC_EnemyCharacter::PerformAttackHit(const FAttackHitData& HitData, TArray<
 
 		case EAttackHitType::Sphere:
 		{
-			// 360µµ ¿øÇü ¹üÀ§
+			// 360ë„ ì›í˜• ë²”ìœ„
 			TArray<FOverlapResult> Overlaps;
 			FCollisionQueryParams Params;
 			Params.AddIgnoredActor(this);
@@ -428,16 +428,16 @@ bool ACC_EnemyCharacter::PerformAttackHit(const FAttackHitData& HitData, TArray<
 
 		case EAttackHitType::Line:
 		{
-			// È¾º£±â: ÁÂ¿ì·Î ³Ğ°í Àü¹æÀ¸·Î ¾ãÀº Box
+			// íš¡ë² ê¸°: ì¢Œìš°ë¡œ ë„“ê³  ì „ë°©ìœ¼ë¡œ ì–‡ì€ Box
 			FVector HitStart = Start;
 			FVector HitEnd = Start + (Forward * HitData.Range);
 			FVector HitCenter = (HitStart + HitEnd) * 0.5f;
 
-			// Box Å©±â: X=¾ã°Ô, Y=³Ğ°Ô!
+			// Box í¬ê¸°: X=ì–‡ê²Œ, Y=ë„“ê²Œ!
 			FVector BoxExtent(
-				HitData.Thickness * 0.5f,  // Àü¹æ µÎ²² (¾ã°Ô)
-				HitData.Width * 1.f,      // ÁÂ¿ì Æø (³Ğ°Ô!)
-				HitData.Height * 0.5f      // »óÇÏ ³ôÀÌ
+				HitData.Thickness * 0.5f,  // ì „ë°© ë‘ê»˜ (ì–‡ê²Œ)
+				HitData.Width * 1.f,      // ì¢Œìš° í­ (ë„“ê²Œ!)
+				HitData.Height * 0.5f      // ìƒí•˜ ë†’ì´
 			);
 
 			TArray<FHitResult> HitResults;
@@ -467,7 +467,7 @@ bool ACC_EnemyCharacter::PerformAttackHit(const FAttackHitData& HitData, TArray<
 
 		case EAttackHitType::Box:
 		{
-			// Àü¹æ »ç°¢Çü
+			// ì „ë°© ì‚¬ê°í˜•
 			FVector HitStart = Start;
 			FVector HitEnd = Start + (Forward * HitData.Range);
 
@@ -504,12 +504,12 @@ bool ACC_EnemyCharacter::PerformAttackHit(const FAttackHitData& HitData, TArray<
 
 		case EAttackHitType::Cone:
 		{
-			// ºÎÃ¤²Ã
+			// ë¶€ì±„ê¼´
 			TArray<FOverlapResult> Overlaps;
 			FCollisionQueryParams Params;
 			Params.AddIgnoredActor(this);
 
-			// ÀÏ´Ü ±¸Ã¼·Î ÈÄº¸ Ã£±â
+			// ì¼ë‹¨ êµ¬ì²´ë¡œ í›„ë³´ ì°¾ê¸°
 			GetWorld()->OverlapMultiByChannel(
 				Overlaps,
 				Start,
@@ -519,7 +519,7 @@ bool ACC_EnemyCharacter::PerformAttackHit(const FAttackHitData& HitData, TArray<
 				Params
 			);
 
-			// °¢µµ ÇÊÅÍ¸µ
+			// ê°ë„ í•„í„°ë§
 			for (const FOverlapResult& Overlap : Overlaps)
 			{
 				if (ACC_PlayerCharacter* Target = Cast<ACC_PlayerCharacter>(Overlap.GetActor()))
@@ -541,7 +541,7 @@ bool ACC_EnemyCharacter::PerformAttackHit(const FAttackHitData& HitData, TArray<
 
 		case EAttackHitType::Capsule:
 		{
-			// ±ä ¿øÅë
+			// ê¸´ ì›í†µ
 			FVector HitStart = Start;
 			FVector HitEnd = Start + (Forward * HitData.Range);
 
@@ -571,7 +571,7 @@ bool ACC_EnemyCharacter::PerformAttackHit(const FAttackHitData& HitData, TArray<
 		}
 	}
 
-	// µğ¹ö±× ½Ã°¢È­
+	// ë””ë²„ê·¸ ì‹œê°í™”
 	if (bShowAttackDebug)
 	{
 		DrawAttackDebug(HitData, OutHitTargets.Num() > 0);
@@ -617,7 +617,7 @@ void ACC_EnemyCharacter::Die()
 		{
 			Gem->SetExpAmount(ExpGemAmount);
 
-			// ÇöÀç Active Cube¿¡ µî·Ï (Freeze¿Í ÇÔ²² ¸ØÃßµµ·Ï)
+			// í˜„ì¬ Active Cubeì— ë“±ë¡ (Freezeì™€ í•¨ê»˜ ë©ˆì¶”ë„ë¡)
 			if (ACC_CubeWorldManager* CubeManager = ACC_CubeWorldManager::Get(this))
 			{
 				if (ACC_Cube* ActiveCubeRef = CubeManager->GetActiveCube())
@@ -823,7 +823,7 @@ void ACC_EnemyCharacter::OnAttackMontageEnded(UAnimMontage* Montage, bool bInter
 	if (Montage == AttackMontage)
 	{
 		bIsAttacking = false;
-		EnemyState = EEnemyState::Moving;   // ¾Ö´Ï¸ŞÀÌ¼Ç Á¾·á ¡æ ÀÌµ¿ Àç°³
+		EnemyState = EEnemyState::Moving;   // ì• ë‹ˆë©”ì´ì…˜ ì¢…ë£Œ â†’ ì´ë™ ì¬ê°œ
 
 		// Start cooldown Timer
 		GetWorld()->GetTimerManager().SetTimer(
@@ -911,20 +911,20 @@ void ACC_EnemyCharacter::Freeze_Implementation()
 
 	bIsFrozen = true;
 
-	// ÃßÀû Áï½Ã Áß´Ü ? AIManager°¡ ´ÙÀ½ Tick¿¡ µ¤¾î¾²Áö ¸øÇÏµµ·Ï ¸ÕÀú ²÷À½
-	// BlueprintNativeEvent´Â Á÷Á¢ È£Ãâ ±İÁö ? Execute ÇÔ¼ö °æÀ¯ ÇÊ¼ö
+	// ì¶”ì  ì¦‰ì‹œ ì¤‘ë‹¨ ? AIManagerê°€ ë‹¤ìŒ Tickì— ë®ì–´ì“°ì§€ ëª»í•˜ë„ë¡ ë¨¼ì € ëŠìŒ
+	// BlueprintNativeEventëŠ” ì§ì ‘ í˜¸ì¶œ ê¸ˆì§€ ? Execute í•¨ìˆ˜ ê²½ìœ  í•„ìˆ˜
 	ICC_EnemyAIInterface::Execute_SetChasePlayer(this, false);
 
-	// ½Ã°£ Á¤Áö (ÀÌµ¿/¹°¸®/¾Ö´Ï ¸ğµÎ ¿µÇâ)
+	// ì‹œê°„ ì •ì§€ (ì´ë™/ë¬¼ë¦¬/ì• ë‹ˆ ëª¨ë‘ ì˜í–¥)
 	CustomTimeDilation = 0.0f;
 
-	// ¾Ö´Ï¸ŞÀÌ¼Ç Á¤Áö
+	// ì• ë‹ˆë©”ì´ì…˜ ì •ì§€
 	if (USkeletalMeshComponent* SM = GetMesh())
 	{
 		SM->bPauseAnims = true;
 	}
 
-	// °ø°İ Å¸ÀÌ¸Ó Á¤Áö
+	// ê³µê²© íƒ€ì´ë¨¸ ì •ì§€
 	GetWorldTimerManager().PauseTimer(AttackCooldownTimer);
 
 	UE_LOG(LogTemp, Log, TEXT("[Enemy %s] FROZEN"), *GetName());
@@ -945,7 +945,7 @@ void ACC_EnemyCharacter::Unfreeze_Implementation()
 
 	GetWorldTimerManager().UnPauseTimer(AttackCooldownTimer);
 
-	// SetChasePlayer º¹¿øÀº AIManager ´ÙÀ½ Tick¿¡ ÀÚµ¿ Ã³¸®µÊ
+	// SetChasePlayer ë³µì›ì€ AIManager ë‹¤ìŒ Tickì— ìë™ ì²˜ë¦¬ë¨
 
 	UE_LOG(LogTemp, Log, TEXT("[Enemy %s] UNFROZEN"), *GetName());
 }
@@ -1022,8 +1022,8 @@ void ACC_EnemyCharacter::ResetMovementState_Implementation()
 	CachedMoveDirection = FVector::ZeroVector;
 	MoveTarget = GetActorLocation();
 
-	// Step/Teleport ÀÌµ¿ ³»ºÎ »óÅÂµµ ÃÊ±âÈ­ ? ÅÚ·¹Æ÷Æ® Àü ¸ñÇ¥/Å¸ÀÌ¸Ó°¡
-	// »õ À§Ä¡¿Í ¹«°üÇÏ°Ô ³²¾ÆÀÖÀ¸¸é ÀÌ»óÇÏ°Ô ¿òÁ÷ÀÏ ¼ö ÀÖÀ½
+	// Step/Teleport ì´ë™ ë‚´ë¶€ ìƒíƒœë„ ì´ˆê¸°í™” ? í…”ë ˆí¬íŠ¸ ì „ ëª©í‘œ/íƒ€ì´ë¨¸ê°€
+	// ìƒˆ ìœ„ì¹˜ì™€ ë¬´ê´€í•˜ê²Œ ë‚¨ì•„ìˆìœ¼ë©´ ì´ìƒí•˜ê²Œ ì›€ì§ì¼ ìˆ˜ ìˆìŒ
 	StepPhase = EStepPhase::Moving;
 	StepTarget = FVector::ZeroVector;
 	StepWaitElapsed = 0.f;

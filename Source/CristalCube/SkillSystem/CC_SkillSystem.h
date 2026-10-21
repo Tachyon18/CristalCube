@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+ï»¿// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
@@ -8,24 +8,23 @@
 #include "CC_SkillInstance.h"
 #include "CC_SkillSystem.generated.h"
 
-
 // Forward declarations
 class UNiagaraSystem;
 class USceneComponent;
 
 /**
- * ¸ğµâÇü ½ºÅ³ ½Ã½ºÅÛ ÄÄÆ÷³ÍÆ®
+ * ëª¨ë“ˆí˜• ìŠ¤í‚¬ ì‹œìŠ¤í…œ ì»´í¬ë„ŒíŠ¸
  *
- * Phase 1 (Week 9-10): ÇÁ·ÎÅäÅ¸ÀÔ
- * - Core 3°³ (Projectile, Instant, Area)
- * - Addon 4°³ (Explosion, Chain, Penetrate, MultiShot)
+ * Phase 1 (Week 9-10): í”„ë¡œí† íƒ€ì…
+ * - Core 3ê°œ (Projectile, Instant, Area)
+ * - Addon 4ê°œ (Explosion, Chain, Penetrate, MultiShot)
  *
- * Phase 2+: È®Àå
- * - Core Ãß°¡ (Slash, Beam, Channeling, etc.)
- * - Addon Ãß°¡ (Homing, Echo, Split, etc.)
- * - Temporal/Spatial º¯Á¶
+ * Phase 2+: í™•ì¥
+ * - Core ì¶”ê°€ (Slash, Beam, Channeling, etc.)
+ * - Addon ì¶”ê°€ (Homing, Echo, Split, etc.)
+ * - Temporal/Spatial ë³€ì¡°
  *
- * ÀÌ¸§Àº È®ÀåÇØµµ º¯°æÇÏÁö ¾ÊÀ½!
+ * ì´ë¦„ì€ í™•ì¥í•´ë„ ë³€ê²½í•˜ì§€ ì•ŠìŒ!
  */
 
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
@@ -53,17 +52,17 @@ public:
 	//==========================================================================
 
 	/**
-	 * ½ºÅ³ ½ÇÇà (¸ŞÀÎ ÇÔ¼ö)
-	 * @param Skill - ½ÇÇàÇÒ ½ºÅ³ Á¤ÀÇ
-	 * @param TargetLocation - ¸ñÇ¥ À§Ä¡
+	 * ìŠ¤í‚¬ ì‹¤í–‰ (ë©”ì¸ í•¨ìˆ˜)
+	 * @param Skill - ì‹¤í–‰í•  ìŠ¤í‚¬ ì •ì˜
+	 * @param TargetLocation - ëª©í‘œ ìœ„ì¹˜
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Skill System")
 	void ExecuteSkill(const FSkillDefinition& Skill, FVector TargetLocation);
 
 	/**
-	 * ½ºÅ³ ½ÇÇà (Å¸°Ù Actor ÁöÁ¤)
-	 * @param Skill - ½ÇÇàÇÒ ½ºÅ³ Á¤ÀÇ
-	 * @param TargetActor - ¸ñÇ¥ Actor
+	 * ìŠ¤í‚¬ ì‹¤í–‰ (íƒ€ê²Ÿ Actor ì§€ì •)
+	 * @param Skill - ì‹¤í–‰í•  ìŠ¤í‚¬ ì •ì˜
+	 * @param TargetActor - ëª©í‘œ Actor
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Skill System")
 	void ExecuteSkillOnTarget(const FSkillDefinition& Skill, AActor* TargetActor);
@@ -73,43 +72,43 @@ public:
 protected:
 
 	//==========================================================================
-	// CORE EXECUTION (Phase 1: 3°³, ÇâÈÄ È®Àå °¡´É)
+	// CORE EXECUTION (Phase 1: 3ê°œ, í–¥í›„ í™•ì¥ ê°€ëŠ¥)
 	//==========================================================================
 
 	/**
-	 * Projectile Core - Åõ»çÃ¼ ¹ß»ç
+	 * Projectile Core - íˆ¬ì‚¬ì²´ ë°œì‚¬
 	 */
 	void ExecuteProjectile(const FSkillDefinition& Skill, FSkillExecutionContext& Context);
 
 	/**
-	 * Instant Core - Áï¹ß °ø°İ (È÷Æ®½ºÄµ)
+	 * Instant Core - ì¦‰ë°œ ê³µê²© (íˆíŠ¸ìŠ¤ìº”)
 	 */
 	void ExecuteInstant(const FSkillDefinition& Skill, FSkillExecutionContext& Context);
 
 	/**
-	 * Area Core - ¹üÀ§ °ø°İ
+	 * Area Core - ë²”ìœ„ ê³µê²©
 	 */
 	void ExecuteArea(const FSkillDefinition& Skill, FSkillExecutionContext& Context);
 
 	/**
-	* Beam Core - ºö °ø°İ (ÇâÈÄ È®Àå)
+	* Beam Core - ë¹” ê³µê²© (í–¥í›„ í™•ì¥)
 	*/
 	void ExecuteBeam(const FSkillDefinition& Skill, FSkillExecutionContext& Context);
 
 	/**
-	 * Rainfall Core ? °øÁß¿¡¼­ º¹¼ö Åõ»çÃ¼ ³«ÇÏ
+	 * Rainfall Core ? ê³µì¤‘ì—ì„œ ë³µìˆ˜ íˆ¬ì‚¬ì²´ ë‚™í•˜
 	 */
 	void ExecuteRainfall(const FSkillDefinition& Skill, FSkillExecutionContext& Context);
 
 	/**
-	 * Rainfall °³º° Åõ»çÃ¼ ½ºÆù (Å¸ÀÌ¸Ó Äİ¹é¿¡¼­ È£Ãâ)
+	 * Rainfall ê°œë³„ íˆ¬ì‚¬ì²´ ìŠ¤í° (íƒ€ì´ë¨¸ ì½œë°±ì—ì„œ í˜¸ì¶œ)
 	 */
 	void SpawnRainfallProjectile(const FSkillDefinition& Skill,
 		const FSkillExecutionContext& Context,
 		FVector TargetFloorLocation);
 
 	/**
-	 * ³«ÇÏ À§Ä¡ ¹è¿­ °è»ê (ÆĞÅÏº°)
+	 * ë‚™í•˜ ìœ„ì¹˜ ë°°ì—´ ê³„ì‚° (íŒ¨í„´ë³„)
 	 */
 	TArray<FVector> CalculateDropLocations(FVector Center, float Radius,
 		int32 Count, EDropPattern Pattern) const;
@@ -117,49 +116,49 @@ protected:
 public:
 
 	//==========================================================================
-	// ADDON PROCESSING (Phase 1: 4°³, ÇâÈÄ È®Àå °¡´É)
+	// ADDON PROCESSING (Phase 1: 4ê°œ, í–¥í›„ í™•ì¥ ê°€ëŠ¥)
 	//==========================================================================
 
 	/**
-	 * Addon Ã³¸® (Ãæµ¹ ½Ã È£Ãâ)
-	 * @param Skill - ½ºÅ³ Á¤ÀÇ
-	 * @param Context - ½ÇÇà ÄÁÅØ½ºÆ®
-	 * @param Hit - Ãæµ¹ Á¤º¸
+	 * Addon ì²˜ë¦¬ (ì¶©ëŒ ì‹œ í˜¸ì¶œ)
+	 * @param Skill - ìŠ¤í‚¬ ì •ì˜
+	 * @param Context - ì‹¤í–‰ ì»¨í…ìŠ¤íŠ¸
+	 * @param Hit - ì¶©ëŒ ì •ë³´
 	 */
 	void ProcessAddons(const FSkillDefinition& Skill, FSkillExecutionContext& Context, const FHitResult& Hit, int32 StartIndex = 0);
 
 	void ProcessCastAddons(const FSkillDefinition& Skill, FSkillExecutionContext& Context, int32 StartIndex = 0);
 
 	/**
-	 * Explosion Addon - Æø¹ß ¹üÀ§ ÇÇÇØ
+	 * Explosion Addon - í­ë°œ ë²”ìœ„ í”¼í•´
 	 */
 	void ApplyExplosion(const FSkillDefinition& Skill, FSkillExecutionContext& Context, FVector Location);
 
 	/**
-	 * Chain Addon - ¿¬¼â °ø°İ
+	 * Chain Addon - ì—°ì‡„ ê³µê²©
 	 */
 	void ApplyChain(const FSkillDefinition& Skill, FSkillExecutionContext& Context, AActor* HitTarget);
 
 	/**
-	 * Penetrate Addon - °üÅë (ÀÌ¹Ì Àû¿ëµÊ, Ä«¿îÅÍ¸¸ Ã¼Å©)
+	 * Penetrate Addon - ê´€í†µ (ì´ë¯¸ ì ìš©ë¨, ì¹´ìš´í„°ë§Œ ì²´í¬)
 	 */
 	bool CanPenetrate(const FSkillDefinition& Skill, FSkillExecutionContext& Context) const;
 
 	/**
-	 * MultiShot Addon - ´ÙÁß ¹ß»ç (ExecuteProjectile¿¡¼­ Ã³¸®)
+	 * MultiShot Addon - ë‹¤ì¤‘ ë°œì‚¬ (ExecuteProjectileì—ì„œ ì²˜ë¦¬)
 	 */
 	int32 GetProjectileCount(const FSkillDefinition& Skill) const;
 
 	/**
-	* Chain Addon - Ã¼ÀÎ ÀÌÆåÆ®¿¡ ¸ñÇ¥ ÁöÁ¡ User Parameter·Î Àü´Ş
+	* Chain Addon - ì²´ì¸ ì´í™íŠ¸ì— ëª©í‘œ ì§€ì  User Parameterë¡œ ì „ë‹¬
 	*/
 
 	void SpawnChainEffect(UNiagaraSystem* Effect, FVector StartLocation, FVector TargetLocation, ESkillElementType ElementType = ESkillElementType::None);
 
 	/**
-	 * ±ËÀûÇü(½ÃÀÛÁ¡¡æ³¡Á¡) VFX ½ºÆù ? Beam Core¿Í Chain AddonÀÌ °øÀ¯ÇÏ´Â ·ÎÁ÷.
-	 * User.BeamEnd ¼¼ÆÃ ¡æ (Width>0ÀÌ¸é User.BeamWidthµµ ¼¼ÆÃ) ¡æ »ö»ó ÁÖÀÔ ¡æ ¼öµ¿ Activate.
-	 * @param Width - 0 ÀÌÇÏ¸é ¼¼ÆÃ ½ºÅµ(¿¡¼Â ÀÚÃ¼ ±âº»°ª »ç¿ë)
+	 * ê¶¤ì í˜•(ì‹œì‘ì â†’ëì ) VFX ìŠ¤í° ? Beam Coreì™€ Chain Addonì´ ê³µìœ í•˜ëŠ” ë¡œì§.
+	 * User.BeamEnd ì„¸íŒ… â†’ (Width>0ì´ë©´ User.BeamWidthë„ ì„¸íŒ…) â†’ ìƒ‰ìƒ ì£¼ì… â†’ ìˆ˜ë™ Activate.
+	 * @param Width - 0 ì´í•˜ë©´ ì„¸íŒ… ìŠ¤í‚µ(ì—ì…‹ ìì²´ ê¸°ë³¸ê°’ ì‚¬ìš©)
 	 */
 	void SpawnTrajectoryEffect(UNiagaraSystem* Effect, FVector StartLocation, FVector TargetLocation, float Width = 0.0f, ESkillElementType ElementType = ESkillElementType::None);
 
@@ -172,64 +171,68 @@ public:
 	UFUNCTION()
 	void OnProjectileHit(class ACC_SkillEffector* Effector, AActor* HitActor, FVector HitLocation);
 
+	// íˆ¬ì‚¬ì²´ê°€ ì§€í˜•(ë°”ë‹¥/ë²½)ì— ë§‰í˜€ ë©ˆì·„ì„ ë•Œ â€” ì°©íƒ„ ì—°ì¶œ í›„ Drain. ì§€í˜• ì°©íƒ„ í™•ì¥(ì°©íƒ„ AoE ë“±) ì§€ì .
+	UFUNCTION()
+	void OnEffectorTerrainHit(class ACC_SkillEffector* Effector, const FHitResult& Hit);
+
 	UFUNCTION()
 	void OnCubeTransitioned(FIntPoint NewCoordinate);
 
 	/**
-	 * Áö¼ÓµÇ´Â ½ºÅ³ ÀÎ½ºÅÏ½º ¾×ÅÍ¸¦ ÃßÀû ¸ñ·Ï¿¡ µî·Ï.
-	 * Projectile/Rainfall Effector»Ó ¾Æ´Ï¶ó, ÇâÈÄ ICC_SkillInstance¸¦ ±¸ÇöÇÑ
-	 * ¾î¶² ½ºÅ³ ÀÎ½ºÅÏ½º ¾×ÅÍµç(Channeling µî) ½ºÆù ½Ã ÀÌ ÇÔ¼ö¸¸ È£ÃâÇÏ¸é
-	 * º°µµ ÄÚµå ¼öÁ¤ ¾øÀÌ Å¥ºê ÀüÈ¯ Á¤¸® ´ë»ó¿¡ Æ÷ÇÔµÊ.
+	 * ì§€ì†ë˜ëŠ” ìŠ¤í‚¬ ì¸ìŠ¤í„´ìŠ¤ ì•¡í„°ë¥¼ ì¶”ì  ëª©ë¡ì— ë“±ë¡.
+	 * Projectile/Rainfall Effectorë¿ ì•„ë‹ˆë¼, í–¥í›„ ICC_SkillInstanceë¥¼ êµ¬í˜„í•œ
+	 * ì–´ë–¤ ìŠ¤í‚¬ ì¸ìŠ¤í„´ìŠ¤ ì•¡í„°ë“ (Channeling ë“±) ìŠ¤í° ì‹œ ì´ í•¨ìˆ˜ë§Œ í˜¸ì¶œí•˜ë©´
+	 * ë³„ë„ ì½”ë“œ ìˆ˜ì • ì—†ì´ íë¸Œ ì „í™˜ ì •ë¦¬ ëŒ€ìƒì— í¬í•¨ë¨.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Skill System")
 	void RegisterActiveSkillInstance(AActor* Instance);
 
 	/**
-	 * ActiveSkillInstances¿¡¼­ ¸í½ÃÀûÀ¸·Î Á¦°Å. Ç®¿¡ ¹İ³³µÈ(Àç»ç¿ë ´ë±â ÁßÀÎ) Effector°¡
-	 * Å¥ºê ÀüÈ¯ Á¤¸® ·ÎÁ÷¿¡ "¿©ÀüÈ÷ È°¼º"À¸·Î Àß¸ø °É¸®´Â °É ¸·±â À§ÇØ ¹İ³³ ½ÃÁ¡¿¡ È£ÃâµÊ.
+	 * ActiveSkillInstancesì—ì„œ ëª…ì‹œì ìœ¼ë¡œ ì œê±°. í’€ì— ë°˜ë‚©ëœ(ì¬ì‚¬ìš© ëŒ€ê¸° ì¤‘ì¸) Effectorê°€
+	 * íë¸Œ ì „í™˜ ì •ë¦¬ ë¡œì§ì— "ì—¬ì „íˆ í™œì„±"ìœ¼ë¡œ ì˜ëª» ê±¸ë¦¬ëŠ” ê±¸ ë§‰ê¸° ìœ„í•´ ë°˜ë‚© ì‹œì ì— í˜¸ì¶œë¨.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Skill System")
 	void UnregisterActiveSkillInstance(AActor* Instance);
 
-	// SkillEffector¸¦ Ç®¿¡¼­ È¹µæ(¾øÀ¸¸é »õ·Î ½ºÆù)ÇÏ°í Transform±îÁö Àç¹èÄ¡ÇØ¼­ ¹İÈ¯.
-	// ExecuteProjectile()/SpawnRainfallProjectile() °ø¿ë ÇïÆÛ.
+	// SkillEffectorë¥¼ í’€ì—ì„œ íšë“(ì—†ìœ¼ë©´ ìƒˆë¡œ ìŠ¤í°)í•˜ê³  Transformê¹Œì§€ ì¬ë°°ì¹˜í•´ì„œ ë°˜í™˜.
+	// ExecuteProjectile()/SpawnRainfallProjectile() ê³µìš© í—¬í¼.
 	ACC_SkillEffector* AcquireSkillEffector(TSubclassOf<ACC_SkillEffector> EffectorClass, const FTransform& SpawnTransform);
 
 	/**
-	 * °¡Àå °¡±î¿î Àû Ã£±â
+	 * ê°€ì¥ ê°€ê¹Œìš´ ì  ì°¾ê¸°
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Skill System|Utility")
 	AActor* FindNearestEnemy(FVector Origin, float Radius, const TArray<AActor*>& ExcludeActors) const;
 
 	/**
-	 * ¹İ°æ ³» ¸ğµç Àû Ã£±â
+	 * ë°˜ê²½ ë‚´ ëª¨ë“  ì  ì°¾ê¸°
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Skill System|Utility")
 	TArray<AActor*> FindEnemiesInRadius(FVector Origin, float Radius) const;
 
 	/**
-	 * ÇÇÇØ Àû¿ë
+	 * í”¼í•´ ì ìš©
 	 */
 	void ApplyDamage(AActor* Target, float Damage, AActor* DamageCauser);
 
 	void ApplyDamageAtLocation(AActor* Target, float Damage, AActor* DamageCauser, const FVector& HitLocation);
 
 	/**
-	 * VFX ½ºÆù
-	 * @param ElementType - NoneÀÌ¸é »ö ÁÖÀÔ ½ºÅµ(°æ°í ÅÚ·¹±×·¡ÇÁ µî ¿ø¼Ò»ö ¾È ÅÂ¿ì°í ½ÍÀ» ¶§).
-	 *                      ±× ¿Ü¿£ GetElementColor() ±âÁØÀ¸·Î User.PrimaryColor/SecondaryColor ÀÚµ¿ ÁÖÀÔ.
+	 * VFX ìŠ¤í°
+	 * @param ElementType - Noneì´ë©´ ìƒ‰ ì£¼ì… ìŠ¤í‚µ(ê²½ê³  í…”ë ˆê·¸ë˜í”„ ë“± ì›ì†Œìƒ‰ ì•ˆ íƒœìš°ê³  ì‹¶ì„ ë•Œ).
+	 *                      ê·¸ ì™¸ì—” GetElementColor() ê¸°ì¤€ìœ¼ë¡œ User.PrimaryColor/SecondaryColor ìë™ ì£¼ì….
 	 */
 	void SpawnEffect(UNiagaraSystem* Effect, FVector Location, FRotator Rotation = FRotator::ZeroRotator, ESkillElementType ElementType = ESkillElementType::None);
 
 	/**
-	 * Áö¼ÓÇü Attach VFX ½ºÆù ? Shockwave/Sigil/ElementalStatus µî "È£ÃâÀÚ°¡ ¼ö¸íÀ» Á÷Á¢
-	 * °ü¸®ÇÏ´Â Áö¼Ó ÀÌÆåÆ®"°¡ °øÀ¯ÇÏ´Â ½ºÆù ÆĞÅÏ(AutoDestroy=false, SnapToTarget, Ç®¸µ ¾øÀ½,
-	 * PreCullCheck=true) + »ö»ó ÁÖÀÔ±îÁö ÇÑ ¹ø¿¡ Ã³¸®ÇÏ´Â Á¤Àû ÇïÆÛ.
+	 * ì§€ì†í˜• Attach VFX ìŠ¤í° ? Shockwave/Sigil/ElementalStatus ë“± "í˜¸ì¶œìê°€ ìˆ˜ëª…ì„ ì§ì ‘
+	 * ê´€ë¦¬í•˜ëŠ” ì§€ì† ì´í™íŠ¸"ê°€ ê³µìœ í•˜ëŠ” ìŠ¤í° íŒ¨í„´(AutoDestroy=false, SnapToTarget, í’€ë§ ì—†ìŒ,
+	 * PreCullCheck=true) + ìƒ‰ìƒ ì£¼ì…ê¹Œì§€ í•œ ë²ˆì— ì²˜ë¦¬í•˜ëŠ” ì •ì  í—¬í¼.
 	 */
 	static UNiagaraComponent* SpawnPersistentAttachedVFX(UNiagaraSystem* Effect, USceneComponent* AttachToComponent, ESkillElementType ElementType = ESkillElementType::None);
 
 	/**
-	 * »ç¿îµå Àç»ı
+	 * ì‚¬ìš´ë“œ ì¬ìƒ
 	 */
 	void PlaySound(USoundBase* Sound, FVector Location);
 	
@@ -242,11 +245,11 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Skill System|Setup")
 	TSubclassOf <class ACC_SkillEffector> SkillEffectorClass;
 
-	// Àû ÅÂ±×
+	// ì  íƒœê·¸
 	UPROPERTY(EditDefaultsOnly, Category = "Skill System|Setup")
 	FName EnemyTag = TEXT("Enemy");
 
-	// µğ¹ö±× µå·Î¿ì
+	// ë””ë²„ê·¸ ë“œë¡œìš°
 	UPROPERTY(EditAnywhere, Category = "Skill System|Debug")
 	bool bShowDebugShapes = false;
 
@@ -258,11 +261,11 @@ protected:
 	// RUNTIME DATA
 	//==========================================================================
 
-	// ÇöÀç ½ÇÇà ÁßÀÎ ½ºÅ³µé (Phase 2+ È®Àå¿ë)
+	// í˜„ì¬ ì‹¤í–‰ ì¤‘ì¸ ìŠ¤í‚¬ë“¤ (Phase 2+ í™•ì¥ìš©)
 	UPROPERTY()
 	TArray<FSkillExecutionContext> ActiveSkills;
 
-	/** ÇöÀç ÁøÇà ÁßÀÎ ½ºÅ³ ÀÎ½ºÅÏ½º ¾×ÅÍµé. Å¥ºê ÀüÈ¯ ½Ã ICC_SkillInstance ±âÁØÀ¸·Î Á¤¸®µÊ. */
+	/** í˜„ì¬ ì§„í–‰ ì¤‘ì¸ ìŠ¤í‚¬ ì¸ìŠ¤í„´ìŠ¤ ì•¡í„°ë“¤. íë¸Œ ì „í™˜ ì‹œ ICC_SkillInstance ê¸°ì¤€ìœ¼ë¡œ ì •ë¦¬ë¨. */
 	UPROPERTY()
 	TArray<AActor*> ActiveSkillInstances;
 

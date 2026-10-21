@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 
 #include "CC_ElementalStatusComponent.h"
@@ -10,6 +10,27 @@
 #include "../SkillSystem/CC_SkillLibrarySubsystem.h"
 #include "CC_EnemyMovementComponent.h"
 #include "Engine/DamageEvents.h"
+
+namespace CC_ElementalStatusLocal
+{
+	// Clamp to FCCElementalLimits so editor/upgrade input can never invert or freeze an effect
+	static FElementBlueData SanitizeBlueData(const FElementBlueData& In)
+	{
+		FElementBlueData Out = In;
+		Out.SlowMultiplier = FMath::Clamp(In.SlowMultiplier, FCCElementalLimits::BlueMultiplierMin, FCCElementalLimits::BlueMultiplierMax);
+		Out.AttackSpeedMultiplier = FMath::Clamp(In.AttackSpeedMultiplier, FCCElementalLimits::BlueMultiplierMin, FCCElementalLimits::BlueMultiplierMax);
+		return Out;
+	}
+
+	static FElementGreenData SanitizeGreenData(const FElementGreenData& In)
+	{
+		FElementGreenData Out = In;
+		Out.IncomingDamageMultiplier = FMath::Clamp(In.IncomingDamageMultiplier, FCCElementalLimits::GreenIncomingMin, FCCElementalLimits::GreenIncomingMax);
+		Out.OutgoingDamageMultiplier = FMath::Clamp(In.OutgoingDamageMultiplier, FCCElementalLimits::GreenReductionMin, FCCElementalLimits::GreenReductionMax);
+		Out.HealReceivedMultiplier = FMath::Clamp(In.HealReceivedMultiplier, FCCElementalLimits::GreenReductionMin, FCCElementalLimits::GreenReductionMax);
+		return Out;
+	}
+}
 
 // Sets default values for this component's properties
 UCC_ElementalStatusComponent::UCC_ElementalStatusComponent()
@@ -99,7 +120,17 @@ void UCC_ElementalStatusComponent::TickComponent(float DeltaTime, ELevelTick Tic
 
 void UCC_ElementalStatusComponent::ApplyElement(ESkillElementType ElementType, int32 StackAmount, int32 MaxStacks, float Duration, AActor* Instigator, UNiagaraSystem* ApplyEffect)
 {
+	// No explicit data: this component's BlueData/GreenData act as defaults
+	ApplyElementWithData(ElementType, StackAmount, MaxStacks, Duration, Instigator, ApplyEffect, BlueData, GreenData);
+}
+
+void UCC_ElementalStatusComponent::ApplyElementWithData(ESkillElementType ElementType, int32 StackAmount, int32 MaxStacks, float Duration, AActor* Instigator,
+	UNiagaraSystem* ApplyEffect, const FElementBlueData& InBlueData, const FElementGreenData& InGreenData)
+{
 	if (ElementType == ESkillElementType::None) return;
+
+	const FElementBlueData NewBlue = CC_ElementalStatusLocal::SanitizeBlueData(InBlueData);
+	const FElementGreenData NewGreen = CC_ElementalStatusLocal::SanitizeGreenData(InGreenData);
 
 	for (FActiveElementalStatus& Existing : ActiveElements)
 	{
@@ -114,6 +145,19 @@ void UCC_ElementalStatusComponent::ApplyElement(ESkillElementType ElementType, i
 				Existing.ActiveVFXComponent = SpawnAttachedElementEffect(ApplyEffect, ElementType);
 			}
 
+			// Stronger value wins on re-apply (duration is still refreshed above)
+			if (ElementType == ESkillElementType::Blue)
+			{
+				Existing.BlueData.SlowMultiplier = FMath::Min(Existing.BlueData.SlowMultiplier, NewBlue.SlowMultiplier);
+				Existing.BlueData.AttackSpeedMultiplier = FMath::Min(Existing.BlueData.AttackSpeedMultiplier, NewBlue.AttackSpeedMultiplier);
+				ApplyBlueSlow(Existing.BlueData.SlowMultiplier);
+			}
+			else if (ElementType == ESkillElementType::Green)
+			{
+				Existing.GreenData.IncomingDamageMultiplier = FMath::Max(Existing.GreenData.IncomingDamageMultiplier, NewGreen.IncomingDamageMultiplier);
+				Existing.GreenData.OutgoingDamageMultiplier = FMath::Min(Existing.GreenData.OutgoingDamageMultiplier, NewGreen.OutgoingDamageMultiplier);
+				Existing.GreenData.HealReceivedMultiplier = FMath::Min(Existing.GreenData.HealReceivedMultiplier, NewGreen.HealReceivedMultiplier);
+			}
 			return;
 		}
 	}
@@ -124,12 +168,14 @@ void UCC_ElementalStatusComponent::ApplyElement(ESkillElementType ElementType, i
 	NewStatus.RemainingDuration = Duration;
 	NewStatus.Instigator = Instigator;
 	NewStatus.ActiveVFXComponent = SpawnAttachedElementEffect(ApplyEffect, ElementType);
+	NewStatus.BlueData = NewBlue;
+	NewStatus.GreenData = NewGreen;
 	ActiveElements.Add(NewStatus);
 	SetComponentTickEnabled(true);
 
 	if (ElementType == ESkillElementType::Blue)
 	{
-		ApplyBlueSlow();
+		ApplyBlueSlow(NewBlue.SlowMultiplier);
 	}
 }
 
@@ -173,24 +219,28 @@ void UCC_ElementalStatusComponent::ConsumeElement(ESkillElementType ElementType)
 	}
 }
 
-void UCC_ElementalStatusComponent::ApplyBlueSlow()
+void UCC_ElementalStatusComponent::ApplyBlueSlow(float SlowMultiplier)
 {
 	AActor* Owner = GetOwner();
-	if (!Owner || bSpeedSlowed) return;
+	if (!Owner) return;
 
+	// Called on first apply and again when a stronger Blue arrives - must stay idempotent
 	if (ACharacter* Character = Cast<ACharacter>(Owner))
 	{
 		if (UCharacterMovementComponent* CMC = Character->GetCharacterMovement())
 		{
-			SavedOriginalSpeed = CMC->MaxWalkSpeed;
-			CMC->MaxWalkSpeed *= BlueData.SlowMultiplier;
+			if (!bSpeedSlowed)
+			{
+				SavedOriginalSpeed = CMC->MaxWalkSpeed;
+			}
+			CMC->MaxWalkSpeed = SavedOriginalSpeed * SlowMultiplier;
 			bSpeedSlowed = true;
 		}
 	}
 	else if (UCC_EnemyMovementComponent* EnemyMovement = Owner->FindComponentByClass<UCC_EnemyMovementComponent>())
 	{
 		// MaxSpeed (base speed) is untouched - only the multiplier is set, once per state change
-		EnemyMovement->SetSpeedMultiplier(BlueData.SlowMultiplier);
+		EnemyMovement->SetSpeedMultiplier(SlowMultiplier);
 		bSpeedSlowed = true;
 	}
 }
@@ -221,32 +271,33 @@ void UCC_ElementalStatusComponent::RemoveBlueSlow()
 
 float UCC_ElementalStatusComponent::GetAttackSpeedMultiplier() const
 {
-	int32 StackCount = 0;
-	if (GetActiveElement(ESkillElementType::Blue, StackCount))
-	{
-		return BlueData.AttackSpeedMultiplier;
-	}
-	return 1.0f;
+	// Value stored at apply time (addon data or component default)
+	const FActiveElementalStatus* Status = FindActiveElement(ESkillElementType::Blue);
+	return Status ? Status->BlueData.AttackSpeedMultiplier : 1.0f;
 }
 
 float UCC_ElementalStatusComponent::GetIncomingDamageMultiplier() const
 {
-	int32 StackCount = 0;
-	if (GetActiveElement(ESkillElementType::Green, StackCount))
-	{
-		return GreenData.IncomingDamageMultiplier;
-	}
-	return 1.0f;
+	const FActiveElementalStatus* Status = FindActiveElement(ESkillElementType::Green);
+	return Status ? Status->GreenData.IncomingDamageMultiplier : 1.0f;
 }
 
 float UCC_ElementalStatusComponent::GetOutgoingDamageMultiplier() const
 {
-	int32 StackCount = 0;
-	if (GetActiveElement(ESkillElementType::Green, StackCount))
+	const FActiveElementalStatus* Status = FindActiveElement(ESkillElementType::Green);
+	return Status ? Status->GreenData.OutgoingDamageMultiplier : 1.0f;
+}
+
+const FActiveElementalStatus* UCC_ElementalStatusComponent::FindActiveElement(ESkillElementType ElementType) const
+{
+	for (const FActiveElementalStatus& Status : ActiveElements)
 	{
-		return GreenData.OutgoingDamageMultiplier;
+		if (Status.ElementType == ElementType)
+		{
+			return &Status;
+		}
 	}
-	return 1.0f;
+	return nullptr;
 }
 
 UNiagaraComponent* UCC_ElementalStatusComponent::SpawnAttachedElementEffect(UNiagaraSystem* Effect, ESkillElementType ElementType) const

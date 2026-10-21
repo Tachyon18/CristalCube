@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+Ôªø// Fill out your copyright notice in the Description page of Project Settings.
 
 
 #include "CC_Tile.h"
@@ -122,7 +122,7 @@ FBox ACC_Tile::GetTileBounds() const
 
 bool ACC_Tile::IsPositionInTile(const FVector& Position) const
 {
-	// XY∏∏ √º≈© (Z√‡ π´Ω√)
+	// XYÎßå Ï≤¥ÌÅ¨ (ZÏ∂ï Î¨¥Ïãú)
 	return GetTileBounds().IsInsideXY(Position);
 }
 

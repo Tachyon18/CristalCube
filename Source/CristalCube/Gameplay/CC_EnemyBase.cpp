@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 
 #include "CC_EnemyBase.h"
@@ -37,7 +37,7 @@ ACC_EnemyBase::ACC_EnemyBase()
     CapsuleComp->InitCapsuleSize(34.f, 34.f);
     CapsuleComp->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
 
-    FCC_CollisionHelper::ConfigureAsSkillHittable(CapsuleComp);
+    FCC_CollisionHelper::ConfigureAsEnemyHitbox(CapsuleComp);
 
     MeshComp = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("MeshComp"));
     MeshComp->SetupAttachment(CapsuleComp);
@@ -59,7 +59,10 @@ ACC_EnemyBase::ACC_EnemyBase()
 void ACC_EnemyBase::BeginPlay()
 {
 	Super::BeginPlay();
-	
+
+    // BP Collision Presets가 생성자 설정을 덮어써도 런타임에 역할 콜리전 보장
+    FCC_CollisionHelper::ConfigureAsEnemyHitbox(CapsuleComp);
+
     CurrentHealth = MaxHealth;
     BaseMaxHealth = MaxHealth;
     BaseAttackDamage = EnemyStats.AttackDamage;
@@ -280,10 +283,7 @@ void ACC_EnemyBase::CancelActiveAttacks()
         // 풀에서 다른 적에게 재사용된 액터는 건드리지 않음 — 현재 주인이 나일 때만 취소
         if (ACC_Projectile* P = Cast<ACC_Projectile>(Attack))
         {
-            const AActor* CurrentOwner = P->GetProjectileOwner();
-                CurrentOwner == this ? TEXT("CANCEL") : TEXT("skip"));
-
-            if (CurrentOwner == this) P->Deactivate();
+            if (P->GetProjectileOwner() == this) P->Deactivate();
         }
         else if (ACC_EnemyAreaAttack* A = Cast<ACC_EnemyAreaAttack>(Attack))
         {

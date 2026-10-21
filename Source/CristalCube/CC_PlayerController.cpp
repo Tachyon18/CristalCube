@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+ï»¿// Fill out your copyright notice in the Description page of Project Settings.
 
 
 #include "CC_PlayerController.h"
@@ -6,6 +6,7 @@
 #include "EnhancedInputSubsystems.h"
 #include "InputMappingContext.h"
 #include "InputAction.h"
+#include "CC_CollisionHelper.h"
 #include "Widgets/CC_GameHUD.h"
 #include "Kismet/GameplayStatics.h"
 #include "SkillSystem/CC_SkillBase.h"
@@ -203,20 +204,26 @@ void ACC_PlayerController::HandleCastSkill6(const FInputActionValue& Value) { Ca
 
 FVector ACC_PlayerController::GetMouseWorldPosition() const
 {
-    FVector WorldLocation, WorldDirection;
+    // 1) ì»¤ì„œ ì•„ë˜ "ìŠ¤í‚¬ ì°©íƒ„ ì§€í˜•"ì„ íŠ¸ë ˆì´ìŠ¤ â€” íˆ¬ì‚¬ì²´ê°€ ì°©íƒ„í•˜ëŠ” ì§€í˜•ê³¼ ê°™ì€ ê¸°ì¤€(Projectile ì±„ë„ Block).
+    //    ì /í”Œë ˆì´ì–´ ìº¡ìŠì€ ì´ ì±„ë„ì— Overlapì´ë¼ ì»¤ì„œë¥¼ ê°€ë¦¬ì§€ ì•ŠìŒ. ìºë¦­í„°ê°€ ë–  ìˆì–´ë„ ì‹¤ì œ ë°”ë‹¥ ë†’ì´ë¥¼ ì–»ìŒ.
+    FHitResult GroundHit;
+    if (GetHitResultUnderCursor(FCC_CollisionHelper::ECC_CC_Projectile, false, GroundHit) && GroundHit.bBlockingHit)
+    {
+        return GroundHit.ImpactPoint;
+    }
 
+    // 2) ì»¤ì„œ ì•„ë˜ì— ì§€í˜•ì´ ì—†ìœ¼ë©´(í—ˆê³µ ë“±) ê¸°ì¡´ ë°©ì‹ â€” ìºë¦­í„° ë†’ì´ í‰ë©´ê³¼ êµì°¨
+    FVector WorldLocation, WorldDirection;
     if (DeprojectMousePositionToWorld(WorldLocation, WorldDirection))
     {
-        FVector CharacterLocation = GetPawn() ? GetPawn()->GetActorLocation() : FVector::ZeroVector;
-        FPlane GroundPlane(CharacterLocation, FVector::UpVector);
+        const FVector CharacterLocation = GetPawn() ? GetPawn()->GetActorLocation() : FVector::ZeroVector;
+        const FPlane GroundPlane(CharacterLocation, FVector::UpVector);
 
-        FVector MouseWorldPos = FMath::LinePlaneIntersection(
+        return FMath::LinePlaneIntersection(
             WorldLocation,
             WorldLocation + WorldDirection * 10000.0f,
             GroundPlane
         );
-
-        return MouseWorldPos;
     }
 
     return GetPawn() ? GetPawn()->GetActorLocation() : FVector::ZeroVector;
@@ -276,14 +283,14 @@ void ACC_PlayerController::CastSkillAtSlot(int32 SlotIndex)
     if (!PS || !SS) return;
 
     UCC_SkillBase* Skill = PS->GetSkillAtSlot(SlotIndex);
-    if (!Skill) return;   // ºó ½½·Ô ? Á¶¿ëÈ÷ ¹«½Ã
+    if (!Skill) return;   // ë¹ˆ ìŠ¬ë¡¯ ? ì¡°ìš©íˆ ë¬´ì‹œ
 
     const FVector TargetLocation = GetMouseWorldPosition();
     const bool bCast = Skill->TryCast(SS, TargetLocation);
 
     if (!bCast)
     {
-        // Äğ´Ù¿î ÁßÀÌ°Å³ª ¹ßµ¿ ½ÇÆĞ ? ³ªÁß¿¡ GameHUD Äğ´Ù¿î ¸µ/»ç¿îµå ÇÇµå¹é ¿©±â ¿¬°á
+        // ì¿¨ë‹¤ìš´ ì¤‘ì´ê±°ë‚˜ ë°œë™ ì‹¤íŒ¨ ? ë‚˜ì¤‘ì— GameHUD ì¿¨ë‹¤ìš´ ë§/ì‚¬ìš´ë“œ í”¼ë“œë°± ì—¬ê¸° ì—°ê²°
         CC_LOG_PLAYER(VeryVerbose, "Skill slot %d not ready", SlotIndex);
     }
 }
@@ -302,7 +309,7 @@ void ACC_PlayerController::SetMinMouseDistance(float NewDistance)
 
 void ACC_PlayerController::GrantExp(float Amount)
 {
-    // PIE ½ÃÀÛ Á÷ÈÄ µî Ä³½Ì Å¸ÀÌ¹ÖÀ» ³õÃÆÀ» °æ¿ì¸¦ ´ëºñÇÑ ¹æ¾îÀû ÀçÁ¶È¸
+    // PIE ì‹œì‘ ì§í›„ ë“± ìºì‹± íƒ€ì´ë°ì„ ë†“ì³¤ì„ ê²½ìš°ë¥¼ ëŒ€ë¹„í•œ ë°©ì–´ì  ì¬ì¡°íšŒ
     if (!ControlledCharacter)
     {
         ControlledCharacter = Cast<ACC_PlayerCharacter>(GetPawn());
@@ -330,7 +337,7 @@ void ACC_PlayerController::StartBeamCharge()
 
         UE_LOG(LogTemp, Log, TEXT("Beam charge started at: %s"), *BeamStartLocation.ToString());
 
-        // ½Ã°¢Àû ÇÇµå¹é (¼±ÅÃ »çÇ×: µ¥Ä®, ÆÄÆ¼Å¬ µî)
+        // ì‹œê°ì  í”¼ë“œë°± (ì„ íƒ ì‚¬í•­: ë°ì¹¼, íŒŒí‹°í´ ë“±)
         // SpawnDecalAtLocation(...);
     }
 }
@@ -349,21 +356,21 @@ void ACC_PlayerController::ReleaseBeam()
     {
         FVector BeamEndLocation = HitResult.ImpactPoint;
 
-        // SkillSystem °¡Á®¿À±â
+        // SkillSystem ê°€ì ¸ì˜¤ê¸°
         APawn* ControlledPawn = GetPawn();
         if (ControlledPawn)
         {
             UCC_SkillSystem* SkillSystem = ControlledPawn->FindComponentByClass<UCC_SkillSystem>();
             if (SkillSystem)
             {
-                // Beam ½ºÅ³ Á¤ÀÇ (DataTable¿¡¼­ °¡Á®¿À°Å³ª ÀÓ½Ã »ı¼º)
+                // Beam ìŠ¤í‚¬ ì •ì˜ (DataTableì—ì„œ ê°€ì ¸ì˜¤ê±°ë‚˜ ì„ì‹œ ìƒì„±)
                 FSkillDefinition BeamSkill;
                 BeamSkill.SkillID = FName("VectorLaser");
                 BeamSkill.CoreType = ESkillCoreType::Beam;
                 BeamSkill.BaseDamage = 50.0f;
                 BeamSkill.Range = 2000.0f;
 
-                // Context ¼³Á¤
+                // Context ì„¤ì •
                 FSkillExecutionContext Context;
                 Context.Caster = ControlledPawn;
                 Context.StartLocation = BeamStartLocation;
@@ -371,7 +378,7 @@ void ACC_PlayerController::ReleaseBeam()
                 Context.Direction = (BeamEndLocation - BeamStartLocation).GetSafeNormal();
                 Context.CurrentDamage = BeamSkill.BaseDamage;
 
-                // ½ÇÇà!
+                // ì‹¤í–‰!
                 SkillSystem->ExecuteSkill(BeamSkill, BeamEndLocation);
 
                 UE_LOG(LogTemp, Log, TEXT("Beam fired from %s to %s"),

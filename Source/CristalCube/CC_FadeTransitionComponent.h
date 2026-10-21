@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+ï»¿// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
@@ -11,8 +11,8 @@
 
 /**
  * Fade Transition Component
- * - Å¥ºê ÀüÈ¯ ½Ã ¾ÏÀü/¹à¾ÆÁü È¿°ú
- * - ÆäÀÌµå ÀÎ/¾Æ¿ô Å¸ÀÌ¹Ö °ü¸®
+ * - íë¸Œ ì „í™˜ ì‹œ ì•”ì „/ë°ì•„ì§ íš¨ê³¼
+ * - í˜ì´ë“œ ì¸/ì•„ì›ƒ íƒ€ì´ë° ê´€ë¦¬
  */
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
 class CRISTALCUBE_API UCC_FadeTransitionComponent : public UActorComponent
@@ -31,33 +31,33 @@ public:
 	// Called every frame
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
-	/**ÆäÀÌµå Áö¼Ó½Ã°£ */
+	/**í˜ì´ë“œ ì§€ì†ì‹œê°„ */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Fade")
 	float FadeDuration = 0.2f;
 
-	/** ÇöÀç ÆäÀÌµå ¾ËÆÄ (0 = Åõ¸í, 1 = ¿ÏÀü °ËÁ¤) */
+	/** í˜„ì¬ í˜ì´ë“œ ì•ŒíŒŒ (0 = íˆ¬ëª…, 1 = ì™„ì „ ê²€ì •) */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Fade")
 	float CurrentFadeAlpha = 0.0f;
 
-	/** ÆäÀÌµå ÁßÀÎÁö ¿©ºÎ */
+	/** í˜ì´ë“œ ì¤‘ì¸ì§€ ì—¬ë¶€ */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Fade")
 	bool bIsFading = false;
 
-	// ÆäÀÌµå Å×½ºÆ® º¸·ù
+	// í˜ì´ë“œ í…ŒìŠ¤íŠ¸ ë³´ë¥˜
 
-	///** °ËÀº»öÀ¸·Î ÆäÀÌµå (¾ÏÀü) */
+	///** ê²€ì€ìƒ‰ìœ¼ë¡œ í˜ì´ë“œ (ì•”ì „) */
 	//UFUNCTION(BlueprintCallable, Category = "Fade")
 	//void FadeToBlack(TFunction<void()> OnComplete);
 
-	///** Åõ¸íÀ¸·Î ÆäÀÌµå (¹à¾ÆÁü) */
+	///** íˆ¬ëª…ìœ¼ë¡œ í˜ì´ë“œ (ë°ì•„ì§) */
 	//UFUNCTION(BlueprintCallable, Category = "Fade")
 	//void FadeFromBlack(TFunction<void()> OnComplete);
 
-	/** Áï½Ã °ËÀº»öÀ¸·Î */
+	/** ì¦‰ì‹œ ê²€ì€ìƒ‰ìœ¼ë¡œ */
 	UFUNCTION(BlueprintCallable, Category = "Fade")
 	void SetBlack();
 
-	/** Áï½Ã Åõ¸íÀ¸·Î */
+	/** ì¦‰ì‹œ íˆ¬ëª…ìœ¼ë¡œ */
 	UFUNCTION(BlueprintCallable, Category = "Fade")
 	void SetClear();
 
@@ -65,13 +65,13 @@ public:
 	// Events
 	// ========================================
 
-	/** ÆäÀÌµå ¿Ï·á ÀÌº¥Æ® */
+	/** í˜ì´ë“œ ì™„ë£Œ ì´ë²¤íŠ¸ */
 	UPROPERTY(BlueprintAssignable, Category = "Fade|Events")
 	FOnFadeComplete OnFadeComplete;
 
 protected:
 
-	/** ÆäÀÌµå ¹æÇâ (true = ToBlack, false = FromBlack) */
+	/** í˜ì´ë“œ ë°©í–¥ (true = ToBlack, false = FromBlack) */
 	bool bFadeToBlack = true;
 
 	float ElapsedTime = 0.0f;

@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 #include "CC_Projectile.h"
 #include "Components/SphereComponent.h"
@@ -20,11 +20,9 @@ ACC_Projectile::ACC_Projectile()
 	CollisionSphere->InitSphereRadius(15.0f);
 	RootComponent = CollisionSphere;
 
-	// Same hittable setup as skill effectors (ObjectType = Visibility, Overlap Visibility/Pawn).
-	// Player and enemy capsules use the same helper, so the overlap pair matches.
-	// (The old WorldDynamic + Pawn-only setup could never overlap the player capsule.)
-	CollisionSphere->SetCollisionResponseToAllChannels(ECR_Ignore);
-	FCC_CollisionHelper::ConfigureAsSkillHittable(CollisionSphere);
+	// 적 투사체 — 플레이어만 Overlap
+	FCC_CollisionHelper::ConfigureAsEnemyProjectile(CollisionSphere);
+
 	CollisionSphere->SetCollisionEnabled(ECollisionEnabled::NoCollision); // Fire() enables it
 
 	ProjectileMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ProjectileMesh"));
@@ -83,6 +81,7 @@ void ACC_Projectile::Fire(const FVector& SpawnLocation, const FVector& Direction
 	{
 		Speed = InSpeed;
 	}
+
 	CurrentPierceCount = 0;
 	HitActors.Reset();
 	ProjectileOwner = InOwner;
@@ -104,6 +103,7 @@ void ACC_Projectile::Fire(const FVector& SpawnLocation, const FVector& Direction
 
 	if (CollisionSphere)
 	{
+		FCC_CollisionHelper::ConfigureAsEnemyProjectile(CollisionSphere);
 		CollisionSphere->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
 	}
 

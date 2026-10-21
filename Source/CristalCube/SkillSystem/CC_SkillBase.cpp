@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 
 #include "CC_SkillBase.h"
@@ -242,77 +242,6 @@ void UCC_SkillBase::ApplyAddonModifier(ESkillAddonType AddonType, const FSkillPa
 
 void UCC_SkillBase::SpendAddonAttributePoint(ESkillAddonType AddonType, FName AttributeID, float ValuePerPoint)
 {
-    // Modifier의 Multiplier류 기본값(1.0)은 ApplyAddonModifier가 안 건드리는 필드라 안전함 —
-    // Addon Data 필드만 델타로 채워서 넘긴다.
-    //FSkillPassiveProperties Modifier;
-    //bool bMatched = true;
-    //
-    //switch (AddonType)
-    //{
-    //case ESkillAddonType::Explosion:
-    //    if (AttributeID == TEXT("ExplosionRadius"))            Modifier.ExplosionData.Radius = ValuePerPoint;
-    //    else if (AttributeID == TEXT("ExplosionMinDamageRatio")) Modifier.ExplosionData.MinDamageRatio = ValuePerPoint;
-    //    else bMatched = false;
-    //    break;
-    //case ESkillAddonType::Chain:
-    //    if (AttributeID == TEXT("ChainCount"))            Modifier.ChainData.ChainCount = FMath::RoundToInt(ValuePerPoint);
-    //    else if (AttributeID == TEXT("ChainDamageDecay"))   Modifier.ChainData.DamageDecay = ValuePerPoint;
-    //    else if (AttributeID == TEXT("ChainSearchRadius"))  Modifier.ChainData.SearchRadius = ValuePerPoint;
-    //    else bMatched = false;
-    //    break;
-    //case ESkillAddonType::Shockwave:
-    //    if (AttributeID == TEXT("ShockwaveMaxRadius"))        Modifier.ShockwaveData.MaxRadius = ValuePerPoint;
-    //    else if (AttributeID == TEXT("ShockwaveRingThickness")) Modifier.ShockwaveData.RingThickness = ValuePerPoint;
-    //    else bMatched = false;
-    //    break;
-    //case ESkillAddonType::MagicMissile:
-    //    if (AttributeID == TEXT("MagicMissileLaunchCount"))   Modifier.MagicMissileData.LaunchCount = FMath::RoundToInt(ValuePerPoint);
-    //    else if (AttributeID == TEXT("MagicMissileDamageRatio")) Modifier.MagicMissileData.DamageRatio = ValuePerPoint;
-    //    else bMatched = false;
-    //    break;
-    //case ESkillAddonType::ElementalApply:
-    //    if (AttributeID == TEXT("ElementalApplyStackAmount")) Modifier.ElementalApplyData.StackAmount = FMath::RoundToInt(ValuePerPoint);
-    //    else if (AttributeID == TEXT("ElementalApplyDuration")) Modifier.ElementalApplyData.Duration = ValuePerPoint;
-    //    else bMatched = false;
-    //    break;
-    //case ESkillAddonType::ElementalBurst:
-    //    if (AttributeID == TEXT("ElementalBurstDamagePerStack")) Modifier.ElementalBurstData.DamagePerStack = ValuePerPoint;
-    //    else bMatched = false;
-    //    break;
-    //case ESkillAddonType::DamageOverTime:
-    //    if (AttributeID == TEXT("DamageOverTimeTickDamage"))     Modifier.DamageOverTimeData.TickDamage = ValuePerPoint;
-    //    else if (AttributeID == TEXT("DamageOverTimeTotalDuration")) Modifier.DamageOverTimeData.TotalDuration = ValuePerPoint;
-    //    else bMatched = false;
-    //    break;
-    //case ESkillAddonType::Sigil:
-    //    if (AttributeID == TEXT("SigilRadius"))      Modifier.SigilData.Radius = ValuePerPoint;
-    //    else if (AttributeID == TEXT("SigilTickDamage")) Modifier.SigilData.TickDamage = ValuePerPoint;
-    //    else bMatched = false;
-    //    break;
-    //case ESkillAddonType::Echo:
-    //    if (AttributeID == TEXT("EchoDamageRatio"))  Modifier.EchoData.DamageRatio = ValuePerPoint;
-    //    else if (AttributeID == TEXT("EchoMaxEchoes")) Modifier.EchoData.MaxEchoes = FMath::RoundToInt(ValuePerPoint);
-    //    else bMatched = false;
-    //    break;
-    //case ESkillAddonType::SelfEmpower:
-    //    if (AttributeID == TEXT("SelfEmpowerDamagePerStack")) Modifier.SelfEmpowerData.DamagePerStack = ValuePerPoint;
-    //    else if (AttributeID == TEXT("SelfEmpowerMaxStacks"))   Modifier.SelfEmpowerData.MaxStacks = FMath::RoundToInt(ValuePerPoint);
-    //    else bMatched = false;
-    //    break;
-    //default:
-    //    bMatched = false;
-    //    break;
-    //}
-    //
-    //if (!bMatched)
-    //{
-    //    UE_LOG(LogTemp, Warning, TEXT("[%s] SpendAddonAttributePoint: unknown AttributeID '%s' for addon %s"),
-    //        *SkillDef.SkillID.ToString(), *AttributeID.ToString(), *UEnum::GetValueAsString(AddonType));
-    //    return;
-    //}
-    //
-    //ApplyAddonModifier(AddonType, Modifier);
-
     bool bFound = false;
 
     for (UCC_SkillAddonBase* Addon : SkillDef.Addons)
@@ -322,5 +251,11 @@ void UCC_SkillBase::SpendAddonAttributePoint(ESkillAddonType AddonType, FName At
             Addon->ApplyModifier(AttributeID, ValuePerPoint);
             bFound = true;
         }
+    }
+
+    if (!bFound)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[%s] SpendAddonAttributePoint: addon %s not present, ignored"),
+            *SkillDef.SkillID.ToString(), *UEnum::GetValueAsString(AddonType));
     }
 }

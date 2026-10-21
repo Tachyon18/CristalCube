@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 
 #include "CC_MagicMissileAddon.h"
@@ -63,6 +63,7 @@ void UCC_MagicMissileAddon::OnHit_Implementation(UCC_SkillSystem* SkillSystem, c
             if (Missile)
             {
                 Missile->SetSkillOwner(CasterActor);
+                Missile->SetOwningSkillSystem(WeakSystem.Get());   // 종료 시 인스턴스 등록 해제 + 지형 착탄 처리 위임
                 Missile->Initialize(ESkillCoreType::Projectile, SkillCopy);
 
                 if (UProjectileMovementComponent* Movement = Missile->ProjectileMovement)
@@ -80,6 +81,7 @@ void UCC_MagicMissileAddon::OnHit_Implementation(UCC_SkillSystem* SkillSystem, c
 
                 WeakSystem->RegisterActiveSkillInstance(Missile);
                 Missile->OnEffectorHit.AddDynamic(WeakSystem.Get(), &UCC_SkillSystem::OnProjectileHit);
+                Missile->Launch();
             }
 
             if (DataCopy.LaunchEffect)

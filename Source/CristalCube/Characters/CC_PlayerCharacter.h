@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+ï»¿// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
@@ -61,23 +61,23 @@ protected:
 public:
 
 	/**
-	 * ´ÜÀÏ ½ºÅÈ ¼öÁ¤ + Áï½Ã Àû¿ë.
-	 * ¾÷±×·¹ÀÌµå/½ºÅ³ º¸³Ê½º/Å¥ºê º¸»ó µî ·±Å¸ÀÓ ½ºÅÈ º¯°æ¿¡ »ç¿ë.
-	 * Value´Â ¹èÀ² ±âÁØ µ¨Å¸°ª (¿¹: MoveSpeed +10% ¡æ Value = 0.1f)
+	 * ë‹¨ì¼ ìŠ¤íƒ¯ ìˆ˜ì • + ì¦‰ì‹œ ì ìš©.
+	 * ì—…ê·¸ë ˆì´ë“œ/ìŠ¤í‚¬ ë³´ë„ˆìŠ¤/íë¸Œ ë³´ìƒ ë“± ëŸ°íƒ€ì„ ìŠ¤íƒ¯ ë³€ê²½ì— ì‚¬ìš©.
+	 * ValueëŠ” ë°°ìœ¨ ê¸°ì¤€ ë¸íƒ€ê°’ (ì˜ˆ: MoveSpeed +10% â†’ Value = 0.1f)
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Stats")
 	void ApplyStatUpgrade(EUpgradeType Type, float Value);
 
 	/**
-	 * ÀüÃ¼ ±¸Á¶Ã¼ µ¤¾î¾²±â + ÀÏ°ı Àû¿ë.
-	 * BeginPlay ÃÊ±âÈ­, ¼¼ÀÌºê ·Îµå, ¿ÏÀü ¸®¼Â µî ÀÏ°ı ¼³Á¤ ½Ã »ç¿ë.
+	 * ì „ì²´ êµ¬ì¡°ì²´ ë®ì–´ì“°ê¸° + ì¼ê´„ ì ìš©.
+	 * BeginPlay ì´ˆê¸°í™”, ì„¸ì´ë¸Œ ë¡œë“œ, ì™„ì „ ë¦¬ì…‹ ë“± ì¼ê´„ ì„¤ì • ì‹œ ì‚¬ìš©.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Stats")
 	void ApplyStatOverride(const FCristalCubePlayerStats& InStats);
 
 	/**
-	 * PlayerStats ±¸Á¶Ã¼´Â °Çµå¸®Áö ¾Ê°í UE ½Ã½ºÅÛ¿¡¸¸ ¹İ¿µ.
-	 * Blueprint¿¡¼­ PlayerStats¸¦ Á÷Á¢ ¼öÁ¤ÇÑ µÚ È£Ãâ.
+	 * PlayerStats êµ¬ì¡°ì²´ëŠ” ê±´ë“œë¦¬ì§€ ì•Šê³  UE ì‹œìŠ¤í…œì—ë§Œ ë°˜ì˜.
+	 * Blueprintì—ì„œ PlayerStatsë¥¼ ì§ì ‘ ìˆ˜ì •í•œ ë’¤ í˜¸ì¶œ.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Stats")
 	void RefreshStats();
@@ -118,9 +118,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Test")
 	UNiagaraSystem* TestLightningEffect = nullptr;
 
-	// CastFireball() µî Å×½ºÆ® Ä³½ºÆ® ÇÔ¼ö°¡ ·ÎÄÃ FSkillDefinition¿¡ ¹°¸®´Â Addon ÀÎ½ºÅÏ½º º¸°ü¿ë.
-	// FSkillDefinitionÀº UObject°¡ ¾Æ´Ï¶ó UPROPERTY ÄÁÅ×ÀÌ³Ê¿¡ ´ã±âÁö ¾ÊÀ¸¸é ¼ÒÀ¯ÇÑ Addon Æ÷ÀÎÅÍ°¡
-	// GC ´ë»óÀÌ µÇ¾î¹ö¸² ? ¿©±â ´ã¾Æ¼­ Actor »ıÁ¸ ±â°£ µ¿¾È ·çÆ®·Î °íÁ¤.
+	// CastFireball() ë“± í…ŒìŠ¤íŠ¸ ìºìŠ¤íŠ¸ í•¨ìˆ˜ê°€ ë¡œì»¬ FSkillDefinitionì— ë¬¼ë¦¬ëŠ” Addon ì¸ìŠ¤í„´ìŠ¤ ë³´ê´€ìš©.
+	// FSkillDefinitionì€ UObjectê°€ ì•„ë‹ˆë¼ UPROPERTY ì»¨í…Œì´ë„ˆì— ë‹´ê¸°ì§€ ì•Šìœ¼ë©´ ì†Œìœ í•œ Addon í¬ì¸í„°ê°€
+	// GC ëŒ€ìƒì´ ë˜ì–´ë²„ë¦¼ ? ì—¬ê¸° ë‹´ì•„ì„œ Actor ìƒì¡´ ê¸°ê°„ ë™ì•ˆ ë£¨íŠ¸ë¡œ ê³ ì •.
 	UPROPERTY()
 	TArray<class UCC_SkillAddonBase*> TestAddonInstances;
 
@@ -133,33 +133,33 @@ public:
 public:
 
 	//==============================================================================
-	// Test Skill System - Å×½ºÆ®¿ëÀÌ¹Ç·Î ÃßÈÄ Á¦°Å
+	// Test Skill System - í…ŒìŠ¤íŠ¸ìš©ì´ë¯€ë¡œ ì¶”í›„ ì œê±°
 	//==============================================================================
 
 	UFUNCTION(BlueprintCallable, Category = "Skills")
-	void CastFireball();           // È­¿°±¸ - Åõ»çÃ¼ + Æø¹ß
+	void CastFireball();           // í™”ì—¼êµ¬ - íˆ¬ì‚¬ì²´ + í­ë°œ
 
 	UFUNCTION(BlueprintCallable, Category = "Skills")
-	void CastLightningBolt();      // ¹ø°³ - Áï¹ß + ¿¬¼â
+	void CastLightningBolt();      // ë²ˆê°œ - ì¦‰ë°œ + ì—°ì‡„
 
 	UFUNCTION(BlueprintCallable, Category = "Skills")
-	void CastIceShard();           // ¾óÀ½ ÆÄÆí - Åõ»çÃ¼ + ¸ÖÆ¼¼¦
+	void CastIceShard();           // ì–¼ìŒ íŒŒí¸ - íˆ¬ì‚¬ì²´ + ë©€í‹°ìƒ·
 
 	UFUNCTION(BlueprintCallable, Category = "Skills")
-	void CastPoisonNova();         // µ¶ Æø¹ß - ¹üÀ§ °ø°İ
+	void CastPoisonNova();         // ë… í­ë°œ - ë²”ìœ„ ê³µê²©
 
 	UFUNCTION(BlueprintCallable, Category = "Skills")
-	void CastPiercingArrow();      // °üÅë È­»ì - Åõ»çÃ¼ + °üÅë
+	void CastPiercingArrow();      // ê´€í†µ í™”ì‚´ - íˆ¬ì‚¬ì²´ + ê´€í†µ
 
 	UFUNCTION(BlueprintCallable, Category = "Skills")
-	void CastThunderStrike();      // ÃµµÕ º­¶ô - Áï¹ß + Æø¹ß
+	void CastThunderStrike();      // ì²œë‘¥ ë²¼ë½ - ì¦‰ë°œ + í­ë°œ
 
-	// === º¤ÅÍ ·¹ÀÌÀú (¸¶¿ì½º µå·¡±×) ===
+	// === ë²¡í„° ë ˆì´ì € (ë§ˆìš°ìŠ¤ ë“œë˜ê·¸) ===
 	UFUNCTION(BlueprintCallable, Category = "Skills")
-	void StartVectorLaser();       // ·¹ÀÌÀú ½ÃÀÛÁ¡ ±â·Ï
+	void StartVectorLaser();       // ë ˆì´ì € ì‹œì‘ì  ê¸°ë¡
 
 	UFUNCTION(BlueprintCallable, Category = "Skills")
-	void ReleaseVectorLaser();     // ·¹ÀÌÀú ¹ß»ç
+	void ReleaseVectorLaser();     // ë ˆì´ì € ë°œì‚¬
 
 protected:
 	
@@ -178,8 +178,8 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Level")
 	float Experience = 0.0f;
 
-	/** while(AddExperience) ·çÇÁ¿¡¼­ ÇÑ ¹ø¿¡ ¿©·¯ ·¹º§ÀÌ ¿À¸¥ °æ¿ì,
-	 *  LevelUp Ä«µå ¼±ÅÃ UI¸¦ ÇÑ ¹ø¿¡ ÇÏ³ª¾¿ ¼øÂ÷·Î ¶ç¿ì±â À§ÇÑ ´ë±â Ä«¿îÆ®. */
+	/** while(AddExperience) ë£¨í”„ì—ì„œ í•œ ë²ˆì— ì—¬ëŸ¬ ë ˆë²¨ì´ ì˜¤ë¥¸ ê²½ìš°,
+	 *  LevelUp ì¹´ë“œ ì„ íƒ UIë¥¼ í•œ ë²ˆì— í•˜ë‚˜ì”© ìˆœì°¨ë¡œ ë„ìš°ê¸° ìœ„í•œ ëŒ€ê¸° ì¹´ìš´íŠ¸. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Level")
 	int32 PendingLevelUpCount = 0;
 

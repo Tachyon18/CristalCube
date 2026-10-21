@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+ï»¿// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
@@ -48,59 +48,59 @@ protected:
 
 public:
 
-	/** Å¸ÀÏ È°¼ºÈ­ */
+	/** íƒ€ì¼ í™œì„±í™” */
 	UFUNCTION(BlueprintCallable, Category = "Tile")
 	void ActivateTile();
 
-	/** Å¸ÀÏ ºñÈ°¼ºÈ­ */
+	/** íƒ€ì¼ ë¹„í™œì„±í™” */
 	UFUNCTION(BlueprintCallable, Category = "Tile")
 	void DeactivateTile();
 
-	/** Å¸ÀÏ ÃÊ±âÈ­ */
+	/** íƒ€ì¼ ì´ˆê¸°í™” */
 	UFUNCTION(BlueprintCallable, Category = "Tile")
 	void InitializeTile(int32 Index, const FVector& Center, float Size);
 
-	// ========== °ø°£ Á¤º¸ ==========
+	// ========== ê³µê°„ ì •ë³´ ==========
 
-	/** Å¸ÀÏ Áß½É */
+	/** íƒ€ì¼ ì¤‘ì‹¬ */
 	UFUNCTION(BlueprintCallable, Category = "Tile")
 	FVector GetTileCenter() const;
 
-	/** Å¸ÀÏ °æ°è */
+	/** íƒ€ì¼ ê²½ê³„ */
 	UFUNCTION(BlueprintCallable, Category = "Tile")
 	FBox GetTileBounds() const;
 
-	/** À§Ä¡°¡ Å¸ÀÏ ¾È¿¡ ÀÖ´ÂÁö (XY¸¸) */
+	/** ìœ„ì¹˜ê°€ íƒ€ì¼ ì•ˆì— ìˆëŠ”ì§€ (XYë§Œ) */
 	UFUNCTION(BlueprintCallable, Category = "Tile")
 	bool IsPositionInTile(const FVector& Position) const;
 
-	// ========== Actor °ü¸® ==========
+	// ========== Actor ê´€ë¦¬ ==========
 
-	/** Actor µî·Ï */
+	/** Actor ë“±ë¡ */
 	UFUNCTION(BlueprintCallable, Category = "Tile")
 	void RegisterActor(AActor* Actor);
 
-	/** Actor ÇØÁ¦ */
+	/** Actor í•´ì œ */
 	UFUNCTION(BlueprintCallable, Category = "Tile")
 	void UnregisterActor(AActor* Actor);
 
-	/** Å¸ÀÏ ÀÎµ¦½º */
+	/** íƒ€ì¼ ì¸ë±ìŠ¤ */
 	UFUNCTION(BlueprintCallable, Category = "Tile")
 	int32 GetTileIndex() const { return TileIndex; }
 
-	/** Å¸ÀÏ È°¼º »óÅÂ */
+	/** íƒ€ì¼ í™œì„± ìƒíƒœ */
 	UFUNCTION(BlueprintCallable, Category = "Tile")
 	bool IsTileActive() const { return bIsActive; }
 
-	/** ¸ğµç ¾×ÅÍ */
+	/** ëª¨ë“  ì•¡í„° */
 	UFUNCTION(BlueprintCallable, Category = "Tile")
 	TArray<AActor*> GetActorsInTile() const { return ActorsInTile; }
 
-	/** Àûµé¸¸ */
+	/** ì ë“¤ë§Œ */
 	UFUNCTION(BlueprintCallable, Category = "Tile")
 	TArray<ACC_EnemyCharacter*> GetEnemiesInTile() const { return EnemiesInTile; }
 
-	/** Àû È°¼ºÈ­/ºñÈ°¼ºÈ­ */
+	/** ì  í™œì„±í™”/ë¹„í™œì„±í™” */
 	UFUNCTION(BlueprintCallable, Category = "Tile")
 	void SetEnemiesActive(bool bActive);
 

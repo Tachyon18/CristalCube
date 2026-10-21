@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+ï»¿// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
@@ -15,8 +15,8 @@ class UCC_Freezable : public UInterface
 
 /**
  * Freezable Interface
- * Å¥ºê°¡ Frozen »óÅÂ°¡ µÉ ¶§ ActorµéÀÌ ±¸ÇöÇØ¾ß ÇÏ´Â ÀÎÅÍÆäÀÌ½º
- * Enemy, Projectile µîÀÌ ±¸Çö
+ * íë¸Œê°€ Frozen ìƒíƒœê°€ ë  ë•Œ Actorë“¤ì´ êµ¬í˜„í•´ì•¼ í•˜ëŠ” ì¸í„°í˜ì´ìŠ¤
+ * Enemy, Projectile ë“±ì´ êµ¬í˜„
  */
 class CRISTALCUBE_API ICC_Freezable
 {

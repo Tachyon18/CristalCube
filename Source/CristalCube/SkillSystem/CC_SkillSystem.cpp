@@ -1036,7 +1036,12 @@ void UCC_SkillSystem::OnEffectorTerrainHit(ACC_SkillEffector* Effector, const FH
 		SpawnEffect(Skill.ImpactEffect, Hit.ImpactPoint, FRotator::ZeroRotator, Skill.ElementType);
 	}
 
-	// 착탄 범위 데미지 등 지형 착탄 시 처리는 이후 이 지점에 추가 (설계 결정 대기)
+	// 지형 착탄 = 대상 없는 타격 — 위치형 Addon(Explosion/Shockwave/Sigil 등)이 착탄 지점에서 발동.
+	// 범위 데미지는 Core가 아니라 Addon(Explosion)이 전담. 대상형 Addon(Elemental/DOT/Burst)은 HitTarget이 없어 스스로 건너뜀.
+	FHitResult TerrainHit;
+	TerrainHit.ImpactPoint = Hit.ImpactPoint;
+	TerrainHit.Location = Hit.ImpactPoint;
+	ProcessAddons(Skill, Effector->SkillContext, TerrainHit, Effector->AddonStartIndex);
 
 	Effector->DeactivateAndDestroy();
 }

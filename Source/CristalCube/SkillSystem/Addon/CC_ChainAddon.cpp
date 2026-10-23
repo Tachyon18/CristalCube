@@ -16,7 +16,8 @@ void UCC_ChainAddon::OnHit_Implementation(UCC_SkillSystem* SkillSystem, const FS
 
     while (ChainState.CurrentChainCount < Data.ChainCount)
     {
-        FVector SearchOrigin = CurrentTarget ? CurrentTarget->GetActorLocation() : ChainState.StartLocation;
+        // 대상 없는 타격(지형 착탄 등)이면 착탄 지점에서 탐색 — 시전 위치(공중 스폰점 등)가 아니라
+        FVector SearchOrigin = CurrentTarget ? CurrentTarget->GetActorLocation() : HitLocation;
         AActor* NextTarget = SkillSystem->FindNearestEnemy(SearchOrigin, Data.SearchRadius, ChainState.HitActors);
         if (!NextTarget || !IsValidHitTarget(NextTarget)) break;
 

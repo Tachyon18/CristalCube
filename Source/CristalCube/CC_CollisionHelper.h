@@ -62,14 +62,16 @@ public:
 		Comp->SetGenerateOverlapEvents(true);
 	}
 
-	// 적 투사체 판정 구체 — 플레이어(Pawn)만 Overlap.
-	// (ACC_Projectile에는 지형 충돌 처리 경로가 없어 지형은 아직 무시 — 막히면 멈춘 채 수명까지 남음)
+	// 적 투사체 판정 구체 — 스킬 투사체와 같은 문법: 대상(플레이어 Pawn)만 Overlap, 지형(Static/Dynamic)에는 Block, 나머지 무시.
+	// 실제로 막히는 건 상대가 Projectile 채널을 Block하는 경우뿐(= 지정 지형, bBlocksMovement 장식물). 막히면 ACC_Projectile::OnProjectileStopped.
 	static void ConfigureAsEnemyProjectile(UPrimitiveComponent* Comp)
 	{
 		if (!Comp) return;
 		Comp->SetCollisionObjectType(ECC_CC_Projectile);
 		Comp->SetCollisionResponseToAllChannels(ECR_Ignore);
 		Comp->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
+		Comp->SetCollisionResponseToChannel(ECC_WorldStatic, ECR_Block);
+		Comp->SetCollisionResponseToChannel(ECC_WorldDynamic, ECR_Block);
 		Comp->SetGenerateOverlapEvents(true);
 	}
 

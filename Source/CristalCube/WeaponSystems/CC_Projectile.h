@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
@@ -6,10 +6,12 @@
 #include "GameFramework/Actor.h"
 #include "CC_Projectile.generated.h"
 
+class UPrimitiveComponent;
 class USphereComponent;
 class UProjectileMovementComponent;
 class UStaticMeshComponent;
 class UNiagaraSystem;
+class UNiagaraComponent;
 class USoundBase;
 class UCC_EffectorPoolSubsystem;
 
@@ -37,6 +39,11 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Projectile")
 	void Deactivate();
 
+	// 판정·이동은 지금 끝내고, 상주 나이아가라는 스스로 끝날 때까지 둔 뒤 반납 (명중/지형 착탄/수명 만료)
+	// Deactivate()는 즉시 반납 — 공격 취소(Freeze/텔레포트) 등 연출까지 바로 지워야 할 때
+	UFUNCTION(BlueprintCallable, Category = "Projectile")
+	void EndAndDrain();
+
 	void SetOwningPool(UCC_EffectorPoolSubsystem* InPool) { OwningPool = InPool; }
 
 	// Current shooter (null once deactivated) - lets the shooter cancel only its own live shots
@@ -49,6 +56,10 @@ protected:
 	UFUNCTION()
 	void OnOverlapBegin(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
 		UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
+
+	// 지형에 막혀 ProjectileMovement가 멈췄을 때 — 착탄 연출 후 종료(스킬 투사체 OnProjectileStopped와 같은 문법)
+	UFUNCTION()
+	void OnProjectileStopped(const FHitResult& ImpactResult);
 
 	void PlayHitEffects(const FVector& HitLocation) const;
 
@@ -100,6 +111,10 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Projectile|Effects")
 	USoundBase* HitSound = nullptr;
 
+	// 안전장치: 상주 나이아가라가 끝났다고 알려오지 않을 때 반납까지 최대 대기 시간(초)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Projectile|Effects")
+	float MaxDrainTime = 2.0f;
+
 private:
 	UPROPERTY()
 	UCC_EffectorPoolSubsystem* OwningPool = nullptr;
@@ -116,4 +131,29 @@ private:
 	bool bIsPooledInactive = true;
 
 	FTimerHandle LifetimeTimerHandle;
+
+	// 판정 종료 공통 처리 — 이미 끝난 상태면 false
+	bool EndGameplay();
+
+	// 실제 반납(숨김 + 풀 반납). 중복 호출 안전
+	void FinishRelease();
+
+	// 액터에 붙은 나이아가라(BP 컴포넌트)만 — 외부에 스폰한 HitEffect는 제외
+	void GetResidentNiagara(TArray<UNiagaraComponent*>& OutVFX) const;
+
+	UFUNCTION()
+	void OnResidentVFXFinished(UNiagaraComponent* FinishedComponent);
+
+	// Drain 상태: 판정은 끝났고 상주 나이아가라 종료 대기 중
+	bool bIsDraining = false;
+
+	// 풀 반납 완료 여부 (처음 Fire 전에도 true)
+	bool bReleasedToPool = true;
+
+	int32 PendingDrainVFXCount = 0;
+
+	FTimerHandle DrainTimeoutHandle;
+
+	// Drain 시작 때 숨긴 나이아가라 외 보이는 것(메시 등) — 재사용 시 복구
+	TArray<TWeakObjectPtr<UPrimitiveComponent>> DrainHiddenComponents;
 };

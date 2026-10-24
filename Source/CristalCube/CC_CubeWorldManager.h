@@ -154,11 +154,11 @@ public:
     // Data Structures
     // ========================================
 
-    /** ť�� ������ �׸��� (9��) */
+    /** 좌표별 큐브 데이터 그리드 (기본 3x3 = 9칸, 커스텀 레이아웃이면 유효 셀만) */
     UPROPERTY()
     TMap<FIntPoint, FCubeData> CubeGrid;
 
-    /** 종전 Active 큐브 */
+    /** 현재 Active 큐브 */
     UPROPERTY()
     ACC_Cube* ActiveCube;
 
@@ -170,7 +170,7 @@ public:
     UFUNCTION(BlueprintPure, Category = "Cube|Debug")
     int32 GetTotalManagedActorsCount() const;
 
-    /** Spawn�� ť��� */
+    /** Spawn된 큐브들 */
     UPROPERTY()
     TArray<ACC_Cube*> LoadedCubes;
 
@@ -178,30 +178,30 @@ public:
     // Initialization
     // ========================================
 
-    /** �ý��� �ʱ�ȭ */
+    /** 시스템 초기화 */
     UFUNCTION(BlueprintCallable, Category = "Cube")
     void InitializeSystem();
 
-    /** ť�� �׸��� ������ ���� */
+    /** 큐브 그리드 데이터 생성 */
     void InitializeCubeGrid();
 
     // ========================================
     // Cube Management
     // ========================================
 
-    /** ť�� Spawn */
+    /** 큐브 Spawn */
     UFUNCTION(BlueprintCallable, Category = "Cube")
     ACC_Cube* SpawnCube(FIntPoint Coordinate);
 
-    /** ť�� Despawn (�޸� �����, ���߿� ����) */
+    /** 큐브 Despawn (Destroy + 상태 Unloaded) */
     UFUNCTION(BlueprintCallable, Category = "Cube")
     void DespawnCube(FIntPoint Coordinate);
 
-    /** ť�� ã�� �Ǵ� Spawn */
+    /** 큐브 찾기, 없으면 Spawn */
     UFUNCTION(BlueprintCallable, Category = "Cube")
     ACC_Cube* FindOrSpawnCube(FIntPoint Coordinate);
 
-    /** ť�� ã�� */
+    /** 큐브 찾기 */
     UFUNCTION(BlueprintCallable, Category = "Cube")
     ACC_Cube* FindCube(FIntPoint Coordinate) const;
 
@@ -211,33 +211,33 @@ public:
     // Transition System
     // ========================================
 
-        /** 전역 Cube 전환(스킵) 누적 횟수 — 축 B 카운팅 기준(11.6절), 향후 11.10절 BossProgress TimeBaseline 등에도 재사용 가능 */
+    /** 전역 Cube 전환(스킵) 누적 횟수 — 축 B 카운팅 기준(11.6절), 향후 11.10절 BossProgress TimeBaseline 등에도 재사용 가능 */
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Cube|Neglect")
     int32 GlobalTransitionCount = 0;
 
-    /** ť�� ��ȯ ��û */
+    /** 큐브 전환 요청 */
     UFUNCTION(BlueprintCallable, Category = "Cube|Transition")
     void RequestTransition(EBoundaryDirection Direction);
 
-    /** ���� ť�� ��ǥ ��� (��ȯ ����) */
+    /** 다음 큐브 좌표 계산 (끝이면 같은 행/열 반대편으로 랩핑) */
     UFUNCTION(BlueprintCallable, Category = "Cube|Transition")
     FIntPoint GetNextCubeCoord(FIntPoint Current, EBoundaryDirection Direction) const;
 
-    /** ��ȯ ���� (���� �� ȣ��) */
+    /** 전환 실행 (RequestTransition 검증 후 호출) */
     void PerformTransition(FIntPoint NextCoord);
 
-    /** �÷��̾� ��ġ ��� (��ȯ ��) */
+    /** 플레이어 위치 계산 (전환 시 — 이전 큐브와 맞닿은 면 근처) */
     FVector CalculatePlayerPositionInCube(ACC_Cube* TargetCube, EBoundaryDirection FromDirection) const;
 
     // ========================================
     // Player Management
     // ========================================
 
-    /** �÷��̾� ���� �������� */
+    /** 플레이어 캐릭터 가져오기 */
     UFUNCTION(BlueprintCallable, Category = "Cube")
     ACharacter* GetPlayerCharacter() const;
 
-    /** �÷��̾ ť��� �̵� */
+    /** 플레이어를 큐브로 이동 */
     UFUNCTION(BlueprintCallable, Category = "Cube")
     void MovePlayerToCube(FIntPoint Coordinate);
 
@@ -245,7 +245,7 @@ public:
     // Events
     // ========================================
 
-    /** ť�� ��ȯ �Ϸ� �̺�Ʈ */
+    /** 큐브 전환 완료 이벤트 */
     UPROPERTY(BlueprintAssignable, Category = "Cube|Events")
     FOnCubeTransition OnCubeTransition;
 
@@ -262,21 +262,21 @@ public:
     // Debug
     // ========================================
 
-    /** ����� ���� ��� */
+    /** 디버그 정보 출력 */
     UFUNCTION(BlueprintCallable, Category = "Cube|Debug")
     void PrintDebugInfo();
 
-    /** ��� ť�� Draw */
+    /** 모든 큐브 Draw */
     UFUNCTION(BlueprintCallable, Category = "Cube|Debug")
     void DrawAllCubes();
 
-    /** �ڵ� �׽�Ʈ ��� */
+    /** 자동 테스트 모드 (Tick마다 DrawAllCubes) */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cube|Debug")
     bool bAutoTest = false;
 
 protected:
-    
-    /** ���� ��ȯ ���� (�׽�Ʈ��) */
+
+    /** 마지막 전환 방향 (플레이어 진입 위치 계산용) */
     EBoundaryDirection LastTransitionDirection;
 
     TMap<FIntPoint, ECubeTheme> CoordinateThemeCache;

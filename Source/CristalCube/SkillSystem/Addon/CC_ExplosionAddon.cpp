@@ -16,7 +16,7 @@ void UCC_ExplosionAddon::OnHit_Implementation(UCC_SkillSystem* SkillSystem, cons
     {
         if (!IsValidHitTarget(Enemy) || AlreadyExploded.Contains(Enemy)) continue;
 
-        // Max damage inside Radius * MaxDamageRadiusRatio, then linear falloff to MinDamageRatio at Radius
+        // Radius × MaxDamageRadiusRatio 안쪽은 최대 데미지, 그 바깥부터 Radius까지 MinDamageRatio로 선형 감소 (거리는 3D, 적 액터 중심 기준)
         const float Dist = FVector::Dist(HitLocation, Enemy->GetActorLocation());
         const float MaxRadius = Data.Radius * FMath::Clamp(Data.MaxDamageRadiusRatio, 0.0f, 1.0f);
         const float FalloffRange = Data.Radius - MaxRadius;

@@ -66,9 +66,9 @@ enum class EBoundaryDirection : uint8
 UENUM(BlueprintType)
 enum class ECubeState : uint8
 {
-    Active UMETA(DisplayName = "Active"),      // ���� Ȱ�� ť��
-    Frozen UMETA(DisplayName = "Frozen"),      // ��Ȱ�� (�ð� ����)
-    Unloaded UMETA(DisplayName = "Unloaded")   // �޸𸮿� ����
+    Active UMETA(DisplayName = "Active"),      // 현재 활성 큐브
+    Frozen UMETA(DisplayName = "Frozen"),      // 비활성 (시간 정지)
+    Unloaded UMETA(DisplayName = "Unloaded")   // 메모리에서 해제
 };
 
 UENUM(BlueprintType)
@@ -149,7 +149,7 @@ public:
     float Value;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Requirements")
-    int32 Weight;                   // ���� Ȯ�� ����ġ
+    int32 Weight;                   // 선택 확률 가중치
 };
 
 //------------------------------------------------------------------------------
@@ -364,14 +364,15 @@ struct FExplosionAddonData
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|Explosion")
     float Radius = 300.0f;
 
-    // 외곽 최소 데미지 비율 (중심 100%, 외곽 MinRatio% / 이후 추가 작업) 
+    // 폭발 반경 끝(Radius)에서의 데미지 비율. 최대 데미지 구간(MaxDamageRadiusRatio) 밖부터 Radius까지 1.0 → 이 값으로 선형 감소.
+    // 예: 0.5 = 외곽 50%. 업그레이드 ID ExplosionMinDamageRatio(ValuePerPoint 가산), 0~1 clamp.
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|Explosion",
         meta = (ClampMin = "0.0", ClampMax = "1.0"))
     float MinDamageRatio = 0.5f;
 
-    // Fraction of Radius that takes max (100%) damage. 0.5 = inner half of the explosion.
-    // Ratio (not cm) so the falloff shape stays the same for any explosion size / Radius upgrade.
-    // 0 = falloff starts at the center, 1 = whole radius takes max damage.
+    // 최대(100%) 데미지를 받는 반경 비율(Radius 대비). 0.5 = 폭발 안쪽 절반.
+    // cm가 아니라 비율이라 폭발 크기·Radius 강화와 무관하게 감쇠 모양이 유지됨.
+    // 0 = 중심부터 바로 감쇠 시작, 1 = 반경 전체가 최대 데미지.
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Addon|Explosion",
         meta = (ClampMin = "0.0", ClampMax = "1.0"))
     float MaxDamageRadiusRatio = 0.0f;

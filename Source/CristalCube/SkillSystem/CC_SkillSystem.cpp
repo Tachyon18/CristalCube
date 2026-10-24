@@ -530,7 +530,7 @@ void UCC_SkillSystem::ExecuteRainfall(const FSkillDefinition& Skill, FSkillExecu
 
 		FTimerHandle TimerHandle;
 
-		// 값 캡처 (레퍼런스 금지 ? 함수 스택이 사라지므로)
+		// 값 캡처 (레퍼런스 금지 - 함수 스택이 사라지므로)
 		FSkillDefinition SkillCopy = Skill;
 		FSkillExecutionContext ContextCopy = Context;
 
@@ -707,7 +707,7 @@ void UCC_SkillSystem::ProcessAddons(const FSkillDefinition& Skill, FSkillExecuti
 		HitTarget = nullptr;
 	}
 
-	// Penetrate / MultiShot은 SkillEffector / ExecuteProjectile에서 별도 처리 ?
+	// Penetrate / MultiShot은 SkillEffector / ExecuteProjectile에서 별도 처리 -
 	// Core 고유 강화라 애초에 GrantAddon()을 거치지 않으므로 Skill.Addons에 나타나지 않는다.
 	for (int32 i = StartIndex; i < Skill.Addons.Num(); ++i)
 	{
@@ -947,7 +947,7 @@ void UCC_SkillSystem::SpawnTrajectoryEffect(UNiagaraSystem* Effect, FVector Star
 		FRotator::ZeroRotator,
 		FVector(1.0f),
 		true,   // Auto Destroy
-		false,  // Auto Activate ? 파라미터를 먼저 세팅한 뒤 수동으로 Activate
+		false,  // Auto Activate - 파라미터를 먼저 세팅한 뒤 수동으로 Activate
 		ENCPoolMethod::AutoRelease  // 풀링!
 	);
 
@@ -1221,7 +1221,7 @@ UNiagaraComponent* UCC_SkillSystem::SpawnPersistentAttachedVFX(UNiagaraSystem* E
 		FVector::ZeroVector,
 		FRotator::ZeroRotator,
 		EAttachLocation::SnapToTarget,
-		false,  // bAutoDestroy ? 수명은 호출자(액터/컴포넌트)가 직접 관리
+		false,  // bAutoDestroy - 수명은 호출자(액터/컴포넌트)가 직접 관리
 		true,   // bAutoActivate
 		ENCPoolMethod::None,  // 수명을 호출자가 직접 관리하므로 풀링 비사용
 		true    // bPreCullCheck

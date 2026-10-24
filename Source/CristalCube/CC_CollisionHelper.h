@@ -6,12 +6,16 @@
 #include "Components/PrimitiveComponent.h"
 
 /**
- * 스킬(Projectile Effector 등)에 의해 "맞을 수 있는" 대상이 되기 위한
- * 콜리전 설정을 한 곳에서 관리하는 순수 유틸리티.
+ * 역할별 콜리전 설정(피격 판정체 / 투사체 판정 구체 / 착탄 지형)을 한 곳에서 관리하는 순수 유틸리티.
  * 어떤 언리얼 클래스도 상속하지 않음 — 그냥 정적 함수를 담아두는 평범한 C++ 클래스.
  *
- * 사용법: Player/Enemy 계열 생성자에서, 자신의 루트 콜리전 컴포넌트를 "넘겨서" 호출.
- *   FCC_CollisionHelper::ConfigureAsSkillHittable(GetCapsuleComponent());
+ * 사용법: 역할에 맞는 함수에 자신의 콜리전 컴포넌트를 "넘겨서" 호출.
+ *   FCC_CollisionHelper::ConfigureAsEnemyHitbox(GetCapsuleComponent());    // 적 캡슐
+ *   FCC_CollisionHelper::ConfigureAsPlayerHitbox(GetCapsuleComponent());   // 플레이어 캡슐
+ *   FCC_CollisionHelper::ConfigureAsSkillProjectile(CollisionSphere);      // 스킬 투사체 판정 구체
+ *   FCC_CollisionHelper::ConfigureAsEnemyProjectile(CollisionSphere);      // 적 투사체 판정 구체
+ *   FCC_CollisionHelper::ConfigureAsSkillTerrain(FloorMesh);               // 착탄 지형으로 "지정"
+ * 생성자 값은 BP Collision Presets에 덮이므로 BeginPlay/발사/초기화 시점에 한 번 더 호출할 것.
  */
 
 class CRISTALCUBE_API FCC_CollisionHelper

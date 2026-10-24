@@ -171,7 +171,7 @@ void ACC_SkillEffector::DeactivateImmediately()
 {
 	if (EndGameplay() || bIsDraining)
 	{
-		// Fresh end, or a drain already in progress (hit just before the transition) - release now
+		// 막 끝난 경우든, 이미 Drain 중(전환 직전 명중)이든 지금 바로 반납
 		FinishRelease();
 	}
 }
@@ -294,7 +294,7 @@ void ACC_SkillEffector::ActivateAtTransform(const FTransform& NewTransform)
 	PendingDrainVFXCount = 0;
 	GetWorldTimerManager().ClearTimer(DrainTimeoutHandle);
 
-	// Restore visuals hidden by the previous drain
+	// 이전 Drain에서 숨긴 메시 등 복구
 	for (const TWeakObjectPtr<UPrimitiveComponent>& Prim : DrainHiddenComponents)
 	{
 		if (Prim.IsValid())
@@ -325,7 +325,7 @@ void ACC_SkillEffector::ActivateAtTransform(const FTransform& NewTransform)
 		ProjectileMovement->SetActive(false);
 	}
 
-	// Restart resident Niagara only (detached one-shots from the previous use are left alone)
+	// 상주 나이아가라만 처음부터 다시 재생 (이전 사용에서 떼어낸 1회성은 건드리지 않음)
 	TArray<UNiagaraComponent*> ResidentVFX;
 	GetResidentNiagara(ResidentVFX);
 	for (UNiagaraComponent* VFX : ResidentVFX)
@@ -387,17 +387,17 @@ void ACC_SkillEffector::LifeSpanExpired()
 
 bool ACC_SkillEffector::EndGameplay()
 {
-	// Guard: already ended (hit + LifeSpan, cube transition + LifeSpan, ...)
+	// 가드: 이미 종료됨 (명중 + LifeSpan, 큐브 전환 + LifeSpan 등)
 	if (bIsPooledInactive)
 	{
 		return false;
 	}
 	bIsPooledInactive = true;
 
-	// Cancel a pending LifeSpan timer so it cannot fire while pooled (double release)
+	// 대기 중인 LifeSpan 타이머 취소 — 풀 대기 중에 발동하면 이중 반납
 	SetLifeSpan(0.0f);
 
-	// Gameplay ends here: no more hits, no more movement
+	// 판정은 여기서 끝 — 더 이상 타격·이동 없음
 	if (CollisionSphere)
 	{
 		CollisionSphere->SetGenerateOverlapEvents(false);
@@ -408,7 +408,7 @@ bool ACC_SkillEffector::EndGameplay()
 		ProjectileMovement->SetActive(false);
 	}
 
-	// One-shot VFX added via AddVFX (AutoDestroy) are detached and finish on their own
+	// AddVFX로 붙인 1회성 VFX(AutoDestroy)는 떼어내서 스스로 끝나게 둠
 	for (UNiagaraComponent* VFX : VFXStack)
 	{
 		if (!VFX) continue;
@@ -417,8 +417,8 @@ bool ACC_SkillEffector::EndGameplay()
 	}
 	VFXStack.Empty();
 
-	// Must be cleared before reuse, otherwise OnProjectileHit is bound again on every reuse.
-	// Safe even when called from inside Broadcast (dynamic multicast iterates over a copy).
+	// 재사용 전에 반드시 비움 — 안 그러면 재사용할 때마다 OnProjectileHit가 중복 바인딩됨.
+	// Broadcast 도중에 호출돼도 안전(동적 멀티캐스트는 복사본을 순회).
 	OnEffectorHit.Clear();
 
 	if (UCC_SkillSystem* SkillSystem = OwningSkillSystem.Get())
@@ -432,7 +432,7 @@ void ACC_SkillEffector::BeginDrain()
 {
 	bIsDraining = true;
 
-	// Non-Niagara visuals (mesh cores etc.) have no fade-out of their own - hide them now
+	// 나이아가라가 아닌 보이는 것(메시 코어 등)은 스스로 사라지는 연출이 없으므로 지금 숨김
 	DrainHiddenComponents.Reset();
 	TArray<UPrimitiveComponent*> Primitives;
 	GetComponents<UPrimitiveComponent>(Primitives);
@@ -443,12 +443,14 @@ void ACC_SkillEffector::BeginDrain()
 		DrainHiddenComponents.Add(Prim);
 	}
 
-	// Resident Niagara: stop spawning, let live particles (trail tail etc.) finish naturally.
-	// Count first, then deactivate - Deactivate() may report finished synchronously.
+	// 상주 나이아가라: 새 생성만 멈추고 남은 파티클(트레일 꼬리 등)은 자연 종료.
+	// 먼저 세고 나서 Deactivate — Deactivate가 동기적으로 종료를 알릴 수 있음
 	TArray<UNiagaraComponent*> ResidentVFX;
 	GetResidentNiagara(ResidentVFX);
 	ResidentVFX.RemoveAll([](const UNiagaraComponent* VFX) { return !VFX->IsActive(); });
 
+	// 루프를 둘로 나눈 이유: 모든 컴포넌트에 종료 알림을 먼저 연결한 뒤 끄기 위함(Deactivate가 그 자리에서 종료를 알릴 수 있음).
+	// 카운트를 위에서 미리 확정했으므로 합쳐도 동작은 같음 — 순서를 눈에 보이게 하려는 안전장치. (ACC_Projectile::EndAndDrain과 동일)
 	PendingDrainVFXCount = ResidentVFX.Num();
 	for (UNiagaraComponent* VFX : ResidentVFX)
 	{
@@ -461,7 +463,7 @@ void ACC_SkillEffector::BeginDrain()
 
 	if (!bIsDraining)
 	{
-		return; // everything finished synchronously and FinishRelease already ran
+		return; // 전부 동기 종료되어 FinishRelease가 이미 실행됨
 	}
 	if (PendingDrainVFXCount <= 0)
 	{
@@ -469,7 +471,7 @@ void ACC_SkillEffector::BeginDrain()
 		return;
 	}
 
-	// Safety net for systems that never report finished (infinite lifetime, Inactive Response = Continue, ...)
+	// 끝났다고 알려오지 않는 시스템(무한 수명, Inactive Response = Continue 등) 대비
 	GetWorldTimerManager().SetTimer(DrainTimeoutHandle, this, &ACC_SkillEffector::OnDrainTimeout,
 		FMath::Max(MaxDrainTime, 0.01f), false);
 }
@@ -486,7 +488,7 @@ void ACC_SkillEffector::FinishRelease()
 	GetWorldTimerManager().ClearTimer(DrainTimeoutHandle);
 	GetWorldTimerManager().ClearTimer(CollisionDebugTimer);
 
-	// Kill whatever is left (timeout / cut-short drain) so the next Activate(true) starts clean
+	// 남은 것(타임아웃/중간 취소) 정리 — 다음 Activate(true)가 깨끗하게 시작하도록
 	TArray<UNiagaraComponent*> ResidentVFX;
 	GetResidentNiagara(ResidentVFX);
 	for (UNiagaraComponent* VFX : ResidentVFX)
@@ -502,7 +504,7 @@ void ACC_SkillEffector::FinishRelease()
 	}
 	else
 	{
-		// Spawned without a pool (placed in level, pool not ready yet) - destroy as before
+		// 풀 없이 스폰된 경우(레벨 배치, 풀 준비 전) — 기존처럼 Destroy
 		Destroy();
 	}
 }
@@ -655,6 +657,7 @@ void ACC_SkillEffector::GetResidentNiagara(TArray<UNiagaraComponent*>& OutVFX) c
 
 void ACC_SkillEffector::OnResidentVFXFinished(UNiagaraComponent* FinishedComponent)
 {
+	// 진행 중 스스로 끝난 시스템(1회 재생 등)이나 반납 정리 중 알림은 무시
 	if (!bIsDraining)
 	{
 		return;

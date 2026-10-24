@@ -16,10 +16,10 @@ class USoundBase;
 class UCC_EffectorPoolSubsystem;
 
 /**
- * Enemy basic-attack projectile. The player is the only valid target.
- * Pooled through UCC_EffectorPoolSubsystem: Fire() activates, Deactivate() returns it.
- * Lifetime uses a manual timer (no InitialLifeSpan), so a pooled instance never
- * receives a stale LifeSpan callback while it waits in the free list.
+ * 적 기본 공격 투사체 — 유효한 대상은 플레이어뿐. 스킬 투사체(ACC_SkillEffector)와 같은 문법:
+ *   지정 지형(Projectile=Block)에 막히면 착탄 연출 후 종료, 판정은 즉시 끝내고 연출은 스스로 끝날 때까지 둠(Drain).
+ * UCC_EffectorPoolSubsystem으로 풀링: Fire() = 활성화·발사, EndAndDrain() = Drain 후 반납, Deactivate() = 즉시 반납.
+ * 수명은 수동 타이머(InitialLifeSpan 미사용) — 풀 대기 중인 인스턴스에 이전 LifeSpan 콜백이 오지 않게.
  */
 UCLASS()
 class CRISTALCUBE_API ACC_Projectile : public AActor
@@ -29,13 +29,13 @@ class CRISTALCUBE_API ACC_Projectile : public AActor
 public:
 	ACC_Projectile();
 
-	// Pooled spawn. Falls back to a plain SpawnActor when no pool exists.
+	// 풀에서 획득 (풀이 없으면 일반 SpawnActor로 폴백)
 	static ACC_Projectile* AcquirePooled(UWorld* World, TSubclassOf<ACC_Projectile> ProjectileClass);
 
-	// Activate (or re-activate) and launch. InSpeed <= 0 keeps the Blueprint default Speed.
+	// 활성화(재사용 포함) 후 발사. InSpeed <= 0이면 BP 기본 Speed 유지
 	void Fire(const FVector& SpawnLocation, const FVector& Direction, float InDamage, float InSpeed, AActor* InOwner);
 
-	// Stop, hide and return to the pool (Destroy when not pooled). Safe to call twice.
+	// 즉시 반납 — 판정·이동·연출을 바로 끄고 숨긴 뒤 풀에 반납(풀 없으면 Destroy). Drain 중이면 대기를 끊음. 중복 호출 안전
 	UFUNCTION(BlueprintCallable, Category = "Projectile")
 	void Deactivate();
 
@@ -46,7 +46,7 @@ public:
 
 	void SetOwningPool(UCC_EffectorPoolSubsystem* InPool) { OwningPool = InPool; }
 
-	// Current shooter (null once deactivated) - lets the shooter cancel only its own live shots
+	// 현재 발사자(반납되면 null, Drain 중에는 유지) — 쏜 적이 자기 탄만 취소할 수 있게
 	AActor* GetProjectileOwner() const { return ProjectileOwner.Get(); }
 
 protected:
@@ -74,7 +74,7 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	UProjectileMovementComponent* ProjectileMovement;
 
-	// Optional visual (a Niagara component can be added in the Blueprint instead)
+	// 선택 비주얼(대신 BP에서 나이아가라 컴포넌트를 붙여도 됨) — Drain 시작 때 숨김
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	UStaticMeshComponent* ProjectileMesh;
 
@@ -82,26 +82,26 @@ protected:
 	// PROPERTIES
 	//==========================================================================
 
-	// Overwritten by Fire()
+	// Fire()가 덮어씀
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Projectile|Stats")
 	float Damage = 10.0f;
 
-	// Default speed when the shooter passes 0
+	// 발사자가 0을 넘기면 쓰는 기본 속도
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Projectile|Stats")
 	float Speed = 1000.0f;
 
-	// Seconds before auto-deactivate
+	// 수명(초) — 만료 시 EndAndDrain(Drain 후 반납)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Projectile|Stats")
 	float Lifetime = 5.0f;
 
-	// Deactivate (return to pool) on hit
+	// 명중 시 종료(EndAndDrain) — false면 명중 후에도 계속 비행
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Projectile|Behavior")
 	bool bDestroyOnHit = true;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Projectile|Behavior")
 	bool bCanPierce = false;
 
-	// Number of extra targets it can pass through when bCanPierce is true
+	// bCanPierce일 때 추가로 통과할 수 있는 대상 수
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Projectile|Behavior")
 	int32 PierceCount = 0;
 
@@ -119,7 +119,7 @@ private:
 	UPROPERTY()
 	UCC_EffectorPoolSubsystem* OwningPool = nullptr;
 
-	// Weak: the shooter can die while the projectile is still flying or pooled
+	// 약한 참조: 탄이 날아가거나 Drain 중일 때 발사자가 죽을 수 있음
 	UPROPERTY()
 	TWeakObjectPtr<AActor> ProjectileOwner;
 
@@ -127,7 +127,7 @@ private:
 
 	int32 CurrentPierceCount = 0;
 
-	// True while waiting in the pool (and before the first Fire)
+	// 판정 종료 상태(Drain 중·풀 대기·첫 Fire 전) — 실제 반납 완료는 bReleasedToPool
 	bool bIsPooledInactive = true;
 
 	FTimerHandle LifetimeTimerHandle;

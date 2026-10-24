@@ -16,17 +16,17 @@
 
 ACC_Projectile::ACC_Projectile()
 {
-	// ProjectileMovementComponent ticks by itself; the actor needs no Tick.
+	// ProjectileMovementComponent가 스스로 Tick — 액터 Tick 불필요
 	PrimaryActorTick.bCanEverTick = false;
 
 	CollisionSphere = CreateDefaultSubobject<USphereComponent>(TEXT("CollisionSphere"));
 	CollisionSphere->InitSphereRadius(15.0f);
 	RootComponent = CollisionSphere;
 
-	// 적 투사체 — 플레이어만 Overlap
+	// 적 투사체 — 플레이어(Pawn) Overlap + 지형(WorldStatic/WorldDynamic) Block, 나머지 무시 (BP 프리셋 대비 Fire()에서 재적용)
 	FCC_CollisionHelper::ConfigureAsEnemyProjectile(CollisionSphere);
 
-	CollisionSphere->SetCollisionEnabled(ECollisionEnabled::NoCollision); // Fire() enables it
+	CollisionSphere->SetCollisionEnabled(ECollisionEnabled::NoCollision); // Fire()에서 켬
 
 	ProjectileMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ProjectileMesh"));
 	ProjectileMesh->SetupAttachment(CollisionSphere);
@@ -36,7 +36,7 @@ ACC_Projectile::ACC_Projectile()
 	ProjectileMovement->SetUpdatedComponent(CollisionSphere);
 	ProjectileMovement->InitialSpeed = Speed;
 	ProjectileMovement->MaxSpeed = Speed;
-	ProjectileMovement->ProjectileGravityScale = 0.0f; // top-down straight shot
+	ProjectileMovement->ProjectileGravityScale = 0.0f; // 탑다운 직선 사격
 	ProjectileMovement->bRotationFollowsVelocity = true;
 	ProjectileMovement->bShouldBounce = false;
 	ProjectileMovement->bAutoActivate = false;
@@ -202,7 +202,7 @@ void ACC_Projectile::Fire(const FVector& SpawnLocation, const FVector& Direction
 
 	if (ProjectileMovement)
 	{
-		// StopSimulating() can clear UpdatedComponent, so always re-bind
+		// StopSimulating()이 UpdatedComponent를 비울 수 있어 매번 다시 연결
 		ProjectileMovement->SetUpdatedComponent(CollisionSphere);
 		ProjectileMovement->InitialSpeed = Speed;
 		ProjectileMovement->MaxSpeed = Speed;
@@ -259,6 +259,8 @@ void ACC_Projectile::EndAndDrain()
 	GetResidentNiagara(ResidentVFX);
 	ResidentVFX.RemoveAll([](const UNiagaraComponent* VFX) { return !VFX->IsActive(); });
 
+	// 루프를 둘로 나눈 이유: 모든 컴포넌트에 종료 알림을 먼저 연결한 뒤 끄기 위함(Deactivate가 그 자리에서 종료를 알릴 수 있음).
+	// 카운트를 위에서 미리 확정했으므로 합쳐도 동작은 같음 — 순서를 눈에 보이게 하려는 안전장치. (ACC_SkillEffector::BeginDrain과 동일)
 	PendingDrainVFXCount = ResidentVFX.Num();
 	for (UNiagaraComponent* VFX : ResidentVFX)
 	{
@@ -292,7 +294,7 @@ void ACC_Projectile::OnOverlapBegin(UPrimitiveComponent* OverlappedComponent, AA
 		return;
 	}
 
-	// Enemies, skill effectors and other projectiles also overlap (same channel) - ignore silently
+	// Overlap은 Pawn 오브젝트 타입에만 생김(적 캡슐=Enemy, 다른 투사체=Projectile은 Ignore) — 플레이어가 아니거나 사망·이미 맞은 대상은 조용히 무시
 	ACC_PlayerCharacter* Player = Cast<ACC_PlayerCharacter>(OtherActor);
 	if (!Player || !Player->IsAlive() || HitActors.Contains(Player))
 	{
@@ -319,7 +321,7 @@ void ACC_Projectile::OnOverlapBegin(UPrimitiveComponent* OverlappedComponent, AA
 	if (bCanPierce && CurrentPierceCount < PierceCount)
 	{
 		++CurrentPierceCount;
-		return; // keep flying
+		return; // 관통 - 계속 비행
 	}
 
 	if (bDestroyOnHit)

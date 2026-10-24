@@ -35,9 +35,9 @@ ACC_EnemyCharacter::ACC_EnemyCharacter()
 	MoveSpeed = 300.0f;  // Slower than player
 	BaseMaxHealth = MaxHealth;
 
-	if(UCapsuleComponent* Capsule = GetCapsuleComponent())
+	if (UCapsuleComponent* Capsule = GetCapsuleComponent())
 	{
-		FCC_CollisionHelper::ConfigureAsEnemyHitbox(GetCapsuleComponent());
+		FCC_CollisionHelper::ConfigureAsEnemyHitbox(Capsule);
 	}
 
 	// ─── RVO Avoidance: Enemy 간 소프트 분산 ──────────────────────────────
@@ -73,6 +73,9 @@ ACC_EnemyCharacter::ACC_EnemyCharacter()
 void ACC_EnemyCharacter::BeginPlay()
 {
 	Super::BeginPlay();
+
+	// 생성자 값은 BP Collision Presets에 덮이므로 런타임에 역할 콜리전 재적용 (ACC_EnemyBase와 같은 규칙)
+	FCC_CollisionHelper::ConfigureAsEnemyHitbox(GetCapsuleComponent());
 
 	BaseAttackDamage = EnemyStats.AttackDamage;
 	BaseExpGemAmount = ExpGemAmount;
@@ -911,8 +914,8 @@ void ACC_EnemyCharacter::Freeze_Implementation()
 
 	bIsFrozen = true;
 
-	// 추적 즉시 중단 ? AIManager가 다음 Tick에 덮어쓰지 못하도록 먼저 끊음
-	// BlueprintNativeEvent는 직접 호출 금지 ? Execute 함수 경유 필수
+	// 추적 즉시 중단 - AIManager가 다음 Tick에 덮어쓰지 못하도록 먼저 끊음
+	// BlueprintNativeEvent는 직접 호출 금지 - Execute 함수 경유 필수
 	ICC_EnemyAIInterface::Execute_SetChasePlayer(this, false);
 
 	// 시간 정지 (이동/물리/애니 모두 영향)
@@ -1022,7 +1025,7 @@ void ACC_EnemyCharacter::ResetMovementState_Implementation()
 	CachedMoveDirection = FVector::ZeroVector;
 	MoveTarget = GetActorLocation();
 
-	// Step/Teleport 이동 내부 상태도 초기화 ? 텔레포트 전 목표/타이머가
+	// Step/Teleport 이동 내부 상태도 초기화 - 텔레포트 전 목표/타이머가
 	// 새 위치와 무관하게 남아있으면 이상하게 움직일 수 있음
 	StepPhase = EStepPhase::Moving;
 	StepTarget = FVector::ZeroVector;

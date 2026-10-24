@@ -34,6 +34,12 @@ void UCC_MagicMissileAddon::OnHit_Implementation(UCC_SkillSystem* SkillSystem, c
     FSkillDefinition SkillCopy = Skill;
     FSkillExecutionContext ContextCopy = Context;
     ContextCopy.CurrentDamage = Context.CurrentDamage * Data.DamageRatio;
+    // 미사일 = 새로 쏘는 독립 투사체 - 메인 투사체의 판정 기록을 물려받지 않음.
+    // (HitActors를 그대로 복사하면 방금 맞은 적이 OnOverlapBegin 가드에 걸려 미사일이 그 적을 무시함)
+    // CurrentEchoCount는 재귀 방지용이라 유지.
+    ContextCopy.HitActors.Reset();
+    ContextCopy.CurrentChainCount = 0;
+    ContextCopy.CurrentPierceCount = 0;
     FMagicMissileAddonData DataCopy = Data;
     const int32 StartIndex = AddonIndex + 1;
     AActor* CasterActor = Context.Caster;
@@ -59,7 +65,9 @@ void UCC_MagicMissileAddon::OnHit_Implementation(UCC_SkillSystem* SkillSystem, c
             const FVector Direction = (TargetPoint - SpawnLocation).GetSafeNormal();
             const FTransform SpawnTransform(Direction.ToOrientationQuat(), SpawnLocation);
 
-            ACC_SkillEffector* Missile = WeakSystem->GetWorld()->SpawnActor<ACC_SkillEffector>(EffectorClass, SpawnTransform);
+            // 풀에서 획득(없으면 새로 스폰) + Transform 재배치 — ExecuteProjectile/Rainfall과 같은 경로.
+            // 종료 시에도 풀로 반납됨(이전: SpawnActor라 OwningPool이 없어 매번 Destroy).
+            ACC_SkillEffector* Missile = WeakSystem->AcquireSkillEffector(EffectorClass, SpawnTransform);
             if (Missile)
             {
                 Missile->SetSkillOwner(CasterActor);

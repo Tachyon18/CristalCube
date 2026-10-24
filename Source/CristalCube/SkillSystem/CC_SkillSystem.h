@@ -96,7 +96,7 @@ protected:
 	void ExecuteBeam(const FSkillDefinition& Skill, FSkillExecutionContext& Context);
 
 	/**
-	 * Rainfall Core ? 공중에서 복수 투사체 낙하
+	 * Rainfall Core - 공중에서 복수 투사체 낙하
 	 */
 	void ExecuteRainfall(const FSkillDefinition& Skill, FSkillExecutionContext& Context);
 
@@ -156,7 +156,7 @@ public:
 	void SpawnChainEffect(UNiagaraSystem* Effect, FVector StartLocation, FVector TargetLocation, ESkillElementType ElementType = ESkillElementType::None);
 
 	/**
-	 * 궤적형(시작점→끝점) VFX 스폰 ? Beam Core와 Chain Addon이 공유하는 로직.
+	 * 궤적형(시작점→끝점) VFX 스폰 - Beam Core와 Chain Addon이 공유하는 로직.
 	 * User.BeamEnd 세팅 → (Width>0이면 User.BeamWidth도 세팅) → 색상 주입 → 수동 Activate.
 	 * @param Width - 0 이하면 세팅 스킵(에셋 자체 기본값 사용)
 	 */
@@ -171,7 +171,8 @@ public:
 	UFUNCTION()
 	void OnProjectileHit(class ACC_SkillEffector* Effector, AActor* HitActor, FVector HitLocation);
 
-	// 투사체가 지형(바닥/벽)에 막혀 멈췄을 때 — 착탄 연출 후 Drain. 지형 착탄 확장(착탄 AoE 등) 지점.
+	// 투사체가 지형(바닥/벽)에 막혀 멈췄을 때 — 착탄 연출 + "대상 없는 타격"으로 ProcessAddons(HitTarget=null) 후 Drain.
+	// 위치형 Addon(Explosion/Shockwave/Sigil/MagicMissile)은 착탄 지점에서 발동, 대상형(Elemental/Burst/DOT)은 스스로 건너뜀.
 	UFUNCTION()
 	void OnEffectorTerrainHit(class ACC_SkillEffector* Effector, const FHitResult& Hit);
 
@@ -225,7 +226,7 @@ public:
 	void SpawnEffect(UNiagaraSystem* Effect, FVector Location, FRotator Rotation = FRotator::ZeroRotator, ESkillElementType ElementType = ESkillElementType::None);
 
 	/**
-	 * 지속형 Attach VFX 스폰 ? Shockwave/Sigil/ElementalStatus 등 "호출자가 수명을 직접
+	 * 지속형 Attach VFX 스폰 - Shockwave/Sigil/ElementalStatus 등 "호출자가 수명을 직접
 	 * 관리하는 지속 이펙트"가 공유하는 스폰 패턴(AutoDestroy=false, SnapToTarget, 풀링 없음,
 	 * PreCullCheck=true) + 색상 주입까지 한 번에 처리하는 정적 헬퍼.
 	 */

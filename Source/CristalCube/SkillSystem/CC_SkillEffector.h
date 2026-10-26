@@ -76,11 +76,9 @@ public:
 	UPROPERTY(BlueprintReadWrite, Category = "Skill Effector")
 	int32 AddonStartIndex = 0;
 
+	// 판정 최대 수명(초) - 아무것도 못 맞추면 이 시간 뒤 Drain(LifeSpan). MagicMissile 등은 SetLifeSpan으로 따로 지정
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gameplay")
 	float EffectDuration = 3.0f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gameplay")
-	float LifeTime = 5.0f;
 
 	UPROPERTY(BlueprintReadOnly, Category = "Skill Effector")
 	AActor* SkillOwner = nullptr;
@@ -118,9 +116,6 @@ public:
 
 	UFUNCTION()
 	void SetSkillOwner(AActor* NewOwner) { SkillOwner = NewOwner; }
-
-	UFUNCTION()
-	void ApplyDamageToActor(AActor* TargetActor);
 
 	void SetupAsProjectile();
 	void SetupAsRainfall();

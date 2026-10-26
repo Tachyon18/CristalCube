@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 #include "CC_EnemyAreaAttack.h"
 #include "Components/CapsuleComponent.h"
@@ -23,6 +23,8 @@ ACC_EnemyAreaAttack::ACC_EnemyAreaAttack()
 
 	Root = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
 	SetRootComponent(Root);
+	// 평면 링이라 회전은 의미 없음 - Follow 부착 시 시전자 회전을 따라 VFX가 돌지 않게 월드 회전 고정
+	Root->SetUsingAbsoluteRotation(true);
 
 	SetActorEnableCollision(false);
 	SetActorHiddenInGame(true);
@@ -52,6 +54,13 @@ void ACC_EnemyAreaAttack::Launch(const FVector& InOrigin, float InMaxRadius, flo
 	SetActorHiddenInGame(false);
 	SetActorTickEnabled(true);
 
+	if (AttackMode == EEnemyAreaAttackMode::Follow && InInstigator)
+	{
+		// 시전자 중심에 부착 - 매 틱 위치 복사 대신 트랜스폼 계층으로 따라감
+		AttachToActor(InInstigator, FAttachmentTransformRules(
+			EAttachmentRule::SnapToTarget, EAttachmentRule::KeepWorld, EAttachmentRule::KeepWorld, false));
+	}
+
 	if (RingEffect)
 	{
 		RingVFX = UNiagaraFunctionLibrary::SpawnSystemAttached(
@@ -74,13 +83,10 @@ void ACC_EnemyAreaAttack::Tick(float DeltaTime)
 		return;
 	}
 
-	if (bFollowInstigator)
+	if (AttackMode == EEnemyAreaAttackMode::Follow)
 	{
-		if (const AActor* Inst = DamageInstigator.Get())
-		{
-			Origin = Inst->GetActorLocation();
-			SetActorLocation(Origin);
-		}
+		// 부착되어 같이 움직임 - 판정 원점만 현재 위치로 갱신 (시전자 사망 시엔 ACC_EnemyBase::Die에서 취소됨)
+		Origin = GetActorLocation();
 	}
 
 	ElapsedTime += DeltaTime;
@@ -166,6 +172,9 @@ void ACC_EnemyAreaAttack::Deactivate()
 	bIsActive = false;
 	SetActorTickEnabled(false);
 	SetActorHiddenInGame(true);
+
+	// Follow 부착 해제 - 풀에서 재사용될 때 이전 시전자에 붙은 채로 남지 않게 (부착 안 됐으면 아무 일 없음)
+	DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
 
 	if (RingVFX)
 	{

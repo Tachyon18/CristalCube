@@ -113,6 +113,19 @@ protected:
 	TArray<FVector> CalculateDropLocations(FVector Center, float Radius,
 		int32 Count, EDropPattern Pattern) const;
 
+	/**
+	 * Projectile/Beam 시작점·조준 방향 (A4). Context.StartLocation(시전 순간 위치) 기준 - Echo도 처음 시전 위치를 유지함.
+	 * GroundOffset: 발밑 지면 + 높이 → 커서 지점 지면 + 높이(평지면 수평, 경사면 나란히, MaxAimPitch로 제한).
+	 * 지면을 못 찾거나 CasterCenter면 A4 이전 동작(시전자 중심, 수평).
+	 * @param MinHeight - 시작점의 지면 기준 최소 높이(투사체 판정 반경 등, 바닥 즉시 착탄 방지)
+	 */
+	void ResolveMuzzleAndAim(const FSkillDefinition& Skill, const FSkillExecutionContext& Context, float MinHeight,
+		FVector& OutMuzzle, FVector& OutDirection) const;
+
+	// From에서 아래로 지면 탐색 - Projectile 채널(커서 트레이스와 같은 기준, 지정 지형만 잡힘). 못 찾으면 false
+	bool FindGroundZ(const FVector& From, float MaxDepth, float& OutGroundZ) const;
+
+
 public:
 
 	//==========================================================================
@@ -130,16 +143,6 @@ public:
 	void ProcessCastAddons(const FSkillDefinition& Skill, FSkillExecutionContext& Context, int32 StartIndex = 0);
 
 	/**
-	 * Explosion Addon - 폭발 범위 피해
-	 */
-	void ApplyExplosion(const FSkillDefinition& Skill, FSkillExecutionContext& Context, FVector Location);
-
-	/**
-	 * Chain Addon - 연쇄 공격
-	 */
-	void ApplyChain(const FSkillDefinition& Skill, FSkillExecutionContext& Context, AActor* HitTarget);
-
-	/**
 	 * Penetrate Addon - 관통 (이미 적용됨, 카운터만 체크)
 	 */
 	bool CanPenetrate(const FSkillDefinition& Skill, FSkillExecutionContext& Context) const;
@@ -148,12 +151,6 @@ public:
 	 * MultiShot Addon - 다중 발사 (ExecuteProjectile에서 처리)
 	 */
 	int32 GetProjectileCount(const FSkillDefinition& Skill) const;
-
-	/**
-	* Chain Addon - 체인 이펙트에 목표 지점 User Parameter로 전달
-	*/
-
-	void SpawnChainEffect(UNiagaraSystem* Effect, FVector StartLocation, FVector TargetLocation, ESkillElementType ElementType = ESkillElementType::None);
 
 	/**
 	 * 궤적형(시작점→끝점) VFX 스폰 - Beam Core와 Chain Addon이 공유하는 로직.
@@ -245,6 +242,18 @@ protected:
 
 	UPROPERTY(EditDefaultsOnly, Category = "Skill System|Setup")
 	TSubclassOf <class ACC_SkillEffector> SkillEffectorClass;
+
+	// 방향형 Core(Projectile/Beam) 생성 원점 기본값 - 스킬의 SpawnOrigin이 Default일 때 사용
+	UPROPERTY(EditDefaultsOnly, Category = "Skill System|Spawn")
+	ESkillSpawnOrigin DefaultSpawnOrigin = ESkillSpawnOrigin::GroundOffset;
+
+	// GroundOffset 기본 높이(cm, 지면 기준) - 작은 적 윗면(약 68)보다 낮게
+	UPROPERTY(EditDefaultsOnly, Category = "Skill System|Spawn", meta = (ClampMin = "0.0"))
+	float DefaultMuzzleHeight = 45.0f;
+
+	// 지면→지면 조준의 최대 상하 각도(도) - 벽 위·절벽 등 과한 경사 방지
+	UPROPERTY(EditDefaultsOnly, Category = "Skill System|Spawn", meta = (ClampMin = "0.0", ClampMax = "89.0"))
+	float MaxAimPitch = 35.0f;
 
 	// 적 태그
 	UPROPERTY(EditDefaultsOnly, Category = "Skill System|Setup")

@@ -49,6 +49,8 @@ public:
 	// 현재 발사자(반납되면 null, Drain 중에는 유지) — 쏜 적이 자기 탄만 취소할 수 있게
 	AActor* GetProjectileOwner() const { return ProjectileOwner.Get(); }
 
+	bool SurvivesInstigatorDeath() const { return bSurvivesInstigatorDeath; }
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
@@ -104,6 +106,10 @@ protected:
 	// bCanPierce일 때 추가로 통과할 수 있는 대상 수
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Projectile|Behavior")
 	int32 PierceCount = 0;
+
+	// 쏜 적이 죽어도 계속 날아가는지 - false(기본)면 사망 시 판정 종료 + 연출은 스스로 마무리(EndAndDrain)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Projectile|Behavior")
+	bool bSurvivesInstigatorDeath = false;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Projectile|Effects")
 	UNiagaraSystem* HitEffect = nullptr;

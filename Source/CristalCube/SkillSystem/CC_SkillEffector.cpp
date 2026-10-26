@@ -218,25 +218,6 @@ void ACC_SkillEffector::OnOverlapBegin(UPrimitiveComponent* OverlappedComp, AAct
 	OnEffectorHit.Broadcast(this, OtherActor, ImpactLocation);
 }
 
-void ACC_SkillEffector::ApplyDamageToActor(AActor* TargetActor)
-{
-	if (!TargetActor)
-	{
-		return;
-	}
-
-	// Apply damage using Unreal's damage system
-	UGameplayStatics::ApplyDamage(
-		TargetActor,
-		SkillDef.BaseDamage,
-		GetInstigatorController(),
-		this,
-		UDamageType::StaticClass()
-	);
-
-	UE_LOG(LogTemp, Log, TEXT("Projectile hit %s for %.1f damage"), *TargetActor->GetName(), SkillDef.BaseDamage);
-}
-
 void ACC_SkillEffector::SetupAsProjectile()
 {
 	// 판정 반경/속도는 스킬 데이터에서 — 코드 고정값 대신 스킬마다 조절

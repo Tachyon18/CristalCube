@@ -84,13 +84,6 @@ public:
     // UPGRADE INTERFACE (Phase 2+)
     //==========================================================================
 
-    /**
-     * 패시브 수치 누적 적용. (레벨업/아이템 강화 연동)
-     * Multiplier 방식이므로 기본값 1.0f 이상/이하로 배율 조정.
-     */
-    UFUNCTION(BlueprintCallable, Category = "Skill")
-    virtual void ApplyPassiveModifier(const FSkillPassiveProperties& Modifier);
-
     // CC_SkillBase.h — public 섹션에 추가
     UFUNCTION(BlueprintPure, Category = "Skill|Addon")
     bool HasAddon(ESkillAddonType AddonType) const
@@ -120,10 +113,6 @@ public:
      *  Addon과 달리 별도 인스턴스가 없어 SkillDef.Passives를 직접 건드림. */
     UFUNCTION(BlueprintCallable, Category = "Skill|Core")
     void SpendCoreAttributePoint(ECoreUpgradeAttribute AttributeType, float ValuePerPoint);
-
-    /** 이미 보유한 애드온의 세부 수치 강화. 미보유 시 무시. */
-    UFUNCTION(BlueprintCallable, Category = "Skill|Addon")
-    void ApplyAddonModifier(ESkillAddonType AddonType, const FSkillPassiveProperties& Modifier);
 
     /** AttributeID 하나에 포인트 1회분(ValuePerPoint)을 적용. 매칭 실패 시 조용히 무시하고 로그만 남김. */
     UFUNCTION(BlueprintCallable, Category = "Skill|Addon")

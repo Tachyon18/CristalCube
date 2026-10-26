@@ -201,13 +201,17 @@ void UCC_SkillSystem::ExecuteProjectile(const FSkillDefinition& Skill, FSkillExe
 
 	int32 ProjectileCount = GetProjectileCount(Skill);
 
+	// 시작점·조준 방향 (A4) - 시작 높이는 판정 반경 + 5 아래로 내려가지 않게
+	FVector Muzzle, AimDirection;
+	ResolveMuzzleAndAim(Skill, Context, Skill.ProjectileCollisionRadius + 5.0f, Muzzle, AimDirection);
+
 	for (int32 i = 0; i < ProjectileCount; ++i)
 	{
 		// 2-1. 스폰 위치 (약간 앞쪽)
-		FVector SpawnLocation = Context.StartLocation + Context.Direction * 50.0f;
+		FVector SpawnLocation = Muzzle + AimDirection * 50.0f;
 
 		// 2-2. 스폰 방향 (여러 발사 시 각도 분산)
-		FVector SpawnDirection = Context.Direction;
+		FVector SpawnDirection = AimDirection;
 		if (ProjectileCount > 1)
 		{
 			// MultiShot: 부채꼴 형태로 분산 (중앙 기준 ±30도)
@@ -216,7 +220,7 @@ void UCC_SkillSystem::ExecuteProjectile(const FSkillDefinition& Skill, FSkillExe
 			float Angle = -(SpreadAngle * 0.5f) + (i * AngleStep);
 
 			// 방향 벡터 회전
-			SpawnDirection = Context.Direction.RotateAngleAxis(Angle, FVector::UpVector);
+			SpawnDirection = AimDirection.RotateAngleAxis(Angle, FVector::UpVector);
 		}
 
 		// 2-3. 투사체 스폰
@@ -410,10 +414,22 @@ void UCC_SkillSystem::ExecuteBeam(const FSkillDefinition& Skill, FSkillExecution
 
 	const float EffectiveRange = Skill.Range * Skill.Passives.RangeMultiplier;
 
-	FVector Start = Context.StartLocation;
-	// 빔은 시전자 높이에서 수평으로 — 대상 지점이 바닥이어도 비스듬히 꽂히지 않게, 사거리는 수평 거리 기준
-	const float BeamLength = FMath::Min(FVector::Dist2D(Start, Context.TargetLocation), EffectiveRange);
-	FVector End = Start + Context.Direction * BeamLength;
+	// 시작점·조준 방향 (A4) - 지면 + 높이에서 커서 지점 지면 + 높이를 향함(평지면 수평). 사거리는 수평 거리 기준
+	FVector Start, AimDirection;
+	ResolveMuzzleAndAim(Skill, Context, 0.0f, Start, AimDirection);
+	const float BeamLength2D = FMath::Min(FVector::Dist2D(Start, Context.TargetLocation), EffectiveRange);
+	FVector End = Start + AimDirection * (BeamLength2D / FMath::Max(AimDirection.Size2D(), 0.1f));
+
+	// 지형에서 끊김 - 언덕·턱 너머로 빔이 땅을 관통하지 않게(투사체와 같은 문법: 지정 지형 = Projectile Block).
+	// 적 캡슐은 Projectile 채널에 Overlap이라 여기서 막히지 않음
+	{
+		FHitResult TerrainHit;
+		FCollisionQueryParams TerrainParams(SCENE_QUERY_STAT(SkillBeamTerrain), false, Context.Caster);
+		if (World->LineTraceSingleByChannel(TerrainHit, Start, End, FCC_CollisionHelper::ECC_CC_Projectile, TerrainParams))
+		{
+			End = TerrainHit.ImpactPoint;
+		}
+	}
 
 	FCollisionQueryParams QueryParams;
 	QueryParams.AddIgnoredActor(Context.Caster);
@@ -693,6 +709,81 @@ TArray<FVector> UCC_SkillSystem::CalculateDropLocations(FVector Center, float Ra
 	return Locations;
 }
 
+
+void UCC_SkillSystem::ResolveMuzzleAndAim(const FSkillDefinition& Skill, const FSkillExecutionContext& Context,
+	float MinHeight, FVector& OutMuzzle, FVector& OutDirection) const
+{
+	// 폴백 = A4 이전 동작(시전자 중심, 수평) - CasterCenter이거나 지면을 못 찾았을 때
+	OutMuzzle = Context.StartLocation;
+	OutDirection = Context.Direction;
+	if (OutDirection.IsNearlyZero())
+	{
+		OutDirection = Context.Caster ? Context.Caster->GetActorForwardVector().GetSafeNormal2D() : FVector::ForwardVector;
+	}
+
+	const ESkillSpawnOrigin Origin = (Skill.SpawnOrigin == ESkillSpawnOrigin::Default) ? DefaultSpawnOrigin : Skill.SpawnOrigin;
+	if (Origin != ESkillSpawnOrigin::GroundOffset)
+	{
+		return;
+	}
+
+	const float Height = FMath::Max(Skill.SpawnHeightOverride >= 0.0f ? Skill.SpawnHeightOverride : DefaultMuzzleHeight, MinHeight);
+
+	// 1) 시작점 = 시전 위치 발밑 지면 + Height (허공이면 폴백)
+	const float CasterHalfHeight = Context.Caster ? Context.Caster->GetSimpleCollisionHalfHeight() : 100.0f;
+	float StartGroundZ = 0.0f;
+	if (!FindGroundZ(Context.StartLocation, CasterHalfHeight + 300.0f, StartGroundZ))
+	{
+		return;
+	}
+	OutMuzzle = FVector(Context.StartLocation.X, Context.StartLocation.Y, StartGroundZ + Height);
+
+	// 2) 조준점 = 커서(또는 자동시전 대상) 지점의 지면 + Height. 지면을 못 찾으면 수평 유지
+	float TargetGroundZ = 0.0f;
+	if (!FindGroundZ(Context.TargetLocation + FVector(0.0f, 0.0f, 200.0f), 2000.0f, TargetGroundZ))
+	{
+		return;
+	}
+	const FVector AimPoint(Context.TargetLocation.X, Context.TargetLocation.Y, TargetGroundZ + Height);
+
+	FVector Delta = AimPoint - OutMuzzle;
+	const float Dist2D = Delta.Size2D();
+	if (Dist2D < KINDA_SMALL_NUMBER)
+	{
+		return;
+	}
+
+	// 3) 상하 각도 제한
+	const float MaxRise = Dist2D * FMath::Tan(FMath::DegreesToRadians(MaxAimPitch));
+	Delta.Z = FMath::Clamp(Delta.Z, -MaxRise, MaxRise);
+	OutDirection = Delta.GetSafeNormal();
+
+	// 디버그: 하늘색 = 시작점 + 조준선 (CC.ShowSkillCollision 1)
+	if (FCC_CollisionHelper::IsSkillCollisionDebugEnabled())
+	{
+		DrawDebugSphere(GetWorld(), OutMuzzle, 8.0f, 8, FColor::Cyan, false, 2.0f);
+		DrawDebugLine(GetWorld(), OutMuzzle, OutMuzzle + Delta, FColor::Cyan, false, 2.0f, 0, 1.0f);
+	}
+}
+
+bool UCC_SkillSystem::FindGroundZ(const FVector& From, float MaxDepth, float& OutGroundZ) const
+{
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return false;
+	}
+
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(SkillMuzzleGround), false, GetOwner());
+	FHitResult Hit;
+	if (World->LineTraceSingleByChannel(Hit, From, From - FVector(0.0f, 0.0f, MaxDepth), FCC_CollisionHelper::ECC_CC_Projectile, Params))
+	{
+		OutGroundZ = Hit.ImpactPoint.Z;
+		return true;
+	}
+	return false;
+}
+
 //==============================================================================
 // ADDON PROCESSING - STUBS
 //==============================================================================
@@ -731,151 +822,6 @@ void UCC_SkillSystem::ProcessCastAddons(const FSkillDefinition& Skill, FSkillExe
 	}
 }
 
-void UCC_SkillSystem::ApplyExplosion(const FSkillDefinition& Skill, FSkillExecutionContext& Context, FVector Location)
-{
-	const FExplosionAddonData& ExplosionData = Skill.Passives.ExplosionData;
-
-	TArray<AActor*> EnemiesInRange = FindEnemiesInRadius(Location, ExplosionData.Radius);
-
-	UE_LOG(LogTemp, Log, TEXT("ApplyExplosion [%s]: %d enemies in radius %.0f"),
-		*Skill.SkillID.ToString(), EnemiesInRange.Num(), ExplosionData.Radius);
-
-	for (AActor* Enemy : EnemiesInRange)
-	{
-		if (!Enemy || Context.HitActors.Contains(Enemy))
-		{
-			continue;  // 이미 맞은 적 스킵
-		}
-
-		float Distance = FVector::Dist(Location, Enemy->GetActorLocation());
-		float DistanceRatio = FMath::Clamp(Distance / ExplosionData.Radius, 0.0f, 1.0f);
-
-		// 중심: 100%, 외곽: 50% ? 선형 감소 적용 (거리 별 데미지 비율은 추후 전용 데이터 사용)
-		float DamageMultiplier = FMath::Lerp(1.0f, ExplosionData.MinDamageRatio, DistanceRatio);
-		float ExplosionDamage = Context.CurrentDamage * DamageMultiplier;
-
-		ApplyDamage(Enemy, ExplosionDamage, Context.Caster);
-		Context.HitActors.Add(Enemy);
-
-		UE_LOG(LogTemp, Log, TEXT("ApplyExplosion: Hit %s ? %.0fcm → %.1f dmg (x%.2f)"),
-			*Enemy->GetName(), Distance, ExplosionDamage, DamageMultiplier);
-	}
-
-	if (Skill.Passives.ExplosionData.ExplosionEffect)
-	{
-		SpawnEffect(Skill.Passives.ExplosionData.ExplosionEffect, Location, FRotator::ZeroRotator, Skill.ElementType);
-	}
-
-	// 디버그 구체
-	if (bShowDebugShapes)
-	{
-		DrawDebugSphere(
-			GetWorld(),
-			Location,
-			ExplosionData.Radius,
-			24,
-			FColor::Orange,
-			false,
-			DebugDrawDuration,
-			0,
-			3.0f
-		);
-	}
-
-}
-
-void UCC_SkillSystem::ApplyChain(const FSkillDefinition& Skill, FSkillExecutionContext& Context, AActor* HitTarget)
-{
-	//
-	const FChainAddonData& ChainData = Skill.Passives.ChainData;
-
-	if(Context.CurrentChainCount >= ChainData.ChainCount)
-	{
-		UE_LOG(LogTemp, Log, TEXT("ApplyChain [%s]: Chain limit reached (%d/%d)"),
-			*Skill.SkillID.ToString(), Context.CurrentChainCount, ChainData.ChainCount);
-		return;
-	}
-
-	FVector SearchOrigin = HitTarget ? HitTarget->GetActorLocation() : Context.StartLocation;
-
-	AActor* NextTarget = FindNearestEnemy(SearchOrigin, ChainData.SearchRadius, Context.HitActors);
-
-	if (!NextTarget)
-	{
-		UE_LOG(LogTemp, Log, TEXT("ApplyChain [%s]: No next target for chain %d"),
-			*Skill.SkillID.ToString(), Context.CurrentChainCount + 1);
-		return;
-	}
-
-
-	Context.CurrentChainCount++;
-	Context.HitActors.Add(NextTarget);
-
-	ApplyDamage(NextTarget, Context.CurrentDamage, Context.Caster);
-
-	FVector CurrentHitLocation = HitTarget ? HitTarget->GetActorLocation() : Context.StartLocation;
-	FVector NextHitLocation = NextTarget->GetActorLocation();
-
-	UE_LOG(LogTemp, Log, TEXT("ApplyChain [%s]: Chain %d → %s (%.1f dmg)"),
-		*Skill.SkillID.ToString(), Context.CurrentChainCount,
-		*NextTarget->GetName(), Context.CurrentDamage);
-
-	if (Skill.Passives.ChainData.ChainEffect)
-	{
-		SpawnChainEffect(Skill.Passives.ChainData.ChainEffect, CurrentHitLocation, NextHitLocation);
-	}
-
-	// 체인 이펙트 로직 확정 후 적용
-	//if (Skill.Passives.ChainData.ChainEffect)
-	//{
-	//	UNiagaraComponent* ChainEffect = UNiagaraFunctionLibrary::SpawnSystemAtLocation(
-	//		GetWorld(),
-	//		Skill.Passives.ChainData.ChainEffect,
-	//		SearchOrigin,
-	//		FRotator::ZeroRotator,
-	//		FVector(1.0f),
-	//		true,
-	//		true,
-	//		ENCPoolMethod::AutoRelease
-	//	);
-	//	if (ChainEffect)
-	//	{
-	//		ChainEffect->SetVectorParameter(FName("BeamEnd"), NextHitLocation);
-	//		ChainEffect->SetFloatParameter(FName("BeamWidth"), 5.0f);
-	//	}
-	//}
-
-	// 디버그
-	if (bShowDebugShapes && HitTarget)
-	{
-		DrawDebugLine(
-			GetWorld(),
-			SearchOrigin,
-			NextHitLocation,
-			FColor::Cyan,
-			false,
-			DebugDrawDuration,
-			0,
-			2.0f
-		);
-		DrawDebugSphere(
-			GetWorld(),
-			NextHitLocation,
-			25.0f,
-			12,
-			FColor::Cyan,
-			false,
-			DebugDrawDuration
-		);
-	}
-
-	FHitResult ChainHit;
-	ChainHit.ImpactPoint = NextHitLocation;
-	ChainHit.HitObjectHandle = FActorInstanceHandle(NextTarget);
-
-	ProcessAddons(Skill, Context, ChainHit);
-}
-
 bool UCC_SkillSystem::CanPenetrate(const FSkillDefinition& Skill, FSkillExecutionContext& Context) const
 {
 	if (!Skill.bCanPenetrate)
@@ -896,41 +842,6 @@ int32 UCC_SkillSystem::GetProjectileCount(const FSkillDefinition& Skill) const
 	}
 
 	return FMath::Max(1, Count);
-}
-
-void UCC_SkillSystem::SpawnChainEffect(UNiagaraSystem* Effect, FVector StartLocation, FVector TargetLocation, ESkillElementType ElementType)
-{
-	if (!Effect || !GetWorld())
-	{
-		return;
-	}
-
-	UNiagaraComponent* ChainNiagara = UNiagaraFunctionLibrary::SpawnSystemAtLocation(
-		GetWorld(),
-		Effect,
-		StartLocation,
-		FRotator::ZeroRotator,
-		FVector(1.0f),
-		true,  // Auto Destroy
-		false,  // Auto Activate
-		ENCPoolMethod::AutoRelease  // 풀링!
-	);
-
-	if(ChainNiagara)
-	{
-		ChainNiagara->SetVectorParameter(FName("BeamEnd"), TargetLocation);
-		//ChainNiagara->SetFloatParameter(FName("BeamWidth"), 5.0f);
-
-		if (ElementType != ESkillElementType::None)
-		{
-			const FLinearColor ElementColor = UCC_SkillLibrarySubsystem::ResolveElementColor(this, ElementType);
-			ChainNiagara->SetVariableLinearColor(FName("User.PrimaryColor"), ElementColor);
-			ChainNiagara->SetVariableLinearColor(FName("User.SecondaryColor"), ElementColor);
-		}
-
-		ChainNiagara->Activate();
-	}
-
 }
 
 void UCC_SkillSystem::SpawnTrajectoryEffect(UNiagaraSystem* Effect, FVector StartLocation, FVector TargetLocation, float Width, ESkillElementType ElementType)

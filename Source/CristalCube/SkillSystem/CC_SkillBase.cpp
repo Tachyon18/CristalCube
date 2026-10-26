@@ -80,18 +80,6 @@ void UCC_SkillBase::OnUnequipped()
     SkillOwner = nullptr;
 }
 
-void UCC_SkillBase::ApplyPassiveModifier(const FSkillPassiveProperties& Modifier)
-{
-    // 배율 누적 (곱셈)
-    SkillDef.Passives.DamageMultiplier *= Modifier.DamageMultiplier;
-    SkillDef.Passives.SizeMultiplier *= Modifier.SizeMultiplier;
-    SkillDef.Passives.SpeedMultiplier *= Modifier.SpeedMultiplier;
-    SkillDef.Passives.ProjectileCount += Modifier.ProjectileCount - 1;  // 1이 기본이므로 초과분만 누적
-
-    UE_LOG(LogTemp, Log, TEXT("[%s] Passive modifier applied. DmgMul: %.2f"),
-        *SkillDef.SkillID.ToString(), SkillDef.Passives.DamageMultiplier);
-}
-
 bool UCC_SkillBase::GrantAddon(ESkillAddonType AddonType, UCC_AddonPresetAsset* Preset)
 {
     if (AddonType == ESkillAddonType::None) return false;
@@ -170,74 +158,6 @@ void UCC_SkillBase::SpendCoreAttributePoint(ECoreUpgradeAttribute AttributeType,
         SkillDef.Passives.AreaMultiplier += ValuePerPoint;
         break;
     }
-}
-
-void UCC_SkillBase::ApplyAddonModifier(ESkillAddonType AddonType, const FSkillPassiveProperties& Modifier)
-{
-    if (!HasAddon(AddonType))
-    {
-        UE_LOG(LogTemp, Warning, TEXT("[%s] ApplyAddonModifier: addon %s not present, ignored"),
-            *SkillDef.SkillID.ToString(), *UEnum::GetValueAsString(AddonType));
-        return;
-    }
-
-    switch (AddonType)
-    {
-    case ESkillAddonType::Explosion:
-        SkillDef.Passives.ExplosionData.Radius += Modifier.ExplosionData.Radius;
-        SkillDef.Passives.ExplosionData.MinDamageRatio = FMath::Clamp(
-            SkillDef.Passives.ExplosionData.MinDamageRatio + Modifier.ExplosionData.MinDamageRatio, 0.f, 1.f);
-        break;
-    case ESkillAddonType::Chain:
-        SkillDef.Passives.ChainData.ChainCount += Modifier.ChainData.ChainCount;
-        SkillDef.Passives.ChainData.DamageDecay = FMath::Clamp(
-            SkillDef.Passives.ChainData.DamageDecay + Modifier.ChainData.DamageDecay, 0.f, 1.f);
-        SkillDef.Passives.ChainData.SearchRadius += Modifier.ChainData.SearchRadius;
-        break;
-    case ESkillAddonType::Penetrate:
-        SkillDef.Passives.PierceData.PierceCount += Modifier.PierceData.PierceCount;
-        break;
-    case ESkillAddonType::MultiShot:
-        SkillDef.Passives.MultiShotData.AdditionalCount += Modifier.MultiShotData.AdditionalCount;
-        SkillDef.Passives.MultiShotData.SpreadAngle += Modifier.MultiShotData.SpreadAngle;
-        break;
-    case ESkillAddonType::Shockwave:
-        SkillDef.Passives.ShockwaveData.MaxRadius += Modifier.ShockwaveData.MaxRadius;
-        SkillDef.Passives.ShockwaveData.RingThickness += Modifier.ShockwaveData.RingThickness;
-        break;
-    case ESkillAddonType::MagicMissile:
-		SkillDef.Passives.MagicMissileData.LaunchCount += Modifier.MagicMissileData.LaunchCount;
-		SkillDef.Passives.MagicMissileData.DamageRatio += Modifier.MagicMissileData.DamageRatio;
-        break;
-    case ESkillAddonType::ElementalApply:
-        SkillDef.Passives.ElementalApplyData.StackAmount += Modifier.ElementalApplyData.StackAmount;
-        SkillDef.Passives.ElementalApplyData.Duration += Modifier.ElementalApplyData.Duration;
-        break;
-    case ESkillAddonType::ElementalBurst:
-        SkillDef.Passives.ElementalBurstData.DamagePerStack += Modifier.ElementalBurstData.DamagePerStack;
-        break;
-    case ESkillAddonType::DamageOverTime:
-        SkillDef.Passives.DamageOverTimeData.TickDamage += Modifier.DamageOverTimeData.TickDamage;
-        SkillDef.Passives.DamageOverTimeData.TotalDuration += Modifier.DamageOverTimeData.TotalDuration;
-        break;
-	case ESkillAddonType::Sigil:
-        SkillDef.Passives.SigilData.Radius += Modifier.SigilData.Radius;
-        SkillDef.Passives.SigilData.TickDamage += Modifier.SigilData.TickDamage;
-        break;
-    case ESkillAddonType::Echo:
-        SkillDef.Passives.EchoData.DamageRatio += Modifier.EchoData.DamageRatio;
-        SkillDef.Passives.EchoData.MaxEchoes += Modifier.EchoData.MaxEchoes;
-        break;
-    case ESkillAddonType::SelfEmpower:
-        SkillDef.Passives.SelfEmpowerData.DamagePerStack += Modifier.SelfEmpowerData.DamagePerStack;
-        SkillDef.Passives.SelfEmpowerData.MaxStacks += Modifier.SelfEmpowerData.MaxStacks;
-        break;
-    default:
-        break;
-    }
-
-    UE_LOG(LogTemp, Log, TEXT("[%s] Addon modifier applied: %s"),
-        *SkillDef.SkillID.ToString(), *UEnum::GetValueAsString(AddonType));
 }
 
 void UCC_SkillBase::SpendAddonAttributePoint(ESkillAddonType AddonType, FName AttributeID, float ValuePerPoint)

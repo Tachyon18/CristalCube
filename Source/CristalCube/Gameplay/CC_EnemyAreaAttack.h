@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
@@ -10,6 +10,15 @@ class UNiagaraSystem;
 class UNiagaraComponent;
 class UCC_EffectorPoolSubsystem;
 class ACC_PlayerCharacter;
+
+
+// 적 영역 공격(평면 링) 위치 모드
+UENUM(BlueprintType)
+enum class EEnemyAreaAttackMode : uint8
+{
+	Instance UMETA(DisplayName = "Instance"),  // 시전 위치에 고정되어 퍼지는 타격형 (기본)
+	Follow   UMETA(DisplayName = "Follow")     // 시전자에 부착되어 따라다니는 오라형
+};
 
 /**
  * Enemy omni-directional basic attack (used when no projectile class is set).
@@ -38,6 +47,9 @@ public:
 	// Current attacker (null once deactivated)
 	AActor* GetAttackInstigator() const { return DamageInstigator.Get(); }
 
+	// 시전자 사망 후에도 남는지 (Follow는 부착 대상이 사라지므로 항상 false)
+	bool SurvivesInstigatorDeath() const { return AttackMode == EEnemyAreaAttackMode::Instance && bSurvivesInstigatorDeath; }
+
 	virtual void Tick(float DeltaTime) override;
 
 protected:
@@ -53,9 +65,14 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AreaAttack", meta = (ClampMin = "0.0"))
 	float HeightTolerance = 120.0f;
 
-	// true: ring center follows the attacker every tick (aura style). false: fixed at cast location.
+	// 링 위치 모드 - Instance: 시전 위치 고정 / Follow: 시전자에 부착(AttachToActor)되어 따라감. 반납 시 자동 분리
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AreaAttack")
-	bool bFollowInstigator = false;
+	EEnemyAreaAttackMode AttackMode = EEnemyAreaAttackMode::Instance;
+
+	// Instance 링이 시전자 사망 후에도 끝까지 퍼지는지 - false(기본)면 사망 시 즉시 소멸. Follow는 항상 소멸
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AreaAttack",
+		meta = (EditCondition = "AttackMode == EEnemyAreaAttackMode::Instance", EditConditionHides))
+	bool bSurvivesInstigatorDeath = false;
 
 	// Optional ring VFX. Receives "User.Radius" every tick.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AreaAttack")

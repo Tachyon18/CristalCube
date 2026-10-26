@@ -109,50 +109,10 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	class UCC_SkillSystem* SkillSystem;
 
-
 public:
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Test")
-	UNiagaraSystem* TestIceEffect = nullptr;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Test")
-	UNiagaraSystem* TestLightningEffect = nullptr;
-
-	// CastFireball() 등 테스트 캐스트 함수가 로컬 FSkillDefinition에 물리는 Addon 인스턴스 보관용.
-	// FSkillDefinition은 UObject가 아니라 UPROPERTY 컨테이너에 담기지 않으면 소유한 Addon 포인터가
-	// GC 대상이 되어버림 ? 여기 담아서 Actor 생존 기간 동안 루트로 고정.
-	UPROPERTY()
-	TArray<class UCC_SkillAddonBase*> TestAddonInstances;
-
-	UFUNCTION(BlueprintCallable, Category = "Test")
-	void TestBasicSkill();
-
-	UFUNCTION(BlueprintCallable, Category = "Test")
-	void TestProjectileSkill();
-
-public:
-
-	//==============================================================================
-	// Test Skill System - 테스트용이므로 추후 제거
-	//==============================================================================
-
-	UFUNCTION(BlueprintCallable, Category = "Skills")
-	void CastFireball();           // 화염구 - 투사체 + 폭발
-
-	UFUNCTION(BlueprintCallable, Category = "Skills")
-	void CastLightningBolt();      // 번개 - 즉발 + 연쇄
-
-	UFUNCTION(BlueprintCallable, Category = "Skills")
-	void CastIceShard();           // 얼음 파편 - 투사체 + 멀티샷
-
-	UFUNCTION(BlueprintCallable, Category = "Skills")
-	void CastPoisonNova();         // 독 폭발 - 범위 공격
-
-	UFUNCTION(BlueprintCallable, Category = "Skills")
-	void CastPiercingArrow();      // 관통 화살 - 투사체 + 관통
-
-	UFUNCTION(BlueprintCallable, Category = "Skills")
-	void CastThunderStrike();      // 천둥 벼락 - 즉발 + 폭발
+	// (2026-10-26) 테스트 캐스트 함수(Cast*/Test*)는 제거 - 실제 스킬은 SkillTableRow + AddonPreset 데이터 기반.
+	// 벡터 레이저는 Track 4 Skill Path 이후 Laser(Beam)로 흡수 예정 (Track 5 A8)
 
 	// === 벡터 레이저 (마우스 드래그) ===
 	UFUNCTION(BlueprintCallable, Category = "Skills")

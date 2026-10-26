@@ -11,6 +11,17 @@
 
 class ACC_Projectile;
 class ACC_EnemyAreaAttack;
+class UNiagaraSystem;
+class UNiagaraComponent;
+
+// 적 기본 공격 방식 - 지정한 방식에 필요한 클래스가 없으면 링(AreaRing) → 즉발 순으로 폴백
+UENUM(BlueprintType)
+enum class EEnemyAttackType : uint8
+{
+    Projectile  UMETA(DisplayName = "Projectile"),  // 투사체 (AttackProjectileClass, 없으면 링으로 폴백 = 이전 규칙과 동일)
+    AreaRing    UMETA(DisplayName = "Area Ring"),   // 평면 링 (AreaAttackClass)
+    MeleeArc    UMETA(DisplayName = "Melee Arc")    // 전방 부채꼴 근접 (선딜 후 1회 판정)
+};
 
 /**
  * 경량 Enemy 베이스 클래스
@@ -203,10 +214,22 @@ protected:
     void FireProjectileAttack(float AttackDamage);
     void LaunchAreaAttack(float AttackDamage);
 
+    // 근접 부채꼴 - 선딜 시작 시 위치·방향 고정 → 선딜 후 1회 판정
+    void StartMeleeArcAttack(float AttackDamage);
+    void ResolveMeleeArcAttack();
+    void CancelMeleeArcAttack();
+
+    FTimerHandle MeleeWindupTimer;
+    FVector MeleeArcOrigin = FVector::ZeroVector;
+    FVector MeleeArcDir = FVector::ForwardVector;
+    float PendingMeleeDamage = 0.f;
+    TWeakObjectPtr<UNiagaraComponent> MeleeWarningVFX;
+
     /** 이 적이 낸 진행 중 공격(투사체/링) 추적 — Freeze 시 취소용 (임시, Track 6 전환 정리로 이관 예정) */
     TArray<TWeakObjectPtr<AActor>> ActiveAttackActors;
 
-    void CancelActiveAttacks();
+    /** 진행 중 공격 취소. bInstigatorDied = 사망 경로(bSurvivesInstigatorDeath가 켜진 것은 남김, 투사체는 Drain) */
+    void CancelActiveAttacks(bool bInstigatorDied = false);
 
 public:
 
@@ -219,6 +242,10 @@ public:
     float GetEffectiveAttackDamage() const;
 
 protected:
+
+    /** 기본 공격 방식. Projectile인데 AttackProjectileClass가 비어 있으면 AreaRing으로 폴백(이전 규칙과 같은 결과) */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Combat")
+    EEnemyAttackType AttackType = EEnemyAttackType::Projectile;
 
     /** 투사체 발사형 기본 공격. 비어 있으면 AreaAttackClass(평면 링)로 폴백 */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Combat")
@@ -238,6 +265,31 @@ protected:
     /** 투사체가 없을 때 쓰는 전방향 평면 링 공격 (반경 = EnemyStats.AttackRange). 기본값 = C++ 클래스(VFX 없음) */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Combat")
     TSubclassOf<ACC_EnemyAreaAttack> AreaAttackClass;
+
+    /** MeleeArc - 부채꼴 전체 각도(도). 360 = 전방향. 사거리는 EnemyStats.AttackRange */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Combat|Melee",
+        meta = (EditCondition = "AttackType == EEnemyAttackType::MeleeArc", EditConditionHides, ClampMin = "1.0", ClampMax = "360.0"))
+    float MeleeArcAngle = 90.f;
+
+    /** MeleeArc - 선딜(초). 이 시간 동안 경고 연출, 위치·방향은 시작 시점에 고정. 0 = 즉발 */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Combat|Melee",
+        meta = (EditCondition = "AttackType == EEnemyAttackType::MeleeArc", EditConditionHides, ClampMin = "0.0"))
+    float MeleeWindup = 0.3f;
+
+    /** MeleeArc - 판정 높이 허용치(cm, 시전자 중심 기준) */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Combat|Melee",
+        meta = (EditCondition = "AttackType == EEnemyAttackType::MeleeArc", EditConditionHides, ClampMin = "0.0"))
+    float MeleeHeightTolerance = 120.f;
+
+    /** MeleeArc - 선딜 경고 연출(원소색 미적용). User.Radius = 사거리, User.Angle = 전체 각도 */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Combat|Melee",
+        meta = (EditCondition = "AttackType == EEnemyAttackType::MeleeArc", EditConditionHides))
+    UNiagaraSystem* MeleeWarningEffect = nullptr;
+
+    /** MeleeArc - 타격 순간 연출(맞든 안 맞든 재생). User.Radius / User.Angle 동일 */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Combat|Melee",
+        meta = (EditCondition = "AttackType == EEnemyAttackType::MeleeArc", EditConditionHides))
+    UNiagaraSystem* MeleeHitEffect = nullptr;
 
     //==========================================================================
     // HEALTH

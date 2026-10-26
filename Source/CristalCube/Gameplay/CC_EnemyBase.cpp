@@ -24,6 +24,8 @@
 #include "../SkillSystem/CC_EffectorPoolSubsystem.h"
 #include "NiagaraFunctionLibrary.h"
 #include "NiagaraComponent.h"
+#include "DrawDebugHelpers.h"
+#include "HAL/IConsoleManager.h"
 
 
 // Sets default values
@@ -101,9 +103,9 @@ void ACC_EnemyBase::BeginPlay()
 
 void ACC_EnemyBase::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
-
     GetWorldTimerManager().ClearTimer(AttackCooldownTimer);
     GetWorldTimerManager().ClearTimer(CapsuleDebugTimer);
+    GetWorldTimerManager().ClearTimer(MeleeWindupTimer);
 
     if (UCC_AIManager* AIManager = UCC_AIManager::Get(this))
        AIManager->UnregisterEnemy(this);
@@ -208,12 +210,17 @@ void ACC_EnemyBase::PerformAttack()
     {
         const float AttackDamage = GetEffectiveAttackDamage();
 
-        if (AttackProjectileClass)
+        if (AttackType == EEnemyAttackType::MeleeArc)
+        {
+            StartMeleeArcAttack(AttackDamage);
+        }
+        else if (AttackType == EEnemyAttackType::Projectile && AttackProjectileClass)
         {
             FireProjectileAttack(AttackDamage);
         }
         else if (AreaAttackClass)
         {
+            // AreaRing 지정, 또는 Projectile인데 투사체 클래스가 없음(이전 암묵 규칙과 같은 폴백)
             LaunchAreaAttack(AttackDamage);
         }
         else
@@ -274,20 +281,166 @@ void ACC_EnemyBase::LaunchAreaAttack(float AttackDamage)
     }
 }
 
-void ACC_EnemyBase::CancelActiveAttacks()
+
+void ACC_EnemyBase::StartMeleeArcAttack(float AttackDamage)
 {
+    CancelMeleeArcAttack();
+
+    const FVector MyLoc = GetActorLocation();
+    FVector Dir = TargetPlayer ? (TargetPlayer->GetActorLocation() - MyLoc).GetSafeNormal2D() : FVector::ZeroVector;
+    if (Dir.IsNearlyZero())
+    {
+        Dir = GetActorForwardVector().GetSafeNormal2D();
+    }
+
+    // 위치·방향은 선딜 시작 시점에 고정 - 선딜 동안 플레이어가 부채꼴 밖으로 피할 수 있게
+    MeleeArcOrigin = MyLoc;
+    MeleeArcDir = Dir;
+    PendingMeleeDamage = AttackDamage;   // 데미지도 시작 시점 고정(다른 공격과 같은 규칙)
+
+    if (MeleeWarningEffect)
+    {
+        // 경고 연출 - 원소색 미적용(Warning 규칙)
+        if (UNiagaraComponent* VFX = UNiagaraFunctionLibrary::SpawnSystemAtLocation(
+            GetWorld(), MeleeWarningEffect, MeleeArcOrigin, MeleeArcDir.Rotation()))
+        {
+            VFX->SetFloatParameter(FName("User.Radius"), EnemyStats.AttackRange);
+            VFX->SetFloatParameter(FName("User.Angle"), MeleeArcAngle);
+            MeleeWarningVFX = VFX;
+        }
+    }
+
+    if (MeleeWindup > 0.f)
+    {
+        GetWorldTimerManager().SetTimer(MeleeWindupTimer, this, &ACC_EnemyBase::ResolveMeleeArcAttack, MeleeWindup, false);
+    }
+    else
+    {
+        ResolveMeleeArcAttack();
+    }
+}
+
+void ACC_EnemyBase::ResolveMeleeArcAttack()
+{
+    if (UNiagaraComponent* VFX = MeleeWarningVFX.Get())
+    {
+        VFX->Deactivate();
+    }
+    MeleeWarningVFX.Reset();
+
+    if (!IsAlive())
+    {
+        return;
+    }
+
+    const float Range = EnemyStats.AttackRange;
+    const float HalfAngle = FMath::Clamp(MeleeArcAngle, 1.f, 360.f) * 0.5f;
+    bool bHit = false;
+
+    if (TargetPlayer && TargetPlayer->IsAlive())
+    {
+        const FVector PlayerLoc = TargetPlayer->GetActorLocation();
+        const UCapsuleComponent* PlayerCapsule = TargetPlayer->GetCapsuleComponent();
+        const float TargetRadius = PlayerCapsule ? PlayerCapsule->GetScaledCapsuleRadius() : 0.f;
+        const FVector To = PlayerLoc - MeleeArcOrigin;
+        const float Dist2D = To.Size2D();
+
+        // 평면 판정(링과 같은 문법): 높이 → 거리(캡슐 반경만큼 넓힘) → 각도(캡슐 반경만큼 여유)
+        if (FMath::Abs(To.Z) <= MeleeHeightTolerance && Dist2D - TargetRadius <= Range)
+        {
+            bool bInArc = (HalfAngle >= 180.f) || (Dist2D <= TargetRadius);
+            if (!bInArc)
+            {
+                const float AngleToTarget = FMath::RadiansToDegrees(
+                    FMath::Acos(FMath::Clamp(FVector::DotProduct(MeleeArcDir, To.GetSafeNormal2D()), -1.f, 1.f)));
+                const float Margin = FMath::RadiansToDegrees(FMath::Asin(FMath::Clamp(TargetRadius / Dist2D, 0.f, 1.f)));
+                bInArc = AngleToTarget <= HalfAngle + Margin;
+            }
+
+            if (bInArc)
+            {
+                FHitResult Hit;
+                Hit.ImpactPoint = PlayerLoc;
+                Hit.Location = PlayerLoc;
+                UGameplayStatics::ApplyPointDamage(TargetPlayer, PendingMeleeDamage, MeleeArcDir, Hit, nullptr, this, UDamageType::StaticClass());
+                bHit = true;
+            }
+        }
+    }
+
+    if (MeleeHitEffect)
+    {
+        if (UNiagaraComponent* HitVFX = UNiagaraFunctionLibrary::SpawnSystemAtLocation(
+            GetWorld(), MeleeHitEffect, MeleeArcOrigin, MeleeArcDir.Rotation()))
+        {
+            HitVFX->SetFloatParameter(FName("User.Radius"), Range);
+            HitVFX->SetFloatParameter(FName("User.Angle"), MeleeArcAngle);
+        }
+    }
+
+#if !UE_BUILD_SHIPPING
+    // 디버그: 링과 같은 토글(CC.ShowEnemyAttackArea 1) - 주황 = 빗나감, 빨강 = 명중
+    if (const IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("CC.ShowEnemyAttackArea")))
+    {
+        if (CVar->GetInt() > 0)
+        {
+            const FColor Color = bHit ? FColor::Red : FColor::Orange;
+            const int32 Segments = 16;
+            FVector Prev = MeleeArcOrigin;
+            for (int32 i = 0; i <= Segments; ++i)
+            {
+                const float A = -HalfAngle + (2.f * HalfAngle) * i / Segments;
+                const FVector P = MeleeArcOrigin + MeleeArcDir.RotateAngleAxis(A, FVector::UpVector) * Range;
+                DrawDebugLine(GetWorld(), Prev, P, Color, false, 1.0f, 0, 2.0f);
+                Prev = P;
+            }
+            DrawDebugLine(GetWorld(), Prev, MeleeArcOrigin, Color, false, 1.0f, 0, 2.0f);
+        }
+    }
+#endif
+}
+
+void ACC_EnemyBase::CancelMeleeArcAttack()
+{
+    GetWorldTimerManager().ClearTimer(MeleeWindupTimer);
+    if (UNiagaraComponent* VFX = MeleeWarningVFX.Get())
+    {
+        VFX->DeactivateImmediate();
+    }
+    MeleeWarningVFX.Reset();
+}
+
+void ACC_EnemyBase::CancelActiveAttacks(bool bInstigatorDied)
+{
+    // 근접 선딜 중이면 취소 (Freeze / 텔레포트 / 사망 공통)
+    CancelMeleeArcAttack();
+
     for (const TWeakObjectPtr<AActor>& Weak : ActiveAttackActors)
     {
         AActor* Attack = Weak.Get();
 
-        // 풀에서 다른 적에게 재사용된 액터는 건드리지 않음 — 현재 주인이 나일 때만 취소
+        // 풀에서 다른 적에게 재사용된 액터는 건드리지 않음 - 현재 주인이 나일 때만 취소
         if (ACC_Projectile* P = Cast<ACC_Projectile>(Attack))
         {
-            if (P->GetProjectileOwner() == this) P->Deactivate();
+            if (P->GetProjectileOwner() != this) continue;
+
+            if (!bInstigatorDied)
+            {
+                P->Deactivate();                // Freeze/텔레포트 = 연출까지 즉시 반납
+            }
+            else if (!P->SurvivesInstigatorDeath())
+            {
+                P->EndAndDrain();               // 사망 = 판정만 끝내고 트레일은 스스로 마무리
+            }
         }
         else if (ACC_EnemyAreaAttack* A = Cast<ACC_EnemyAreaAttack>(Attack))
         {
-            if (A->GetAttackInstigator() == this) A->Deactivate();
+            if (A->GetAttackInstigator() != this) continue;
+
+            if (!bInstigatorDied || !A->SurvivesInstigatorDeath())
+            {
+                A->Deactivate();
+            }
         }
     }
     ActiveAttackActors.Reset();
@@ -361,6 +514,9 @@ void ACC_EnemyBase::Die()
     bIsDead = true;
 
     GetWorldTimerManager().ClearTimer(AttackCooldownTimer);
+
+    // 이미 낸 공격 정리 - Follow 링은 항상, 나머지는 bSurvivesInstigatorDeath가 꺼진 것만(기본 전부 소멸)
+    CancelActiveAttacks(true);
 
     // EXP 젬 드롭
     if (ExpGemClass)
@@ -550,7 +706,6 @@ void ACC_EnemyBase::AutoFitCapsuleToMesh()
     
     // 캡슐 "크기"만 메시 바운드 기준으로 자동 계산.
     // 위치(Z) 보정은 더 이상 여기서 하지 않음 — MeshZOffset으로 디자이너가 직접 지정.
-    //const float OldHalfHeight = CapsuleComp->GetUnscaledCapsuleHalfHeight();
 
     const FBoxSphereBounds Bounds = MeshComp->CalcBounds(MeshComp->GetComponentTransform());
     float Radius = FMath::Max(Bounds.BoxExtent.X, Bounds.BoxExtent.Y) * 0.75f;
@@ -579,14 +734,12 @@ void ACC_EnemyBase::AutoFitCapsuleToMesh()
     }
     else
     {
-        UE_LOG(LogTemp, Warning, TEXT("[%s] AutoFitCapsuleToMesh: Trace failed."),
+        UE_LOG(LogTemp, Warning, TEXT("[%s] AutoFitCapsuleToMesh: Trace failed - 현재 Z(%.0f)를 지면으로 사용"),
             *GetName(), FloorZ);
     }
 
+    // 실측 지면 Z는 디버그 확인용으로만 보관 (위치 보정은 MeshZOffset 담당)
     LastMeasuredFloorZ = FloorZ;
-
-    FVector NewLoc = CurrentLoc;
-    NewLoc.Z = FloorZ + HalfHeight;
 }
 
 void ACC_EnemyBase::ApplyMeshZOffset()

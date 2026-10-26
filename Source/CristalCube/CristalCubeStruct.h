@@ -269,6 +269,15 @@ enum class EDropPattern : uint8
     Wave    UMETA(DisplayName = "Wave")      // 안에서 밖으로 파도형 (예약)
 };
 
+// 방향형 Core(Projectile/Beam)의 생성 원점 - Default면 UCC_SkillSystem::DefaultSpawnOrigin을 따름
+UENUM(BlueprintType)
+enum class ESkillSpawnOrigin : uint8
+{
+    Default       UMETA(DisplayName = "Default"),        // SkillSystem 기본값 사용 (기본 GroundOffset)
+    CasterCenter  UMETA(DisplayName = "Caster Center"),  // 시전자 캡슐 중심 + 수평 발사 (A4 이전 동작)
+    GroundOffset  UMETA(DisplayName = "Ground Offset")   // 발밑 지면 + 높이에서, 커서 지점 지면 + 높이를 향해 발사
+};
+
 USTRUCT(BlueprintType)
 struct FRainfallCoreData
 {
@@ -887,6 +896,16 @@ struct FSkillDefinition
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Core",
         meta = (EditCondition = "CoreType == ESkillCoreType::Projectile", EditConditionHides, ClampMin = "1.0"))
     float ProjectileCollisionRadius = 25.0f;
+
+    // Projectile/Beam Core 전용 - 생성 원점. Default = UCC_SkillSystem::DefaultSpawnOrigin(기본 GroundOffset)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Core",
+        meta = (EditCondition = "CoreType == ESkillCoreType::Projectile || CoreType == ESkillCoreType::Beam", EditConditionHides))
+    ESkillSpawnOrigin SpawnOrigin = ESkillSpawnOrigin::Default;
+
+    // GroundOffset일 때 지면 기준 높이(cm). 0보다 작으면 UCC_SkillSystem::DefaultMuzzleHeight 사용
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Core",
+        meta = (EditCondition = "CoreType == ESkillCoreType::Projectile || CoreType == ESkillCoreType::Beam", EditConditionHides))
+    float SpawnHeightOverride = -1.0f;
 
     // Rainfall Core 전용 데이터
     // EditCondition으로 Rainfall일 때만 에디터에 노출

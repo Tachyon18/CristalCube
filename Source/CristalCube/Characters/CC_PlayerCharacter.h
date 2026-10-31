@@ -224,6 +224,10 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Level")
 	float GetExperiencePercentage() const;
 
+	/** 이번 판 경과 시간(초) — 결과 화면용 */
+	UFUNCTION(BlueprintPure, Category = "Stats")
+	float GetGameTime() const { return GameTime; }
+
 	UFUNCTION(BlueprintCallable)
 	void ShowLevelUpUI();
 

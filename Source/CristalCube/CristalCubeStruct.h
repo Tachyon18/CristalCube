@@ -1156,6 +1156,37 @@ struct FCubeClearReward
     float StatValue = 0.0f;
 };
 
+/** 한 판(런) 결과 — Game Over / Game Clear 결과 화면이 그대로 표시 (2026-10-29) */
+USTRUCT(BlueprintType)
+struct FCCRunResult
+{
+    GENERATED_BODY()
+
+    /** true = Boss 처치(Game Clear), false = 사망(Game Over) */
+    UPROPERTY(BlueprintReadOnly, Category = "Run Result")
+    bool bCleared = false;
+
+    /** 생존 시간(초) — PlayerCharacter GameTime. 일시정지 중에는 늘지 않음 */
+    UPROPERTY(BlueprintReadOnly, Category = "Run Result")
+    float SurvivalTime = 0.0f;
+
+    /** 총 처치 수 — CycleManager TotalKills */
+    UPROPERTY(BlueprintReadOnly, Category = "Run Result")
+    int32 TotalKills = 0;
+
+    /** Cube Clear 달성 횟수 — CycleManager CurrentStage - 1 (Stage는 1부터 시작) */
+    UPROPERTY(BlueprintReadOnly, Category = "Run Result")
+    int32 CubeClearCount = 0;
+
+    /** 도달 레벨 */
+    UPROPERTY(BlueprintReadOnly, Category = "Run Result")
+    int32 ReachedLevel = 1;
+
+    /** BossProgress 비율(0~1) — Game Over일 때 "보스까지 얼마나 갔는지" 표시용 */
+    UPROPERTY(BlueprintReadOnly, Category = "Run Result")
+    float BossProgressRatio = 0.0f;
+};
+
 //==============================================================================
 // LEVEL UP REWARD SYSTEM (마스터 우선순위 7번, 2026-07-28 설계)
 //==============================================================================

@@ -83,27 +83,35 @@ public:
 
 
 
-	// ====================================================================
-	// Game Clear (Boss Clear, Blocking)
-	// ====================================================================
+    // ====================================================================
+    // Run Result — Game Over / Game Clear 공용 결과 화면 (Blocking)
+    // ====================================================================
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Game Clear")
-    TSubclassOf<UUserWidget> GameClearWidgetClass;
+    /** 결과 화면 위젯 — WBP_RunResult(부모: UCC_RunResultWidget). Game Over / Game Clear 공용.
+     *  비어 있으면 결과 화면 없이 예전처럼 레벨을 다시 시작함 */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Run Result")
+    TSubclassOf<class UCC_RunResultWidget> RunResultWidgetClass;
 
     UPROPERTY()
-    UUserWidget* CurrentGameClearWidget = nullptr;
+    class UCC_RunResultWidget* CurrentRunResultWidget = nullptr;
 
-    UFUNCTION(BlueprintCallable, Category = "Game Clear")
-    void ShowGameClearUI();
+    /** 사망 후 결과 화면이 뜨기까지 대기(초) — 사망 연출 여유. 0이면 즉시 */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Run Result", meta = (ClampMin = "0.0"))
+    float GameOverDelay = 1.5f;
 
-	// ====================================================================
-    // Game Over
-	// ====================================================================
+    /** 현재 판 기록 수집 (PlayerCharacter + CycleManager) */
+    UFUNCTION(BlueprintPure, Category = "Run Result")
+    FCCRunResult BuildRunResult(bool bCleared) const;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Game Over")
-    float GameOverDelay = 0.0f;
+    /** 지금 기록으로 결과 화면 표시 + 일시정지 + UI 입력 */
+    UFUNCTION(BlueprintCallable, Category = "Run Result")
+    void ShowRunResult(bool bCleared);
 
     virtual void TriggerGameOver() override;
+
+    /** 테스트용 — 콘솔(~)에서 "DebugShowRunResult 1"(클리어) / "DebugShowRunResult 0"(게임오버) */
+    UFUNCTION(Exec, Category = "Debug")
+    void DebugShowRunResult(bool bCleared = true);
 
 	// ====================================================================
 	// Convenience
@@ -128,4 +136,9 @@ private:
     void OnGameCleared();
 
     FTimerHandle GameOverTimerHandle;
+
+    /** 사망 시점에 확정한 기록 — 결과 화면이 늦게 떠도 폰이 사라진 뒤 값을 읽지 않게 */
+    FCCRunResult PendingRunResult;
+
+    void ShowPendingRunResult();
 };

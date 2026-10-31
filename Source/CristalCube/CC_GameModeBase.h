@@ -72,13 +72,13 @@ public:
 
     /** 메인 게임 레벨 이름 */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Levels")
-    FName GameLevelName = FName("L_GameMode");
+    FName GameLevelName = FName("L_MainGame");
 
     /** 테스트룸 레벨 이름 */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Levels")
     FName TestRoomLevelName = FName("L_TestRoom");
 
-    /** 메인 메뉴 레벨 이름 */
+    /** 메인 메뉴 레벨 이름 (MainMenu.umap → L_MainMenu로 이름 변경 전제, 4절 에디터 작업 1) */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Levels")
     FName MainMenuLevelName = FName("L_MainMenu");
 

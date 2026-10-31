@@ -34,12 +34,10 @@ void UCC_GameHUD::UpdateExp(float CurrentExp, float MaxExp, int32 Level)
 
 void UCC_GameHUD::UpdateTimer(float TotalSeconds)
 {
-	int32 Minutes = FMath::Floor(TotalSeconds / 60);
-	int32 Seconds = FMath::Floor(int32(TotalSeconds) % 60);
+    if (!TimerText) return;
 
-	FText InTimerText = FText::Format(FText::FromString(TEXT("{0} : {1}")), Minutes, Seconds);
-
-	TimerText->SetText(InTimerText);
+    const int32 Total = FMath::FloorToInt(FMath::Max(TotalSeconds, 0.0f));
+    TimerText->SetText(FText::FromString(FString::Printf(TEXT("%02d : %02d"), Total / 60, Total % 60)));
 }
 
 void UCC_GameHUD::PlayHitFlash()

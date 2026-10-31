@@ -11,6 +11,7 @@
 #include "SkillSystem/CC_SkillLibrarySubsystem.h"
 #include "Widgets/CC_GameHUD.h"
 #include "Widgets/CC_CubeClearRewardWidget.h"
+#include "Widgets/CC_RunResultWidget.h"
 #include "TimerManager.h"
 
 ACC_MainGameMode::ACC_MainGameMode()
@@ -20,7 +21,7 @@ ACC_MainGameMode::ACC_MainGameMode()
 
 void ACC_MainGameMode::BeginPlay()
 {
-    Super::BeginPlay(); // SetGameState(Playing) 호출됨
+    Super::BeginPlay(); // Cube 시스템 준비 신호 대기 후 Playing 전환 (Startup_Pipeline_Design 8절)
 
     SpawnCycleManager();
 }
@@ -160,10 +161,46 @@ void ACC_MainGameMode::OnCubeClearAchieved(int32 StageNumber)
 
 void ACC_MainGameMode::OnGameCleared()
 {
+    // 사망 처리 중(결과 화면 대기)이면 클리어로 뒤집지 않음
+    if (CurrentGameState == EGameState::GameOver) return;
+
     UE_LOG(LogTemp, Warning, TEXT("[MainGameMode] === GAME CLEARED (Boss defeated) ==="));
 
     SetGameState(EGameState::GameClear);
-    ShowGameClearUI();
+    ShowRunResult(true);
+}
+
+void ACC_MainGameMode::ShowPendingRunResult()
+{
+    if (CurrentRunResultWidget) return; // 이미 표시 중
+
+    if (!RunResultWidgetClass)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[MainGameMode] RunResultWidgetClass not set — restarting level instead."));
+        RestartCurrentLevel();
+        return;
+    }
+
+    APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0);
+    if (!PC) return;
+
+    CurrentRunResultWidget = CreateWidget<UCC_RunResultWidget>(PC, RunResultWidgetClass);
+    if (!CurrentRunResultWidget) return;
+
+    CurrentRunResultWidget->SetRunResult(PendingRunResult);
+    CurrentRunResultWidget->AddToViewport(100); // LevelUp(10)/CubeClearReward(10)보다 위
+
+    UGameplayStatics::SetGamePaused(GetWorld(), true);
+
+    FInputModeUIOnly InputMode;
+    InputMode.SetWidgetToFocus(CurrentRunResultWidget->TakeWidget());
+    PC->SetInputMode(InputMode);
+    PC->SetShowMouseCursor(true);
+
+    UE_LOG(LogTemp, Log, TEXT("[MainGameMode] Run result shown — %s, %.0fs, %d kills, %d cube clears, Lv %d"),
+        PendingRunResult.bCleared ? TEXT("CLEAR") : TEXT("GAME OVER"),
+        PendingRunResult.SurvivalTime, PendingRunResult.TotalKills,
+        PendingRunResult.CubeClearCount, PendingRunResult.ReachedLevel);
 }
 
 // ============================================================
@@ -231,39 +268,64 @@ TArray<FCubeClearReward> ACC_MainGameMode::GetRandomCubeClearRewards(int32 Count
 
 
 // ============================================================
-//  게임 오버
+//  Run Result (Game Over / Game Clear)
 // ============================================================
 
-void ACC_MainGameMode::ShowGameClearUI()
+FCCRunResult ACC_MainGameMode::BuildRunResult(bool bCleared) const
 {
-    UGameplayStatics::SetGamePaused(GetWorld(), true);
+    FCCRunResult Result;
+    Result.bCleared = bCleared;
 
-    if (!GameClearWidgetClass)
+    if (const ACC_PlayerCharacter* Player = GetPlayerCharacter())
     {
-        UE_LOG(LogTemp, Warning, TEXT("[MainGameMode] GameClearWidgetClass not set!"));
-        return;
+        Result.SurvivalTime = Player->GetGameTime();
+        Result.ReachedLevel = Player->GetPlayerLevel();
     }
 
-    APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0);
-    if (!PC) return;
-
-    CurrentGameClearWidget = CreateWidget<UUserWidget>(PC, GameClearWidgetClass);
-    if (CurrentGameClearWidget)
+    if (CycleManager)
     {
-        CurrentGameClearWidget->AddToViewport();
-        PC->SetInputMode(FInputModeUIOnly());
-        PC->SetShowMouseCursor(true);
+        Result.TotalKills = CycleManager->TotalKills;
+        Result.CubeClearCount = FMath::Max(CycleManager->GetCurrentStage() - 1, 0);
+        Result.BossProgressRatio = bCleared ? 1.0f : CycleManager->GetBossProgressRatio();
     }
+
+    return Result;
+}
+
+void ACC_MainGameMode::ShowRunResult(bool bCleared)
+{
+    PendingRunResult = BuildRunResult(bCleared);
+    ShowPendingRunResult();
 }
 
 void ACC_MainGameMode::TriggerGameOver()
 {
-    Super::TriggerGameOver();
+    if (CurrentGameState == EGameState::GameOver || CurrentGameState == EGameState::GameClear) return;
 
-    SetGameState(EGameState::GameOver);
+    // 폰 정리·사망 연출 전에 기록부터 확정
+    PendingRunResult = BuildRunResult(false);
+
+    // 사망 후 처치는 기록에 넣지 않음 (Boss 처치 → 클리어 판정도 막힘)
+    if (CycleManager)
+    {
+        CycleManager->bTrackingActive = false;
+    }
+
+    Super::TriggerGameOver(); // GameOver 상태 + OnGameOver Broadcast
+
     if (GameOverDelay > 0.f)
     {
         GetWorldTimerManager().SetTimer(
-            GameOverTimerHandle, this, &ACC_MainGameMode::RestartCurrentLevel, GameOverDelay, false);
+            GameOverTimerHandle, this, &ACC_MainGameMode::ShowPendingRunResult, GameOverDelay, false);
     }
+    else
+    {
+        ShowPendingRunResult();
+    }
+}
+
+void ACC_MainGameMode::DebugShowRunResult(bool bCleared)
+{
+    SetGameState(bCleared ? EGameState::GameClear : EGameState::GameOver);
+    ShowRunResult(bCleared);
 }

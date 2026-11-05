@@ -1,7 +1,8 @@
-﻿// CC_UISurface.cpp — Surface v2
-// 위치 제안: Source/CristalCube/Widgets/CC_UISurface.cpp
+﻿// CC_UISurface.cpp — Surface v2 rev.5 (Token 연결 · Empty 상태)
+// 위치: Source/CristalCube/Widgets/CC_UISurface.cpp
 
 #include "CC_UISurface.h"
+#include "CC_UIStyleData.h"
 #include "Components/Image.h"
 #include "Components/BackgroundBlur.h"
 #include "Components/OverlaySlot.h"
@@ -25,12 +26,15 @@ namespace UISurfaceParam
 	static const FName HeadStr(TEXT("HeadStr"));
 	static const FName TrailPx(TEXT("TrailPx"));
 	static const FName TrailDir(TEXT("TrailDir"));
+	static const FName EmptyMix(TEXT("EmptyMix"));       // rev.5
+	static const FName FilledColor[4] = { TEXT("FilledColor0"), TEXT("FilledColor1"), TEXT("FilledColor2"), TEXT("FilledColor3") };   // rev.7
 }
+
 
 UCC_UISurface::UCC_UISurface(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
-	// 상태 기본값 — 음수 = 역할 MI 값 유지
+	// 상태 기본값 (Token 없이도 동작) — 음수 = 역할 MI 값 유지. Token 기본값과 같음 (golden-b1-b2-provide §1-4)
 	StateLooks.Add(EUISurfaceState::Rest, FUISurfaceStateLook());
 
 	FUISurfaceStateLook Hover;    Hover.HotStr = 1.f;
@@ -39,11 +43,14 @@ UCC_UISurface::UCC_UISurface(const FObjectInitializer& ObjectInitializer)
 	FUISurfaceStateLook Pressed;  Pressed.HotStr = 0.7f;
 	StateLooks.Add(EUISurfaceState::Pressed, Pressed);
 
-	FUISurfaceStateLook Selected; Selected.HotStr = 1.f; Selected.SheenOpacity = 0.14f;
+	FUISurfaceStateLook Selected; Selected.HotStr = 1.f; Selected.SheenOpacity = 0.14f; Selected.BodyStrAdd = 0.10f;
 	StateLooks.Add(EUISurfaceState::Selected, Selected);
 
-	FUISurfaceStateLook Disabled; Disabled.HotStr = 0.f; Disabled.SheenOpacity = 0.f; Disabled.Opacity = 0.45f;
+	FUISurfaceStateLook Disabled; Disabled.HotStr = 0.f; Disabled.SheenOpacity = 0.f; Disabled.RimBase = 0.07f; Disabled.BodyStr = 0.f; Disabled.Opacity = 0.45f;
 	StateLooks.Add(EUISurfaceState::Disabled, Disabled);
+
+	FUISurfaceStateLook Empty;    Empty.HotStr = 0.f; Empty.SheenOpacity = 0.f; Empty.EmptyMix = 1.f;
+	StateLooks.Add(EUISurfaceState::Empty, Empty);
 }
 
 // ─────────────────────────────────────────────────────────── 생명주기
@@ -64,38 +71,123 @@ void UCC_UISurface::NativeConstruct()
 	}
 }
 
+void UCC_UISurface::RefreshFromStyle()
+{
+	InitSurface();
+}
+
+bool UCC_UISurface::UseStyleMotion() const
+{
+	return bUseStyleMotion && ActiveStyle != nullptr;
+}
+
 void UCC_UISurface::InitSurface()
 {
-	if (!SurfaceImage || !SurfaceMaterial)
+	if (!SurfaceImage)
 	{
 		return;
 	}
 
-	if (!SurfaceMID || SurfaceMID->Parent != SurfaceMaterial)
+	// (rev.5) Token — 인스턴스 지정 > 전역(Project Settings)
+	ActiveStyle = StyleOverride ? StyleOverride.Get() : UCC_UIStyleData::GetUIStyle();
+
+	UMaterialInterface* Mat = SurfaceMaterial;
+	if (!Mat && ActiveStyle && SurfaceRole != EUISurfaceRole::Custom)
 	{
-		SurfaceMID = UMaterialInstanceDynamic::Create(SurfaceMaterial, this);
+		Mat = ActiveStyle->GetRoleMaterial(SurfaceRole);
+	}
+	if (!Mat)
+	{
+		return;
+	}
+
+	if (!SurfaceMID || SurfaceMID->Parent != Mat)
+	{
+		SurfaceMID = UMaterialInstanceDynamic::Create(Mat, this);
 		SurfaceImage->SetBrushFromMaterial(SurfaceMID);
 	}
+	else
+	{
+		// (rev.5) 재사용 시 이전 덮어쓰기(상태 값·LayoutSize·Pad) 제거 → Base 값을 항상 MI에서 다시 읽음
+		SurfaceMID->ClearParameterValues();
+	}
 	SurfaceImage->SetColorAndOpacity(FLinearColor::White);   // Tint 1,1,1,1 필수 (Tint가 출력에 곱해짐)
+	BaseBodyColor = SurfaceMID->K2_GetVectorParameterValue(UISurfaceParam::BodyColor);   // 덮어쓰기 전 MI 값 (SetElement(None) 복귀용)
 
+	// (rev.5) Token 상태·모션
+	if (ActiveStyle)
+	{
+		if (bUseStyleStates && ActiveStyle->StateLooks.Num() > 0)
+		{
+			StateLooks = ActiveStyle->StateLooks;
+		}
+		if (bUseStyleMotion)
+		{
+			const FUIMotionTokens& M = ActiveStyle->Motion;
+			StateBlendTime = M.StateBlend;
+			TrailTime = M.TrailTime;
+			TrailMaxPx = M.TrailMaxPx;
+			HeadFadeTime = M.HeadFade;
+		}
+	}
+
+	ApplyStyleToMID();      // 반경·원소색 — CacheBaseValues 전에 (Base 값에 반영)
 	CacheBaseValues();
 	ApplyOuterPad();
 
+	bAnchorMoving = false;
 	CurAnchor = BaseHotAnchor;
 	CurHead = BaseHeadStr;
 	CurTrail = 0.f;
-	W_Hot = W_Sheen = W_Rim = W_Body = W_Anchor = W_Head = W_Trail = W_TrailDir = -999.f;
-	LastLocalSize = FVector2D::ZeroVector;   // 다음 Tick에서 LayoutSize 재전달
+	W_Hot = W_Sheen = W_Rim = W_Body = W_Empty = W_Anchor = W_Head = W_Trail = W_TrailDir = -999.f;
+	LastLocalSize = FVector2D::ZeroVector;   // 다음 Tick(디자이너는 Paint)에서 LayoutSize 재전달
 
 	CurrentState = InitialState;
 	ApplyStateTargets(true);
+}
+
+void UCC_UISurface::ApplyStyleToMID()
+{
+	namespace P = UISurfaceParam;
+
+	if (!SurfaceMID || !ActiveStyle)
+	{
+		return;
+	}
+
+	if (RadiusToken != EUIRadius::FromMaterial)
+	{
+		SurfaceMID->SetScalarParameterValue(P::RadiusPx, ActiveStyle->GetRadius(RadiusToken));
+		if (RadiusToken == EUIRadius::Full)
+		{
+			SurfaceMID->SetScalarParameterValue(P::RadiusMaxRatio, 0.5f);
+		}
+	}
+
+	if (Element != ESkillElementType::None)
+	{
+		SurfaceMID->SetVectorParameterValue(P::BodyColor, ActiveStyle->GetElementBodyLinear(Element));
+	}
+
+	// (rev.7) Filled — Token FilledStops(sRGB) → FilledColor0~3 RGB(Linear). A(스톱 위치)는 MI 값 유지
+	if (SurfaceRole == EUISurfaceRole::Filled)
+	{
+		const int32 N = FMath::Min(ActiveStyle->FilledStops.Num(), 4);
+		for (int32 i = 0; i < N; ++i)
+		{
+			FLinearColor C(ActiveStyle->FilledStops[i]);
+			C.A = SurfaceMID->K2_GetVectorParameterValue(P::FilledColor[i]).A;
+			SurfaceMID->SetVectorParameterValue(P::FilledColor[i], C);
+		}
+	}
+
 }
 
 void UCC_UISurface::CacheBaseValues()
 {
 	namespace P = UISurfaceParam;
 	UMaterialInstanceDynamic* M = SurfaceMID;
-	// K2_GetScalarParameterValue : MI → 부모 순으로 값을 찾음 (MI에서 안 덮은 값 = 부모 기본값)
+	// K2_GetScalarParameterValue : MID 덮어쓰기 → MI → 부모 순으로 값을 찾음
 	BaseHotStr = M->K2_GetScalarParameterValue(P::HotStr);
 	BaseSheen = M->K2_GetScalarParameterValue(P::SheenOpacity);
 	BaseRimBase = M->K2_GetScalarParameterValue(P::RimBase);
@@ -108,7 +200,6 @@ void UCC_UISurface::CacheBaseValues()
 	OuterPadPx = M->K2_GetScalarParameterValue(P::OuterPadPx);
 
 	// Head가 테두리 밖으로 나올 공간 자동 확보 — MI에 OuterPadPx를 안 넣었거나 작으면 2 × HeadPx로 올림
-	// (Pad가 0이면 Head 바깥 절반이 위젯 사각 경계에서 잘려 모서리에서 '사각형을 타는' 것처럼 보임)
 	if (bAutoOuterPad)
 	{
 		const float Need = FMath::CeilToFloat(2.f * M->K2_GetScalarParameterValue(P::HeadPx));
@@ -173,21 +264,23 @@ void UCC_UISurface::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
 		CurSheen = FMath::Lerp(CurSheen, TgtSheen, A);
 		CurRim = FMath::Lerp(CurRim, TgtRim, A);
 		CurBody = FMath::Lerp(CurBody, TgtBody, A);
+		CurEmpty = FMath::Lerp(CurEmpty, TgtEmpty, A);
 		CurOpacity = FMath::Lerp(CurOpacity, TgtOpacity, A);
 
 		const bool bDone =
 			FMath::IsNearlyEqual(CurHot, TgtHot, 0.002f) && FMath::IsNearlyEqual(CurSheen, TgtSheen, 0.002f) &&
 			FMath::IsNearlyEqual(CurRim, TgtRim, 0.002f) && FMath::IsNearlyEqual(CurBody, TgtBody, 0.002f) &&
-			FMath::IsNearlyEqual(CurOpacity, TgtOpacity, 0.002f);
+			FMath::IsNearlyEqual(CurEmpty, TgtEmpty, 0.002f) && FMath::IsNearlyEqual(CurOpacity, TgtOpacity, 0.002f);
 		if (bDone)
 		{
-			CurHot = TgtHot; CurSheen = TgtSheen; CurRim = TgtRim; CurBody = TgtBody; CurOpacity = TgtOpacity;
+			CurHot = TgtHot; CurSheen = TgtSheen; CurRim = TgtRim; CurBody = TgtBody; CurEmpty = TgtEmpty; CurOpacity = TgtOpacity;
 			bStateBlending = false;
 		}
 		SetScalar(UISurfaceParam::HotStr, CurHot, W_Hot);
 		SetScalar(UISurfaceParam::SheenOpacity, CurSheen, W_Sheen);
 		SetScalar(UISurfaceParam::RimBase, CurRim, W_Rim);
 		SetScalar(UISurfaceParam::BodyStr, CurBody, W_Body);
+		SetScalar(UISurfaceParam::EmptyMix, CurEmpty, W_Empty);
 		SetRenderOpacity(CurOpacity);
 	}
 
@@ -266,11 +359,16 @@ void UCC_UISurface::ApplyStateTargets(bool bInstant)
 	TgtSheen = (L.SheenOpacity >= 0.f) ? L.SheenOpacity : BaseSheen;
 	TgtRim = (L.RimBase >= 0.f) ? L.RimBase : BaseRimBase;
 	TgtBody = (L.BodyStr >= 0.f) ? L.BodyStr : BaseBodyStr;
+	if (Element != ESkillElementType::None)
+	{
+		TgtBody += L.BodyStrAdd;                 // (rev.5) 원소가 있을 때만 — 검은 BodyColor 카드가 어두워지지 않게
+	}
+	TgtEmpty = FMath::Clamp(L.EmptyMix, 0.f, 1.f);
 	TgtOpacity = L.Opacity;
 
 	if (bInstant || !SurfaceMID)
 	{
-		CurHot = TgtHot; CurSheen = TgtSheen; CurRim = TgtRim; CurBody = TgtBody; CurOpacity = TgtOpacity;
+		CurHot = TgtHot; CurSheen = TgtSheen; CurRim = TgtRim; CurBody = TgtBody; CurEmpty = TgtEmpty; CurOpacity = TgtOpacity;
 		bStateBlending = false;
 		if (SurfaceMID)
 		{
@@ -278,6 +376,7 @@ void UCC_UISurface::ApplyStateTargets(bool bInstant)
 			SetScalar(UISurfaceParam::SheenOpacity, CurSheen, W_Sheen);
 			SetScalar(UISurfaceParam::RimBase, CurRim, W_Rim);
 			SetScalar(UISurfaceParam::BodyStr, CurBody, W_Body);
+			SetScalar(UISurfaceParam::EmptyMix, CurEmpty, W_Empty);
 		}
 		SetRenderOpacity(CurOpacity);
 	}
@@ -292,6 +391,28 @@ void UCC_UISurface::SetBodyColor(FLinearColor LinearColor)
 	if (SurfaceMID)
 	{
 		SurfaceMID->SetVectorParameterValue(UISurfaceParam::BodyColor, LinearColor);
+	}
+}
+
+void UCC_UISurface::SetElement(ESkillElementType InElement)
+{
+	const bool bHadElement = (Element != ESkillElementType::None);
+	Element = InElement;
+	if (!SurfaceMID)
+	{
+		return;
+	}
+	if (Element == ESkillElementType::None)
+	{
+		SurfaceMID->SetVectorParameterValue(UISurfaceParam::BodyColor, BaseBodyColor);   // MI 값으로 복귀
+	}
+	else if (ActiveStyle)
+	{
+		SurfaceMID->SetVectorParameterValue(UISurfaceParam::BodyColor, ActiveStyle->GetElementBodyLinear(Element));
+	}
+	if (bHadElement != (Element != ESkillElementType::None))
+	{
+		ApplyStateTargets(false);                // BodyStrAdd 적용 여부가 바뀜
 	}
 }
 
@@ -310,25 +431,30 @@ void UCC_UISurface::StartAnchorMotion(float From, float To, float Duration, bool
 
 void UCC_UISurface::PlayRimIntro(float Duration, float SweepFraction)
 {
-	CurAnchor = BaseHotAnchor - SweepFraction;
-	StartAnchorMotion(CurAnchor, BaseHotAnchor, Duration, false);
+	const bool bS = UseStyleMotion();
+	const float D = (Duration >= 0.f) ? Duration : (bS ? ActiveStyle->Motion.RimIntro : 0.5f);
+	const float SF = (SweepFraction >= 0.f) ? SweepFraction : (bS ? ActiveStyle->Motion.RimIntroSweep : 0.35f);
+	CurAnchor = BaseHotAnchor - SF;
+	StartAnchorMotion(CurAnchor, BaseHotAnchor, D, false);
 }
 
 void UCC_UISurface::PlayRimSweep(float Duration, bool bClockwise)
 {
+	const float D = (Duration >= 0.f) ? Duration : (UseStyleMotion() ? ActiveStyle->Motion.RimSweep : 0.9f);
 	const float Dir = bClockwise ? 1.f : -1.f;
-	StartAnchorMotion(CurAnchor, CurAnchor + Dir, Duration, true);
+	StartAnchorMotion(CurAnchor, CurAnchor + Dir, D, true);
 }
 
 void UCC_UISurface::SetHotspotTarget(float TargetAnchor, float Duration)
 {
+	const float D = (Duration >= 0.f) ? Duration : (UseStyleMotion() ? ActiveStyle->Motion.HotspotMove : 0.25f);
 	float Delta = TargetAnchor - CurAnchor;
 	Delta -= FMath::RoundToFloat(Delta);                 // 최단 경로 (-0.5 ~ 0.5)
 	if (FMath::Abs(Delta) < 0.001f)
 	{
 		return;
 	}
-	StartAnchorMotion(CurAnchor, CurAnchor + Delta, Duration, false);
+	StartAnchorMotion(CurAnchor, CurAnchor + Delta, D, false);
 }
 
 float UCC_UISurface::ComputePerimeterPx(const FVector2D& ShapeSize) const
@@ -399,7 +525,7 @@ void UCC_UISurface::NativeOnMouseLeave(const FPointerEvent& InMouseEvent)
 	if (bHotspotFollowsCursor)
 	{
 		LastHoverAnchor = -1.f;
-		SetHotspotTarget(BaseHotAnchor, 0.35f);          // 기본 위치로 복귀
+		SetHotspotTarget(BaseHotAnchor, UseStyleMotion() ? ActiveStyle->Motion.HotspotReturn : 0.35f);   // 기본 위치로 복귀
 	}
 }
 
@@ -415,7 +541,7 @@ FReply UCC_UISurface::NativeOnMouseMove(const FGeometry& InGeometry, const FPoin
 		if (LastHoverAnchor < 0.f || FMath::Abs(D) > 0.01f)   // 1% 이상 움직였을 때만
 		{
 			LastHoverAnchor = A;
-			SetHotspotTarget(A, 0.18f);
+			SetHotspotTarget(A, UseStyleMotion() ? ActiveStyle->Motion.HotspotFollow : 0.18f);
 		}
 	}
 	return Reply;

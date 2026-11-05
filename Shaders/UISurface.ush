@@ -1,0 +1,681 @@
+// =====================================================================================
+// UISurface.ush — M_UI_GlassSurface rev.7 (rev.6d 입력 묶음 + Filled 레이어)
+// 위치   : <Project>/Shaders/UISurface.ush
+// 가상경로: /CristalCube/UISurface.ush   (CristalCubeShaders 모듈이 매핑 — golden-rev6-b4-provide §2)
+// 사용   : Custom 노드 Include File Paths 에 위 가상경로 → 본문 3줄 (rev.6d, 입력 19개)
+//            FUISurfaceInput I;
+//            UIS_GATHER_PACKED(I);
+//            return UISurface_Evaluate(I);
+//          (rev.6 본문 4줄 — UIS_GATHER_INPUTS + UIS_GATHER_SWITCHES, 입력 41개 — 도 그대로 컴파일됨: Filled 꺼짐)
+// 반환   : rgb = Final Color(비-프리멀티, Linear), a = Opacity
+// 단위   : 모든 길이 = 레이아웃 px (Slate 단위 = 1080p 디자인 px). LayoutSize 0이면 화면 px.
+// rev.6 대비: 기존 함수 수식·합성 순서 동일. 추가 = UIS_Filled + Composite의 Filled 단계(UseFilled ✔일 때만).
+//            UseFilled ✘ 또는 FilledMix 0 → rev.6과 같은 결과 (golden-b4-filled-provide §4 GPU 대조).
+// =====================================================================================
+#pragma once
+
+// ---------------------------------------------------------------- 색 상수 (Linear)
+static const float3 UIS_PEACH = float3(0.8879, 0.5520, 0.4342);
+static const float3 UIS_LILAC = float3(0.4851, 0.3916, 0.7913);
+static const float3 UIS_SKY = float3(0.3325, 0.5776, 0.8070);
+static const float3 UIS_MINT = float3(0.3916, 0.7682, 0.6240);
+
+// ---------------------------------------------------------------- 입력 (Custom 노드 입력과 같은 이름)
+struct FUISurfaceInput
+{
+    float2 UV;
+    float2 LayoutSize;
+    // 형상
+    float RadiusPx;
+    float RadiusMaxRatio;
+    float OuterPadPx;
+    float RimPx;
+    float BevelPx;
+    // 프로스트 · 몸체
+    float FrostTop;
+    float FrostBottom;
+    float3 BodyColor;
+    float BodyStr;
+    float BodyFalloffPx;
+    // Sheen
+    float SheenOpacity;
+    float SheenMaxPx;
+    // 베벨 · 테두리
+    float BevelHi;
+    float BevelShadow;
+    float RimBase;
+    // 핫스팟
+    float HotAnchor;
+    float HotOffsetPx;
+    float HotSizePx;
+    float HotStr;
+    float Hot2Str;
+    float GlowPx;
+    // Head · Trail
+    float HeadStr;
+    float HeadPx;
+    float HeadShape;
+    float HeadSparkle;
+    float TrailPx;
+    float TrailDir;
+    float TrailWidthPx;
+    // Track · Empty (rev.5)
+    float IsTrack;
+    float TrackDark;
+    float EmptyMix;
+    float DashPx;
+    float DashGapPx;
+    float DashRim;
+    // Filled (rev.7 — 주 행동 버튼: 불투명 그라데이션 몸체)
+    float FilledMix;
+    float FilledHi;
+    float FilledShadow;
+    float FilledSheen;
+    float FilledGlow;
+    float FilledGlowOffsetPx;
+    float FilledGlowBlurPx;
+    float FilledAngle;
+    float4 FilledColor0;
+    float4 FilledColor1;
+    float4 FilledColor2;
+    float4 FilledColor3; // rgb = Linear 색 · a = 스톱 위치 0~1
+    // 기능 스위치 (rev.6 — Static Switch → 상수 0/1, 컴파일 시 분기 제거)
+    float UseHotspot;
+    float UseSheen;
+    float UseBody;
+    float UseHeadTrail;
+    float UseEmpty;
+    float UseFilled; // rev.7 (부모 기본 ✘)
+};
+
+// ---------------------------------------------------------------- rev.6d — 묶은 입력 (Custom 노드 입력 19개)
+//   UV · LayoutSize · BodyColor                                 (그대로)
+//   P_Shape    = (RadiusPx, RadiusMaxRatio, OuterPadPx, RimPx)
+//   P_Bevel    = (BevelPx, BevelHi, BevelShadow, RimBase)
+//   P_Frost    = (FrostTop, FrostBottom, BodyStr, BodyFalloffPx)
+//   P_Hot      = (HotAnchor, HotOffsetPx, HotSizePx, HotStr)
+//   P_Light    = (Hot2Str, GlowPx, SheenOpacity, SheenMaxPx)
+//   P_Head     = (HeadStr, HeadPx, HeadShape, HeadSparkle)
+//   P_Trail    = (TrailPx, TrailDir, TrailWidthPx, TrackDark)
+//   P_Empty    = (EmptyMix, DashPx, DashGapPx, DashRim)
+//   P_Filled   = (FilledMix, FilledHi, FilledShadow, FilledSheen)
+//   P_FilledFx = (FilledGlow, FilledGlowOffsetPx, FilledGlowBlurPx, FilledAngle)
+//   FilledColor0 ~ 3                                            (Vector Param 그대로 — rgb 색 · a 스톱)
+//   P_Features  = (UseHotspot, UseSheen, UseBody, UseHeadTrail)  ← Static Switch 상수만
+//   P_Features2 = (UseEmpty, UseFilled, IsTrack, 0)              ← Static Switch 상수만
+#define UIS_GATHER_PACKED(I) \
+    I.UV = UV.xy; I.LayoutSize = LayoutSize.xy; I.BodyColor = BodyColor.rgb; \
+    I.RadiusPx = P_Shape.x;  I.RadiusMaxRatio = P_Shape.y; I.OuterPadPx = P_Shape.z;  I.RimPx = P_Shape.w; \
+    I.BevelPx = P_Bevel.x;   I.BevelHi = P_Bevel.y;        I.BevelShadow = P_Bevel.z; I.RimBase = P_Bevel.w; \
+    I.FrostTop = P_Frost.x;  I.FrostBottom = P_Frost.y;    I.BodyStr = P_Frost.z;     I.BodyFalloffPx = P_Frost.w; \
+    I.HotAnchor = P_Hot.x;   I.HotOffsetPx = P_Hot.y;      I.HotSizePx = P_Hot.z;     I.HotStr = P_Hot.w; \
+    I.Hot2Str = P_Light.x;   I.GlowPx = P_Light.y;         I.SheenOpacity = P_Light.z; I.SheenMaxPx = P_Light.w; \
+    I.HeadStr = P_Head.x;    I.HeadPx = P_Head.y;          I.HeadShape = P_Head.z;    I.HeadSparkle = P_Head.w; \
+    I.TrailPx = P_Trail.x;   I.TrailDir = P_Trail.y;       I.TrailWidthPx = P_Trail.z; I.TrackDark = P_Trail.w; \
+    I.EmptyMix = P_Empty.x;  I.DashPx = P_Empty.y;         I.DashGapPx = P_Empty.z;   I.DashRim = P_Empty.w; \
+    I.FilledMix = P_Filled.x; I.FilledHi = P_Filled.y;     I.FilledShadow = P_Filled.z; I.FilledSheen = P_Filled.w; \
+    I.FilledGlow = P_FilledFx.x; I.FilledGlowOffsetPx = P_FilledFx.y; I.FilledGlowBlurPx = P_FilledFx.z; I.FilledAngle = P_FilledFx.w; \
+    I.FilledColor0 = FilledColor0; I.FilledColor1 = FilledColor1; I.FilledColor2 = FilledColor2; I.FilledColor3 = FilledColor3; \
+    I.UseHotspot = P_Features.x; I.UseSheen = P_Features.y; I.UseBody = P_Features.z; I.UseHeadTrail = P_Features.w; \
+    I.UseEmpty = P_Features2.x;  I.UseFilled = P_Features2.y; I.IsTrack = P_Features2.z
+
+// ---------------------------------------------------------------- rev.6 방식 (입력 41개) — 되돌리기·단계 적용용
+// Filled 입력이 없으므로 UIS_GATHER_SWITCHES가 Filled를 끈 값으로 채움
+#define UIS_FILLED_OFF(I) \
+    I.UseFilled = 0; I.FilledMix = 0; I.FilledHi = 0; I.FilledShadow = 0; I.FilledSheen = 0; \
+    I.FilledGlow = 0; I.FilledGlowOffsetPx = 0; I.FilledGlowBlurPx = 1; I.FilledAngle = 0; \
+    I.FilledColor0 = 0; I.FilledColor1 = 0; I.FilledColor2 = 0; I.FilledColor3 = 0
+
+#define UIS_GATHER_INPUTS(I) \
+    I.UV = UV.xy; I.LayoutSize = LayoutSize.xy; \
+    I.RadiusPx = RadiusPx; I.RadiusMaxRatio = RadiusMaxRatio; I.OuterPadPx = OuterPadPx; I.RimPx = RimPx; I.BevelPx = BevelPx; \
+    I.FrostTop = FrostTop; I.FrostBottom = FrostBottom; I.BodyColor = BodyColor.rgb; I.BodyStr = BodyStr; I.BodyFalloffPx = BodyFalloffPx; \
+    I.SheenOpacity = SheenOpacity; I.SheenMaxPx = SheenMaxPx; \
+    I.BevelHi = BevelHi; I.BevelShadow = BevelShadow; I.RimBase = RimBase; \
+    I.HotAnchor = HotAnchor; I.HotOffsetPx = HotOffsetPx; I.HotSizePx = HotSizePx; I.HotStr = HotStr; I.Hot2Str = Hot2Str; I.GlowPx = GlowPx; \
+    I.HeadStr = HeadStr; I.HeadPx = HeadPx; I.HeadShape = HeadShape; I.HeadSparkle = HeadSparkle; \
+    I.TrailPx = TrailPx; I.TrailDir = TrailDir; I.TrailWidthPx = TrailWidthPx; \
+    I.IsTrack = IsTrack; I.TrackDark = TrackDark; I.EmptyMix = EmptyMix; I.DashPx = DashPx; I.DashGapPx = DashGapPx; I.DashRim = DashRim
+
+#define UIS_GATHER_SWITCHES(I) \
+    I.UseHotspot = UseHotspot; I.UseSheen = UseSheen; I.UseBody = UseBody; I.UseHeadTrail = UseHeadTrail; I.UseEmpty = UseEmpty; \
+    UIS_FILLED_OFF(I)
+
+// 6a 단계 (스위치 입력을 아직 안 만들었을 때) — 전부 켬 = rev.5와 동일
+#define UIS_ALL_FEATURES_ON(I) \
+    I.UseHotspot = 1; I.UseSheen = 1; I.UseBody = 1; I.UseHeadTrail = 1; I.UseEmpty = 1; \
+    UIS_FILLED_OFF(I)
+
+// ---------------------------------------------------------------- 합성 (premultiplied over)
+void UIS_Over(inout float3 C, inout float A, float3 Col, float aRaw)
+{
+    float a = saturate(aRaw);
+    C = Col * a + C * (1 - a);
+    A = a + A * (1 - a);
+}
+void UIS_OverWhite(inout float3 C, inout float A, float aRaw)
+{
+    float a = saturate(aRaw);
+    C = a + C * (1 - a);
+    A = a + A * (1 - a);
+}
+void UIS_Darken(inout float3 C, inout float A, float aRaw)
+{
+    float a = saturate(aRaw);
+    C = C * (1 - a);
+    A = a + A * (1 - a);
+}
+
+// =====================================================================================
+// 1. Geometry — 화면 px ↔ 레이아웃 px · 둥근 사각형 SDF · 테두리 · 법선 · 베벨
+// =====================================================================================
+struct FUISGeom
+{
+    float2 Lay; // 이미지 크기 (Pad 포함, 레이아웃 px)
+    float px1; // 화면 1px의 레이아웃 길이
+    float2 B; // 틀(도형) 크기
+    float2 p; // 중심 원점, y 아래 +
+    float2 uvS; // 틀 기준 UV
+    float r; // 유효 반경
+    float2 b; // 직선부 반 길이
+    float2 q;
+    float d; // SDF (안 −)
+    float aa;
+    float fill;
+    float rim;
+    bool corner;
+    float2 n; // 바깥 법선
+    float edgeT; // 가장자리 베벨 가중 (제곱)
+    float bevel;
+};
+
+FUISGeom UIS_Geometry(FUISurfaceInput I)
+{
+    FUISGeom g;
+    float2 S = 1.0 / max(abs(float2(ddx(I.UV.x), ddy(I.UV.y))), 1e-6); // 화면 px
+    g.Lay = (I.LayoutSize.x > 0.5 && I.LayoutSize.y > 0.5) ? I.LayoutSize.xy : S;
+    float kk = 0.5 * (S.x / g.Lay.x + S.y / g.Lay.y); // 화면 px / 레이아웃 px
+    g.px1 = 1.0 / max(kk, 1e-4);
+    g.B = max(g.Lay - 2.0 * I.OuterPadPx, 1.0);
+    g.p = (I.UV - 0.5) * g.Lay;
+    g.uvS = saturate(g.p / g.B + 0.5);
+
+    g.r = min(min(I.RadiusPx, I.RadiusMaxRatio * min(g.B.x, g.B.y)), 0.5 * min(g.B.x, g.B.y));
+    g.b = 0.5 * g.B - g.r;
+    g.q = abs(g.p) - g.b;
+    g.d = length(max(g.q, 0.0)) + min(max(g.q.x, g.q.y), 0.0) - g.r;
+
+    g.aa = max(fwidth(g.d), 1e-4);
+    g.fill = saturate(0.5 - g.d / g.aa);
+    float rimW = max(I.RimPx, g.px1);
+    g.rim = g.fill - saturate(0.5 - (g.d + rimW) / g.aa);
+
+    g.corner = (g.q.x > 0.0) && (g.q.y > 0.0);
+    float2 sg = float2(g.p.x >= 0.0 ? 1.0 : -1.0, g.p.y >= 0.0 ? 1.0 : -1.0);
+    g.n = g.corner ? normalize(g.q) * sg : ((g.q.x > g.q.y) ? float2(sg.x, 0.0) : float2(0.0, sg.y));
+    float edgeT = saturate(1.0 + g.d / max(I.BevelPx, g.px1));
+    edgeT *= edgeT;
+    g.edgeT = edgeT;
+    g.bevel = dot(g.n, normalize(float2(-0.55, -0.83))) * g.edgeT * g.fill;
+    return g;
+}
+
+// =====================================================================================
+// 2. Perimeter — 둘레 좌표 s (px, 위 왼쪽 직선 시작 · 시계 방향) · 둘레 → 2D 점
+// =====================================================================================
+struct FUISPerim
+{
+    float s; // 이 픽셀의 둘레 좌표
+    float P; // 둘레 길이
+    float Lx;
+    float Ly;
+    float arc;
+};
+
+FUISPerim UIS_Perimeter(FUISGeom g)
+{
+    FUISPerim o;
+    float2 p = g.p, b = g.b;
+    float r = g.r;
+    o.Lx = 2.0 * b.x;
+    o.Ly = 2.0 * b.y;
+    o.arc = 1.5707963 * r;
+    o.P = 2.0 * o.Lx + 2.0 * o.Ly + 4.0 * o.arc;
+    float Lx = o.Lx, Ly = o.Ly, arc = o.arc;
+    float s;
+    if (g.corner)
+    {
+        if (p.x >= 0.0 && p.y < 0.0)
+        {
+            float2 c = p - float2(b.x, -b.y);
+            s = Lx + atan2(c.x, -c.y) * r;
+        }
+        else if (p.x >= 0.0)
+        {
+            float2 c = p - float2(b.x, b.y);
+            s = Lx + arc + Ly + atan2(c.y, c.x) * r;
+        }
+        else if (p.y >= 0.0)
+        {
+            float2 c = p - float2(-b.x, b.y);
+            s = 2.0 * Lx + 2.0 * arc + Ly + atan2(-c.x, c.y) * r;
+        }
+        else
+        {
+            float2 c = p - float2(-b.x, -b.y);
+            s = 2.0 * Lx + 3.0 * arc + 2.0 * Ly + atan2(-c.y, -c.x) * r;
+        }
+    }
+    else if (g.q.y > g.q.x)
+    {
+        s = (p.y < 0.0) ? (p.x + b.x) : (Lx + 2.0 * arc + Ly + b.x - p.x);
+    }
+    else
+    {
+        s = (p.x >= 0.0) ? (Lx + arc + p.y + b.y) : (2.0 * Lx + 3.0 * arc + Ly + b.y - p.y);
+    }
+    o.s = s;
+    return o;
+}
+
+// 둘레 좌표 tt → 점 H (레이아웃 px) + 진행(시계) 방향 접선 T
+void UIS_PerimeterPoint(FUISGeom g, FUISPerim pr, float tt, out float2 H, out float2 T)
+{
+    float2 b = g.b, B = g.B;
+    float r = g.r, rr = max(g.r, 1e-4);
+    float Lx = pr.Lx, Ly = pr.Ly, arc = pr.arc;
+    if (tt < Lx)
+    {
+        H = float2(tt - b.x, -0.5 * B.y);
+        T = float2(1, 0);
+    }
+    else
+    {
+        tt -= Lx;
+        if (tt < arc)
+        {
+            float a = tt / rr;
+            H = float2(b.x + r * sin(a), -b.y - r * cos(a));
+            T = float2(cos(a), sin(a));
+        }
+        else
+        {
+            tt -= arc;
+            if (tt < Ly)
+            {
+                H = float2(0.5 * B.x, tt - b.y);
+                T = float2(0, 1);
+            }
+            else
+            {
+                tt -= Ly;
+                if (tt < arc)
+                {
+                    float a = tt / rr;
+                    H = float2(b.x + r * cos(a), b.y + r * sin(a));
+                    T = float2(-sin(a), cos(a));
+                }
+                else
+                {
+                    tt -= arc;
+                    if (tt < Lx)
+                    {
+                        H = float2(b.x - tt, 0.5 * B.y);
+                        T = float2(-1, 0);
+                    }
+                    else
+                    {
+                        tt -= Lx;
+                        if (tt < arc)
+                        {
+                            float a = tt / rr;
+                            H = float2(-b.x - r * sin(a), b.y + r * cos(a));
+                            T = float2(-cos(a), -sin(a));
+                        }
+                        else
+                        {
+                            tt -= arc;
+                            if (tt < Ly)
+                            {
+                                H = float2(-0.5 * B.x, b.y - tt);
+                                T = float2(0, -1);
+                            }
+                            else
+                            {
+                                tt -= Ly;
+                                float a = tt / rr;
+                                H = float2(-b.x - r * cos(a), -b.y - r * sin(a));
+                                T = float2(sin(a), -cos(a));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// =====================================================================================
+// 3. Empty — 둘레 점선 (조각 수 정수 → 이음매 없음) · keep = 유리 효과 남길 비율
+// =====================================================================================
+struct FUISEmpty
+{
+    float eMix; // 0 일반 ~ 1 Empty
+    float keep; // 1 − eMix
+    float dash; // 점선 마스크 (AA 화면 1px)
+};
+
+FUISEmpty UIS_Empty(FUISurfaceInput I, FUISGeom g, FUISPerim pr)
+{
+    FUISEmpty e;
+    if (I.UseEmpty > 0.5)
+    {
+        e.eMix = saturate(I.EmptyMix);
+        e.keep = 1.0 - e.eMix;
+        float dashT = max(I.DashPx + I.DashGapPx, 1.0);
+        float dashN = max(round(pr.P / dashT), 1.0);
+        float per = pr.P / dashN;
+        float dashL = per * saturate(I.DashPx / dashT);
+        float loc = pr.s - per * floor(pr.s / per); // [0, per)
+        e.dash = saturate((0.5 * dashL - abs(loc - 0.5 * dashL)) / g.px1 + 0.5);
+    }
+    else
+    {
+        e.eMix = 0.0;
+        e.keep = 1.0;
+        e.dash = 0.0;
+    }
+    return e;
+}
+
+// =====================================================================================
+// 4. Hotspot — 둘레 원형 거리 핫스팟 2개(주 + 반대편) · 색 · 핫스팟 점 H · 글로우
+// =====================================================================================
+struct FUISHot
+{
+    float hpos; // 핫스팟 둘레 좌표
+    float hot; // 주 핫스팟 (둘레 가우시안)
+    float hot2; // 반대편
+    float3 hc; // 주 색 (흰 → 피치 → 라일락)
+    float3 hc2; // 반대편 색 (스카이 → 민트)
+    float2 H; // 핫스팟 점 (2D)
+    float2 T; // 진행 방향 접선
+    float2 N; // 바깥 법선
+    float2 dh; // p − H
+    float glow;
+};
+
+FUISHot UIS_Hotspot(FUISurfaceInput I, FUISGeom g, FUISPerim pr)
+{
+    FUISHot h;
+    float P = pr.P, s = pr.s;
+    float hpos = fmod(I.HotAnchor * P + I.HotOffsetPx, P);
+    if (hpos < 0.0)
+        hpos += P;
+    h.hpos = hpos;
+    float hpos2 = fmod(hpos + 0.5 * P, P);
+    float hs = max(I.HotSizePx, g.px1);
+    float ds1 = abs(s - hpos);
+    ds1 = min(ds1, P - ds1);
+    float ds2 = abs(s - hpos2);
+    ds2 = min(ds2, P - ds2);
+    h.hot = exp(-(ds1 * ds1) / (hs * hs));
+    h.hot2 = exp(-(ds2 * ds2) / (hs * hs));
+
+    float t = saturate(ds1 / (1.5 * hs));
+    h.hc = lerp(float3(1, 1, 1), UIS_PEACH, t);
+    h.hc = lerp(h.hc, UIS_LILAC, saturate(t * 2.0 - 1.0));
+    h.hc2 = lerp(UIS_SKY, UIS_MINT, saturate(ds2 / hs));
+
+    UIS_PerimeterPoint(g, pr, hpos, h.H, h.T);
+    h.N = float2(h.T.y, -h.T.x);
+    float gk = max(I.GlowPx, g.px1);
+    h.dh = g.p - h.H;
+    h.glow = exp(-dot(h.dh, h.dh) / (gk * gk));
+    return h;
+}
+
+// =====================================================================================
+// 5. Sheen — REF 6 · 6색 램프 · 윗부분만
+// =====================================================================================
+struct FUISSheen
+{
+    float mask;
+    float3 color;
+};
+
+FUISSheen UIS_Sheen(FUISurfaceInput I, FUISGeom g)
+{
+    FUISSheen o;
+    float ty = g.p.y + 0.5 * g.B.y;
+    float m = saturate(ty / max(min(0.78 * g.B.y, I.SheenMaxPx), 1.0));
+    o.mask = 1.0 - m * m * (3.0 - 2.0 * m);
+    float3 RAMP[6] =
+    {
+        float3(0.8550, 0.8714, 0.5776), // Butter
+        float3(0.8879, 0.5520, 0.4342), // Peach
+        float3(0.7682, 0.3663, 0.4793), // Rose
+        float3(0.4851, 0.3916, 0.7913), // Lilac
+        float3(0.3325, 0.5776, 0.8070), // Sky
+        float3(0.3916, 0.7682, 0.6240)
+    }; // Mint
+    float u = saturate((g.uvS.x * 0.8 + g.uvS.y * 0.6) / 1.4) * 5.0;
+    int ri = min((int) floor(u), 4);
+    o.color = lerp(RAMP[ri], RAMP[ri + 1], u - ri);
+    return o;
+}
+
+// =====================================================================================
+// 6. Body — 원소 몸체 마스크 (가장자리 · 아래쪽, SDF 등고선 — 대각선 결 의도 유지)
+// =====================================================================================
+float UIS_Body(FUISurfaceInput I, FUISGeom g)
+{
+    return exp(g.d / max(I.BodyFalloffPx, g.px1)) * (0.35 + 0.65 * g.uvS.y);
+}
+
+// =====================================================================================
+// 7. HeadTrail — Head(원 ↔ 다이아, 접선 좌표계) + 스파클 + Trail(둘레 부호 거리) + 이미지 경계 페이드
+// =====================================================================================
+struct FUISHeadTrail
+{
+    float head;
+    float3 headC;
+    float trail;
+    float3 trailC;
+};
+
+FUISHeadTrail UIS_HeadTrail(FUISurfaceInput I, FUISGeom g, FUISPerim pr, FUISHot h)
+{
+    FUISHeadTrail o;
+    float P = pr.P;
+    float hp = max(I.HeadPx, g.px1);
+    float2 ad = abs(float2(dot(h.dh, h.T), dot(h.dh, h.N))); // x = 접선, y = 법선
+    float hd = lerp(length(h.dh), ad.x + ad.y, I.HeadShape);
+    float headCore = 1.0 - smoothstep(0.25 * hp, hp, hd);
+    float headHalo = 0.45 * exp(-(hd * hd) / (2.56 * hp * hp)); // (1.6·hp)²
+    float sw = max(0.18 * hp, 0.6 * g.px1);
+    float sl = 3.5 * hp;
+    float dsS = pr.s - h.hpos;
+    dsS -= P * round(dsS / P); // [-P/2, P/2]
+    float spark = I.HeadSparkle * (exp(-abs(g.d) / sw) * exp(-abs(dsS) / sl) + exp(-ad.x / sw) * exp(-ad.y / (0.6 * sl)));
+    o.head = saturate(headCore + headHalo + 0.6 * spark);
+    o.headC = lerp(float3(1, 1, 1), UIS_PEACH, saturate(hd / (1.6 * hp)));
+
+    float behind = -dsS * I.TrailDir; // +1 시계 / −1 반시계
+    float tp = max(I.TrailPx, 1e-3);
+    float aBack = exp(-max(behind, 0.0) / tp);
+    float aFront = exp(-(min(behind, 0.0) * min(behind, 0.0)) / (hp * hp));
+    float along = (behind > 0.0 ? aBack : aFront) * saturate(I.TrailPx);
+    float tw = max(I.TrailWidthPx, g.px1) * (1.0 - 0.6 * saturate(behind / (3.0 * tp)));
+    float lateral = exp(-(g.d * g.d) / max(tw * tw, 1e-6));
+    o.trail = along * lateral;
+    float tq = saturate(behind / (2.0 * tp));
+    o.trailC = lerp(UIS_PEACH, UIS_LILAC, saturate(tq * 2.0));
+    o.trailC = lerp(o.trailC, UIS_SKY, saturate(tq * 2.0 - 1.0));
+
+    // 이미지(Pad 포함) 사각 경계에서 잘려 '사각 모서리'로 보이는 것 방지
+    float2 eI = 0.5 * g.Lay - abs(g.p);
+    float edgeFade = smoothstep(0.0, max(0.5 * I.OuterPadPx, g.px1), min(eI.x, eI.y));
+    o.head *= edgeFade;
+    o.trail *= edgeFade;
+    return o;
+}
+
+// =====================================================================================
+// 8. Track — 오목 홈 (Static Switch IsTrack): 어두운 바닥 + 위쪽 안 그림자 + 아래쪽 안 하이라이트 + 옅은 테두리
+// =====================================================================================
+float4 UIS_Track(FUISurfaceInput I, FUISGeom g, FUISEmpty e)
+{
+    float3 C = 0;
+    float A = 0;
+    UIS_Darken(C, A, I.TrackDark * g.fill);
+    float inner = exp(g.d / max(I.BevelPx, g.px1)) * g.fill; // 가장자리 1 → 안쪽 감쇠
+    float wTop = 0.35 + 0.65 * saturate(-g.n.y); // 위 1.0 · 옆/아래 0.35
+    UIS_Darken(C, A, I.BevelShadow * inner * wTop * e.keep);
+    UIS_OverWhite(C, A, I.BevelHi * g.edgeT * saturate(g.n.y) * g.fill * e.keep);
+    UIS_OverWhite(C, A, g.rim * (I.RimBase * e.keep + I.DashRim * e.dash * e.eMix));
+    return float4(C / max(A, 1e-4), A);
+}
+
+// =====================================================================================
+// 8′. Filled — 주 행동 버튼 (rev.7, Kit4 `.btn.fill.sheen`)
+//     linear-gradient(FilledAngle, Color0 → 3) 불투명 몸체 + inset 0 2px 1px 흰(FilledHi) + inset 0 −2px 3px 검정(FilledShadow)
+//     + Sheen(FilledSheen) + 바깥 0 OffsetPx BlurPx Color1(FilledGlow, Pad 영역에만 보임)
+//     몸체 스택은 CSS처럼 sRGB 공간에서 합성 → Linear로 한 번에 Over (그라데이션 보간도 sRGB = CSS 기본)
+// =====================================================================================
+float3 UIS_LinToSrgb(float3 c)
+{
+    c = max(c, 0.0);
+    return lerp(12.92 * c, 1.055 * pow(c, 1.0 / 2.4) - 0.055, step(0.0031308, c));
+}
+float3 UIS_SrgbToLin(float3 c)
+{
+    c = max(c, 0.0);
+    return lerp(c / 12.92, pow((c + 0.055) / 1.055, 2.4), step(0.04045, c));
+}
+// 정규분포 누적 (가우시안 블러된 경계) — 로지스틱 근사, 오차 < 2e-4
+float UIS_Phi(float x)
+{
+    x = clamp(x, -8.0, 8.0);
+    return 1.0 / (1.0 + exp(-x * (1.5976 + 0.07056 * x * x)));
+}
+// 둥근 사각형 SDF (중심 원점, b = 직선부 반 길이, r = 반경) — UIS_Geometry와 같은 식
+float UIS_RoundBoxSDF(float2 p, float2 b, float r)
+{
+    float2 q = abs(p) - b;
+    return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r;
+}
+
+struct FUISFilled
+{
+    float3 bodyS; // 그라데이션 (sRGB)
+    float hi; // 위 안쪽 하이라이트 마스크 (0~1)
+    float sh; // 아래 안쪽 그림자 마스크
+    float glow; // 바깥 글로우 마스크 (틀 밖에서만 사용)
+};
+
+FUISFilled UIS_Filled(FUISurfaceInput I, FUISGeom g)
+{
+    FUISFilled f;
+    // CSS 각도(0 = 위, 시계 방향) → 화면 방향 (y 아래 +), 그라데이션 선 길이 = |W·sin| + |H·cos|
+    float th = radians(I.FilledAngle);
+    float2 dir = float2(sin(th), -cos(th));
+    float L = abs(g.B.x * dir.x) + abs(g.B.y * dir.y);
+    float t = dot(g.p, dir) / max(L, 1e-4) + 0.5;
+
+    float4 c0 = I.FilledColor0, c1 = I.FilledColor1, c2 = I.FilledColor2, c3 = I.FilledColor3;
+    float3 s0 = UIS_LinToSrgb(c0.rgb), s1 = UIS_LinToSrgb(c1.rgb), s2 = UIS_LinToSrgb(c2.rgb), s3 = UIS_LinToSrgb(c3.rgb);
+    float3 col = s0;
+    col = (t >= c0.a) ? lerp(s0, s1, saturate((t - c0.a) / max(c1.a - c0.a, 1e-4))) : col;
+    col = (t >= c1.a) ? lerp(s1, s2, saturate((t - c1.a) / max(c2.a - c1.a, 1e-4))) : col;
+    col = (t >= c2.a) ? lerp(s2, s3, saturate((t - c2.a) / max(c3.a - c2.a, 1e-4))) : col;
+    f.bodyS = col;
+
+    // inset 그림자 = 틀 안 · '옮긴 틀' 밖 (경계 가우시안 σ = blur / 2, 최소 화면 0.5px)
+    float sH = max(0.5, 0.5 * g.px1); // blur 1px
+    float sS = max(1.5, 0.5 * g.px1); // blur 3px
+    f.hi = 1.0 - UIS_Phi(-UIS_RoundBoxSDF(g.p - float2(0.0, 2.0), g.b, g.r) / sH); // inset 0  2px
+    f.sh = 1.0 - UIS_Phi(-UIS_RoundBoxSDF(g.p - float2(0.0, -2.0), g.b, g.r) / sS); // inset 0 -2px
+    float sG = max(0.5 * I.FilledGlowBlurPx, 0.5 * g.px1);
+    f.glow = UIS_Phi(-UIS_RoundBoxSDF(g.p - float2(0.0, I.FilledGlowOffsetPx), g.b, g.r) / sG);
+    return f;
+}
+
+// =====================================================================================
+// 9. Composite — 일반 (Plate · Card · Well · Pill · Filled) 레이어 순서
+//    [Filled 글로우] → Frost → Body → Sheen → [Filled 몸체 스택] → Bevel 그림자 → Bevel 하이라이트 → Glow → Rim(+핫스팟 · 점선) → Trail → Head
+//    Filled(fm): 불투명 몸체가 앞의 유리 층을 덮고, 유리 Bevel·RimBase는 × (1 − fm). 핫스팟·Head는 그대로 (Hover 표현)
+// =====================================================================================
+float4 UIS_Composite(FUISurfaceInput I, FUISGeom g, FUISHot h, FUISSheen sh, float bodyMask, FUISHeadTrail ht, FUISEmpty e, FUISFilled f)
+{
+    float3 C = 0;
+    float A = 0;
+    float keep = e.keep;
+    float fm = (I.UseFilled > 0.5) ? saturate(I.FilledMix) : 0.0;
+
+    if (I.UseFilled > 0.5)
+        UIS_Over(C, A, I.FilledColor1.rgb, I.FilledGlow * f.glow * (1.0 - g.fill) * fm);
+
+    UIS_OverWhite(C, A, (lerp(I.FrostTop, I.FrostBottom, g.uvS.y) * keep + 0.025 * e.eMix) * g.fill);
+    if (I.UseBody > 0.5)
+        UIS_Over(C, A, I.BodyColor, I.BodyStr * bodyMask * g.fill * keep);
+    if (I.UseSheen > 0.5)
+        UIS_Over(C, A, sh.color, I.SheenOpacity * sh.mask * g.fill * keep);
+
+    float bk = keep;
+    float rimBase = I.RimBase;
+    if (I.UseFilled > 0.5)
+    {
+        float3 fs = f.bodyS * (1.0 - I.FilledShadow * f.sh); // 아래 안쪽 그림자
+        float aH = I.FilledHi * f.hi;
+        fs = fs * (1.0 - aH) + aH; // 위 안쪽 하이라이트
+        float aS = I.FilledSheen * sh.mask;
+        fs = fs * (1.0 - aS) + UIS_LinToSrgb(sh.color) * aS; // Sheen
+        UIS_Over(C, A, UIS_SrgbToLin(fs), fm * keep * g.fill);
+        bk = keep * (1.0 - fm);
+        rimBase = I.RimBase * (1.0 - fm);
+    }
+    UIS_Darken(C, A, I.BevelShadow * saturate(-g.bevel) * bk);
+    UIS_OverWhite(C, A, I.BevelHi * saturate(g.bevel) * bk);
+
+    float3 rimC = float3(1, 1, 1);
+    float rimA = saturate(rimBase);
+    if (I.UseHotspot > 0.5)
+    {
+        UIS_Over(C, A, h.hc, 0.22 * I.HotStr * h.glow * g.fill * keep);
+        float hotAmt = saturate(I.HotStr * (h.hot + h.hot2));
+        float w2 = h.hot2 / (h.hot + h.hot2 + 1e-6);
+        rimC = lerp(float3(1, 1, 1), lerp(h.hc, h.hc2, w2), hotAmt);
+        rimA = saturate(rimBase + I.HotStr * h.hot + I.HotStr * I.Hot2Str * h.hot2);
+    }
+    UIS_Over(C, A, rimC, g.rim * (rimA * keep + I.DashRim * e.dash * e.eMix));
+
+    if (I.UseHeadTrail > 0.5)
+    {
+        UIS_Over(C, A, ht.trailC, 0.9 * I.HeadStr * ht.trail * keep);
+        UIS_Over(C, A, ht.headC, I.HeadStr * ht.head * keep);
+    }
+    return float4(C / max(A, 1e-4), A);
+}
+
+// =====================================================================================
+// 진입점
+// =====================================================================================
+float4 UISurface_Evaluate(FUISurfaceInput I)
+{
+    FUISGeom g = UIS_Geometry(I);
+    FUISPerim pr = UIS_Perimeter(g);
+    FUISEmpty e = UIS_Empty(I, g, pr);
+
+    if (I.IsTrack > 0.5)
+        return UIS_Track(I, g, e);
+
+    FUISHot h = UIS_Hotspot(I, g, pr);
+    FUISSheen sh = UIS_Sheen(I, g);
+    float bm = UIS_Body(I, g);
+    FUISHeadTrail ht = UIS_HeadTrail(I, g, pr, h);
+    FUISFilled f = (FUISFilled) 0;
+    if (I.UseFilled > 0.5)
+        f = UIS_Filled(I, g);
+    return UIS_Composite(I, g, h, sh, bm, ht, e, f);
+}

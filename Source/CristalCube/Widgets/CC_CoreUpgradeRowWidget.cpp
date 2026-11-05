@@ -1,49 +1,19 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 
 #include "CC_CoreUpgradeRowWidget.h"
-#include "Components/TextBlock.h"
-#include "Components/Button.h"
 
 void UCC_CoreUpgradeRowWidget::SetAttributeData(const FCoreUpgradeAttribute& InAttribute, int32 CurrentSpent, int32 BankAvailable)
 {
-    AttributeType = InAttribute.AttributeType;
+	AttributeType = InAttribute.AttributeType;
 
-    if (AttributeName) AttributeName->SetText(InAttribute.DisplayName);
-
-    if (PointsText)
-    {
-        PointsText->SetText(InAttribute.MaxPoints > 0
-            ? FText::FromString(FString::Printf(TEXT("%d / %d"), CurrentSpent, InAttribute.MaxPoints))
-            : FText::FromString(FString::Printf(TEXT("%d"), CurrentSpent)));
-    }
-
-    const bool bMaxed = InAttribute.MaxPoints > 0 && CurrentSpent >= InAttribute.MaxPoints;
-    if (SpendButton)
-    {
-        SpendButton->SetIsEnabled(BankAvailable > 0 && !bMaxed);
-        if (!SpendButton->OnClicked.IsAlreadyBound(this, &UCC_CoreUpgradeRowWidget::HandleSpendClicked))
-        {
-            SpendButton->OnClicked.AddDynamic(this, &UCC_CoreUpgradeRowWidget::HandleSpendClicked);
-        }
-    }
-
-    if (RefundButton)
-    {
-        RefundButton->SetIsEnabled(CurrentSpent > 0);
-        if (!RefundButton->OnClicked.IsAlreadyBound(this, &UCC_CoreUpgradeRowWidget::HandleRefundClicked))
-        {
-            RefundButton->OnClicked.AddDynamic(this, &UCC_CoreUpgradeRowWidget::HandleRefundClicked);
-        }
-    }
+	// Core는 배율 가산(UCC_SkillBase::SpendCoreAttributePoint — Multiplier += ValuePerPoint) → 퍼센트 표기
+	ApplyRow(InAttribute.DisplayName,
+		FormatPercent(CurrentSpent * InAttribute.ValuePerPoint),
+		CurrentSpent, InAttribute.MaxPoints, BankAvailable);
 }
 
-void UCC_CoreUpgradeRowWidget::HandleSpendClicked()
+void UCC_CoreUpgradeRowWidget::RequestPoint(bool bIsRefund)
 {
-    OnPointRequested.Broadcast(AttributeType, false);
-}
-
-void UCC_CoreUpgradeRowWidget::HandleRefundClicked()
-{
-    OnPointRequested.Broadcast(AttributeType, true);
+	OnPointRequested.Broadcast(AttributeType, bIsRefund);
 }

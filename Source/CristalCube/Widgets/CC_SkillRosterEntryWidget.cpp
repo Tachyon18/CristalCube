@@ -2,272 +2,348 @@
 
 
 #include "CC_SkillRosterEntryWidget.h"
-#include "CC_SkillUpgradeDetailWidget.h"
-#include "CC_AddonBadgeWidget.h"
+#include "CC_UIIconWell.h"
+#include "CC_UIStyleData.h"
 #include "CC_SkillSlotDragOp.h"
-#include "Framework/Application/SlateApplication.h"
-#include "Components/Button.h"
 #include "Components/Image.h"
 #include "Components/TextBlock.h"
-#include "Components/PanelWidget.h"
 #include "Components/SizeBox.h"
+#include "Engine/GameInstance.h"
 #include "../SkillSystem/CC_SkillBase.h"
 #include "../SkillSystem/CC_SkillLibrarySubsystem.h"
 #include "../CC_PlayerState.h"
 
+// ─────────────────────────────────────────────────────────── 생명주기
+
+void UCC_SkillRosterEntryWidget::NativeOnInitialized()
+{
+	Super::NativeOnInitialized();
+	SetVisibility(ESlateVisibility::Visible);   // 클릭·드래그·호버를 이 위젯이 직접 받음 (드래그 복제본은 PrepareAsDragGhost가 다시 끔)
+}
+
+void UCC_SkillRosterEntryWidget::NativePreConstruct()
+{
+	Super::NativePreConstruct();
+
+	if (const UCC_UIStyleData* Style = UCC_UIStyleData::GetUIStyle())
+	{
+		if (EntrySizeBox)
+		{
+			EntrySizeBox->SetHeightOverride(Style->Sizes.EntryHeight);   // 76
+		}
+	}
+	for (UWidget* W : { static_cast<UWidget*>(SkillWell.Get()), static_cast<UWidget*>(SkillName.Get()),
+		static_cast<UWidget*>(SummaryText.Get()) })
+	{
+		if (W)
+		{
+			W->SetVisibility(ESlateVisibility::HitTestInvisible);
+		}
+	}
+
+	if (IsDesignTime())
+	{
+		ApplyPreview();
+		return;
+	}
+	ApplyTextStyles(IsEmptySlot());
+	ApplySurfaceConfig();
+}
 
 void UCC_SkillRosterEntryWidget::NativeConstruct()
 {
 	Super::NativeConstruct();
-
-    //UE_LOG(LogTemp, Warning, TEXT("[RosterDrag] NativeConstruct — new widget instance created (this=%p)"), this);
-
-    //if (CardHeaderButton && !CardHeaderButton->OnClicked.IsAlreadyBound(this, &UCC_SkillRosterEntryWidget::HandleCardHeaderClicked))
-    //{
-    //    CardHeaderButton->OnClicked.AddDynamic(this, &UCC_SkillRosterEntryWidget::HandleCardHeaderClicked);
-    //}
-
-    //if (CardHeaderButton)   CardHeaderButton->SetVisibility(ESlateVisibility::HitTestInvisible);
-	bIsExpanded = false;
-    bRevealAnimating = false;
-    bSelfFadeAnimating = false;
-
-    if (DrawerPanel)
-    {
-        DrawerPanel->SetVisibility(ESlateVisibility::Collapsed);
-        DrawerPanel->SetRenderOpacity(1.0f);
-    }
-    if (ExpandChevron)
-    {
-        ExpandChevron->SetRenderTransformAngle(0.0f);
-    }
-	SetRenderOpacity(1.0f);
+	ApplySurfaceState(true);               // 자식 Surface가 InitialState로 초기화된 뒤 복원
 }
 
-void UCC_SkillRosterEntryWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
+// ─────────────────────────────────────────────────────────── 공개 API
+
+void UCC_SkillRosterEntryWidget::SetSkillData(int32 InSlotIndex, UCC_SkillBase* Skill, ACC_PlayerState* PlayerState)
 {
-    Super::NativeTick(MyGeometry, InDeltaTime);
+	SlotIndex = InSlotIndex;
+	BoundSkill = Skill;
+	BoundPlayerState = PlayerState;
+	bDataSet = true;
 
-    //if (CardHeaderButton)
-    //{
-    //    const bool bWantPassThrough = BoundSkill != nullptr && FSlateApplication::Get().GetModifierKeys().IsControlDown();
-    //    CardHeaderButton->SetVisibility(bWantPassThrough ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Visible);
-    //}
+	if (IsEmptySlot())
+	{
+		// 빈 슬롯 — 선택 불가, Ctrl+드래그 드롭 대상 전용
+		bHovered = false;
+		bHasUnspent = false;
+		CurrentElement = ESkillElementType::None;
+		ApplyTextStyles(true);
+		if (SkillName) { SkillName->SetText(EmptyName); }
+		if (SummaryText) { SummaryText->SetText(EmptySummary); }
+		if (NoticeDot) { NoticeDot->SetVisibility(ESlateVisibility::Collapsed); }
+		if (EmptySlotOverlay) { EmptySlotOverlay->SetVisibility(ESlateVisibility::HitTestInvisible); }
+		if (SkillWell)
+		{
+			SkillWell->SetIcon(nullptr, ESkillElementType::None);
+			SkillWell->SetWellState(EUISurfaceState::Empty);
+		}
+		if (EntrySurface) { EntrySurface->SetElement(ESkillElementType::None); }
+		ApplySurfaceState(false);
+		return;
+	}
 
-    if (bRevealAnimating && DrawerPanel)
-    {
-        RevealElapsed += InDeltaTime;
-        const float Alpha = FMath::Clamp(DrawerAnimDuration > 0.0f ? RevealElapsed / DrawerAnimDuration : 1.0f, 0.0f, 1.0f);
-        const float Eased = FMath::InterpEaseOut(0.0f, 1.0f, Alpha, 2.0f);
+	ApplyTextStyles(false);
+	if (EmptySlotOverlay) { EmptySlotOverlay->SetVisibility(ESlateVisibility::Collapsed); }
 
-        DrawerPanel->SetRenderOpacity(bRevealingIn ? Eased : (1.0f - Eased));
+	UGameInstance* GI = GetGameInstance();
+	UCC_SkillLibrarySubsystem* Library = GI ? GI->GetSubsystem<UCC_SkillLibrarySubsystem>() : nullptr;
+	FSkillDisplayData Data;
+	if (Library && Library->GetSkillDisplayData(Skill->GetSkillID(), Data))
+	{
+		const FName SkillID = Skill->GetSkillID();
+		if (SkillName) { SkillName->SetText(Data.DisplayName); }
 
-        if (Alpha >= 1.0f)
-        {
-            bRevealAnimating = false;
+		if (SkillWell)
+		{
+			SkillWell->SetIcon(Data.Icon, Data.ElementType);
+			SkillWell->SetWellState(EUISurfaceState::Rest);
+		}
+		if (CurrentElement != Data.ElementType)
+		{
+			CurrentElement = Data.ElementType;
+			if (EntrySurface) { EntrySurface->SetElement(CurrentElement); }   // Selected 때 원소 몸체 10%
+		}
 
-            if (!bRevealingIn)
-            {
-                DrawerPanel->SetVisibility(ESlateVisibility::Collapsed);
-            }
-        }
-    }
+		// 요약 — CoreType · CORE(배분 합계) · ADDON(구현된 Addon 수)
+		int32 CoreSpent = 0;
+		for (const FCoreUpgradeAttribute& Attr : Library->GetSkillCoreUpgradeAttributes(SkillID))
+		{
+			CoreSpent += PlayerState->GetSkillCoreAttributeSpentPoints(SkillID, Attr.AttributeType);
+		}
+		const int32 AddonCount = Library->GetAddonBadgesForSkill(Data).Num();
+		if (SummaryText)
+		{
+			SummaryText->SetText(FText::Format(NSLOCTEXT("CC_UI", "RosterSummary", "{0} · CORE {1} · ADDON {2}"),
+				UEnum::GetDisplayValueAsText(Data.CoreType), FText::AsNumber(CoreSpent), FText::AsNumber(AddonCount)));
+		}
 
-    if (bSelfFadeAnimating)
-    {
-        SelfFadeElapsed += InDeltaTime;
-        const float Alpha = FMath::Clamp(DrawerAnimDuration > 0.0f ? SelfFadeElapsed / DrawerAnimDuration : 1.0f, 0.0f, 1.0f);
-        const float Eased = FMath::InterpEaseOut(0.0f, 1.0f, Alpha, 2.0f);
+		// 미사용 포인트 — 이 스킬 Core 은행 또는 이 스킬이 가진 Addon 종류의 은행
+		bHasUnspent = PlayerState->GetSkillCoreUnspentPoints(SkillID) > 0;
+		for (const ESkillAddonType AddonType : Data.Addons)
+		{
+			bHasUnspent |= PlayerState->GetAddonUnspentPoints(AddonType) > 0;
+		}
+	}
+	if (NoticeDot)
+	{
+		NoticeDot->SetVisibility(bHasUnspent ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
+	}
+	ApplySurfaceState(false);
+}
 
-        SetRenderOpacity(bSelfFadingIn ? Eased : (1.0f - Eased));
+void UCC_SkillRosterEntryWidget::SetSelected(bool bInSelected, bool bInstant)
+{
+	if (bSelected == bInSelected && !bInstant)
+	{
+		return;
+	}
+	bSelected = bInSelected;
+	ApplySurfaceState(bInstant);
+}
 
-        if (Alpha >= 1.0f)
-        {
-            bSelfFadeAnimating = false;
+// ─────────────────────────────────────────────────────────── 입력
 
-            if (!bSelfFadingIn)
-            {
-                SetVisibility(ESlateVisibility::Collapsed);
-            }
-        }
-    }
+void UCC_SkillRosterEntryWidget::NativeOnMouseEnter(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent)
+{
+	Super::NativeOnMouseEnter(InGeometry, InMouseEvent);
+	bHovered = !IsEmptySlot();
+	ApplySurfaceState(false);
+}
+
+void UCC_SkillRosterEntryWidget::NativeOnMouseLeave(const FPointerEvent& InMouseEvent)
+{
+	Super::NativeOnMouseLeave(InMouseEvent);
+	bHovered = false;
+	ApplySurfaceState(false);
 }
 
 FReply UCC_SkillRosterEntryWidget::NativeOnMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent)
 {
-    if (InMouseEvent.GetEffectingButton() == EKeys::LeftMouseButton && InMouseEvent.IsControlDown() && BoundSkill != nullptr)
-    {
-        return FReply::Handled().DetectDrag(TakeWidget(), EKeys::LeftMouseButton);
-    }
-
-    if (InMouseEvent.GetEffectingButton() == EKeys::LeftMouseButton && BoundSkill != nullptr)
-    {
-        bPendingClick = true;
-        return FReply::Handled().CaptureMouse(TakeWidget());
-    }
-
-    return Super::NativeOnMouseButtonDown(InGeometry, InMouseEvent);
+	if (InMouseEvent.GetEffectingButton() == EKeys::LeftMouseButton && InMouseEvent.IsControlDown() && BoundSkill != nullptr)
+	{
+		return FReply::Handled().DetectDrag(TakeWidget(), EKeys::LeftMouseButton);
+	}
+	if (InMouseEvent.GetEffectingButton() == EKeys::LeftMouseButton && BoundSkill != nullptr)
+	{
+		bPendingClick = true;
+		return FReply::Handled().CaptureMouse(TakeWidget());
+	}
+	return Super::NativeOnMouseButtonDown(InGeometry, InMouseEvent);
 }
 
 FReply UCC_SkillRosterEntryWidget::NativeOnMouseButtonUp(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent)
 {
-    if (InMouseEvent.GetEffectingButton() == EKeys::LeftMouseButton && bPendingClick)
-    {
-        bPendingClick = false;
-        
-        // 눌렀던 위치에서 그대로 뗐을 때만 클릭으로 인정 (버튼 클릭의 hover-cancel과 동일한 감각)
-        if (InGeometry.IsUnderLocation(InMouseEvent.GetScreenSpacePosition()))
-        {
-            HandleCardHeaderClicked();
-        }
-        
-        return FReply::Handled().ReleaseMouseCapture();
-    }
-
-    return Super::NativeOnMouseButtonUp(InGeometry, InMouseEvent);
+	if (InMouseEvent.GetEffectingButton() == EKeys::LeftMouseButton && bPendingClick)
+	{
+		bPendingClick = false;
+		// 눌렀던 카드 위에서 뗐을 때만 클릭 (버튼의 hover-cancel과 같은 감각)
+		if (InGeometry.IsUnderLocation(InMouseEvent.GetScreenSpacePosition()) && BoundSkill)
+		{
+			OnSelectRequested.Broadcast(this);
+		}
+		return FReply::Handled().ReleaseMouseCapture();
+	}
+	return Super::NativeOnMouseButtonUp(InGeometry, InMouseEvent);
 }
 
 void UCC_SkillRosterEntryWidget::NativeOnDragDetected(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent, UDragDropOperation*& OutOperation)
 {
-    Super::NativeOnDragDetected(InGeometry, InMouseEvent, OutOperation);   // BP 쪽에 딸린 부가 로직(있다면)만 실행되게 함
+	Super::NativeOnDragDetected(InGeometry, InMouseEvent, OutOperation);
 
-    UCC_SkillSlotDragOp* DragOp = NewObject<UCC_SkillSlotDragOp>(this);
-    DragOp->SourceSlotIndex = SlotIndex;
+	UCC_SkillSlotDragOp* DragOp = NewObject<UCC_SkillSlotDragOp>(this);
+	DragOp->SourceSlotIndex = SlotIndex;
 
-    if (SkillIcon)
-    {
-        UImage* GhostImage = NewObject<UImage>(this);
-        GhostImage->SetBrush(SkillIcon->GetBrush());
-        GhostImage->SetRenderOpacity(0.75f);
-        GhostImage->SetDesiredSizeOverride(InGeometry.GetLocalSize());
-        DragOp->DefaultDragVisual = GhostImage;
-    }
-    DragOp->Pivot = EDragPivot::MouseDown;
-    OutOperation = DragOp;
+	// (fix1) 커서를 따라오는 것 = 이 카드의 복제본 (같은 WBP 클래스 · Selected 모양 · 같은 폭)
+	//        아이콘이 없는 스킬(DT_Skill Icon 비어 있음)이어도 카드째 보이므로 '잡고 있음'이 분명함
+	if (UCC_SkillRosterEntryWidget* Ghost = CreateWidget<UCC_SkillRosterEntryWidget>(this, GetClass()))
+	{
+		Ghost->SetSkillData(SlotIndex, BoundSkill, BoundPlayerState);
+		Ghost->PrepareAsDragGhost(InGeometry.GetLocalSize().X);
+		DragOp->DefaultDragVisual = Ghost;
+	}
+	DragOp->Pivot = EDragPivot::MouseDown;      // 잡은 위치 그대로 따라옴
+	DragOp->OnDrop.AddDynamic(this, &UCC_SkillRosterEntryWidget::HandleDragEnded);
+	DragOp->OnDragCancelled.AddDynamic(this, &UCC_SkillRosterEntryWidget::HandleDragEnded);
+
+	SetDragSource(true);                        // 원래 자리 카드 흐리게
+	OutOperation = DragOp;
 }
 
 bool UCC_SkillRosterEntryWidget::NativeOnDrop(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation)
 {
-    const bool bSuperHandled = Super::NativeOnDrop(InGeometry, InDragDropEvent, InOperation);
-
-    if (UCC_SkillSlotDragOp* DragOp = Cast<UCC_SkillSlotDragOp>(InOperation))
-    {
-        OnSlotDropRequested.Broadcast(DragOp->SourceSlotIndex, SlotIndex);
-        return true;
-    }
-    return bSuperHandled;
+	const bool bSuperHandled = Super::NativeOnDrop(InGeometry, InDragDropEvent, InOperation);
+	bDragOver = false;
+	ApplySurfaceState(false);
+	if (UCC_SkillSlotDragOp* DragOp = Cast<UCC_SkillSlotDragOp>(InOperation))
+	{
+		OnSlotDropRequested.Broadcast(DragOp->SourceSlotIndex, SlotIndex);
+		return true;
+	}
+	return bSuperHandled;
 }
 
-void UCC_SkillRosterEntryWidget::SetSkillData(int32 InSlotIndex, UCC_SkillBase* Skill, ACC_PlayerState* PlayerState)
+void UCC_SkillRosterEntryWidget::NativeOnDragEnter(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation)
 {
-    SlotIndex = InSlotIndex;
-    BoundSkill = Skill;
-    BoundPlayerState = PlayerState;
-
-    if (!Skill || !PlayerState)
-    {
-        // 빈 슬롯 — 확장 불가, 드롭 타겟 전용 플레이스홀더로 표시
-        if (SkillIcon) SkillIcon->SetVisibility(ESlateVisibility::Hidden);
-        if (SkillName) SkillName->SetText(FText::GetEmpty());
-        if (ExpandChevron) ExpandChevron->SetVisibility(ESlateVisibility::Hidden);
-        if (AddonIconStrip) AddonIconStrip->ClearChildren();
-        if (EmptySlotOverlay) EmptySlotOverlay->SetVisibility(ESlateVisibility::Visible);
-
-        return;
-    }
-
-    if (EmptySlotOverlay) EmptySlotOverlay->SetVisibility(ESlateVisibility::Collapsed);
-    if (SkillIcon) SkillIcon->SetVisibility(ESlateVisibility::Visible);
-    if (ExpandChevron) ExpandChevron->SetVisibility(ESlateVisibility::Visible);
-
-    UCC_SkillLibrarySubsystem* SkillLibrary =
-        GetWorld() ? GetWorld()->GetGameInstance()->GetSubsystem<UCC_SkillLibrarySubsystem>() : nullptr;
-    if (!SkillLibrary) return;
-
-    FSkillDisplayData SkillData;
-    if (SkillLibrary->GetSkillDisplayData(Skill->GetSkillID(), SkillData))
-    {
-        if (SkillIcon) SkillIcon->SetBrushFromTexture(SkillData.Icon);
-        if (SkillName) SkillName->SetText(SkillData.DisplayName);
-        RefreshAddonIconStrip(SkillLibrary->GetAddonBadgesForSkill(SkillData));
-    }
-
-    if (bIsExpanded && DrawerPanel)
-    {
-        DrawerPanel->ShowSkill(Skill, PlayerState);
-    }
+	Super::NativeOnDragEnter(InGeometry, InDragDropEvent, InOperation);
+	const UCC_SkillSlotDragOp* DragOp = Cast<UCC_SkillSlotDragOp>(InOperation);
+	bDragOver = DragOp && DragOp->SourceSlotIndex != SlotIndex;   // 자기 자신 위는 표시 안 함
+	ApplySurfaceState(false);
 }
 
-void UCC_SkillRosterEntryWidget::SetExpanded(bool bNewExpanded)
+void UCC_SkillRosterEntryWidget::NativeOnDragLeave(const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation)
 {
-    if (bIsExpanded == bNewExpanded) return;
-    bIsExpanded = bNewExpanded;
-
-    if (ExpandChevron)
-    {
-        ExpandChevron->SetRenderTransformAngle(bIsExpanded ? 180.0f : 0.0f);
-    }
-
-    if (!DrawerPanel) return;
-
-    if (bIsExpanded)
-    {
-        if (BoundSkill && BoundPlayerState)
-        {
-            DrawerPanel->ShowSkill(BoundSkill, BoundPlayerState);
-        }
-
-        DrawerPanel->SetVisibility(ESlateVisibility::Visible);
-        DrawerPanel->SetRenderOpacity(0.0f);
-        bRevealAnimating = true;
-        bRevealingIn = true;
-        RevealElapsed = 0.0f;
-    }
-    else
-    {
-        bRevealAnimating = true;
-        bRevealingIn = false;
-        RevealElapsed = 0.0f;
-    }
+	Super::NativeOnDragLeave(InDragDropEvent, InOperation);
+	bDragOver = false;
+	ApplySurfaceState(false);
 }
 
-void UCC_SkillRosterEntryWidget::PlayFadeOut()
+void UCC_SkillRosterEntryWidget::HandleDragEnded(UDragDropOperation* Operation)
 {
-    bSelfFadeAnimating = true;
-    bSelfFadingIn = false;
-    SelfFadeElapsed = 0.0f;
+	SetDragSource(false);
 }
 
-void UCC_SkillRosterEntryWidget::PlayFadeIn()
-{
-    SetVisibility(ESlateVisibility::Visible);
-    SetRenderOpacity(0.0f);
+// ─────────────────────────────────────────────────────────── 드래그 복제본 (fix1)
 
-    bSelfFadeAnimating = true;
-    bSelfFadingIn = true;
-    SelfFadeElapsed = 0.0f;
+void UCC_SkillRosterEntryWidget::PrepareAsDragGhost(float Width)
+{
+	bIsDragGhost = true;
+	bSelected = true;                       // 잡힌 카드 = Selected 모양 (테두리 + Sheen + 원소색)
+	SetVisibility(ESlateVisibility::HitTestInvisible);   // 드롭 판정을 가로채지 않게
+	if (EntrySizeBox && Width > 0.f)
+	{
+		EntrySizeBox->SetWidthOverride(Width);
+	}
+	SetRenderOpacity(DragGhostOpacity);
+	ApplySurfaceState(true);
 }
 
-void UCC_SkillRosterEntryWidget::HandleCardHeaderClicked()
+void UCC_SkillRosterEntryWidget::SetDragSource(bool bInDragSource)
 {
-    if (!BoundSkill) return;
-    OnExpandRequested.Broadcast(this);
+	bDragSource = bInDragSource;
+	SetRenderOpacity(bDragSource ? DragSourceOpacity : 1.f);
 }
 
-void UCC_SkillRosterEntryWidget::RefreshAddonIconStrip(const TArray<FAddonTableRow>& AddonBadges)
+// ─────────────────────────────────────────────────────────── 내부
+
+bool UCC_SkillRosterEntryWidget::IsEmptySlot() const
 {
-    if (!AddonIconStrip) return;
+	return bDataSet && (BoundSkill == nullptr || BoundPlayerState == nullptr);
+}
 
-    AddonIconStrip->ClearChildren();
-    if (!AddonIconWidgetClass) return;
+void UCC_SkillRosterEntryWidget::ApplySurfaceConfig()
+{
+	if (!EntrySurface)
+	{
+		return;
+	}
+	EntrySurface->SurfaceRole = EUISurfaceRole::Card;
+	EntrySurface->RadiusToken = EUIRadius::Entry;      // 18
+	EntrySurface->Element = CurrentElement;
+	EntrySurface->bAutoOuterPad = false;                 // 목록 — 핫스팟 이동 없음 (정적 Selected 테두리만)
+	EntrySurface->bAutoHoverState = false;                 // 상태는 이 위젯이 지시
+	EntrySurface->SetVisibility(ESlateVisibility::HitTestInvisible);
+	EntrySurface->RefreshFromStyle();
+	ApplySurfaceState(true);
+}
 
-    for (const FAddonTableRow& Addon : AddonBadges)
-    {
-        UCC_AddonBadgeWidget* BadgeWidget = CreateWidget<UCC_AddonBadgeWidget>(this, AddonIconWidgetClass);
-        if (!BadgeWidget) continue;
+void UCC_SkillRosterEntryWidget::ApplySurfaceState(bool bInstant)
+{
+	if (!EntrySurface)
+	{
+		return;
+	}
+	EUISurfaceState State = EUISurfaceState::Rest;
+	if (bDragOver) { State = EUISurfaceState::Hover; }   // (fix1) 놓을 자리 — 빈 슬롯도 테두리로 표시
+	else if (IsEmptySlot()) { State = EUISurfaceState::Empty; }
+	else if (bSelected) { State = EUISurfaceState::Selected; }
+	else if (bHovered) { State = EUISurfaceState::Hover; }
+	EntrySurface->SetSurfaceState(State, bInstant);
+}
 
-        BadgeWidget->SetAddonData(Addon);
-		BadgeWidget->SetVisibility(ESlateVisibility::HitTestInvisible);
-        AddonIconStrip->AddChild(BadgeWidget);
-    }
+void UCC_SkillRosterEntryWidget::ApplyTextStyles(bool bEmpty)
+{
+	if (SkillName)
+	{
+		UCC_UIStyleData::ApplyTextStyle(SkillName, EUITextStyle::Title, true);
+		if (bEmpty)
+		{
+			const UCC_UIStyleData* Style = UCC_UIStyleData::GetUIStyle();
+			SkillName->SetColorAndOpacity(FSlateColor(FLinearColor(Style ? Style->TextTertiary : FColor(0x90, 0x96, 0xB0))));
+		}
+	}
+	if (SummaryText)
+	{
+		UCC_UIStyleData::ApplyTextStyle(SummaryText, EUITextStyle::CaptionTight, true);
+	}
+}
+
+void UCC_SkillRosterEntryWidget::ApplyPreview()
+{
+	// 디자이너 전용 — 데이터 없이 Rest / Selected / Empty 모양 확인
+	CurrentElement = bPreviewEmpty ? ESkillElementType::None : PreviewElement;
+	ApplyTextStyles(bPreviewEmpty);
+	if (SkillName) { SkillName->SetText(bPreviewEmpty ? EmptyName : PreviewName); }
+	if (SummaryText) { SummaryText->SetText(bPreviewEmpty ? EmptySummary : PreviewSummary); }
+	if (NoticeDot) { NoticeDot->SetVisibility((bPreviewUnspent && !bPreviewEmpty) ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed); }
+	if (EmptySlotOverlay) { EmptySlotOverlay->SetVisibility(bPreviewEmpty ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed); }
+	if (SkillWell)
+	{
+		SkillWell->SetIcon(SkillWell->Icon, CurrentElement);
+		SkillWell->SetWellState(bPreviewEmpty ? EUISurfaceState::Empty : EUISurfaceState::Rest, true);
+	}
+	if (EntrySurface)
+	{
+		EntrySurface->SurfaceRole = EUISurfaceRole::Card;
+		EntrySurface->RadiusToken = EUIRadius::Entry;
+		EntrySurface->Element = CurrentElement;
+		EntrySurface->bAutoOuterPad = false;
+		EntrySurface->bAutoHoverState = false;
+		EntrySurface->RefreshFromStyle();
+		EntrySurface->SetSurfaceState(bPreviewEmpty ? EUISurfaceState::Empty
+			: (bPreviewSelected ? EUISurfaceState::Selected : EUISurfaceState::Rest), true);
+	}
 }

@@ -9,11 +9,43 @@
 
 class UCC_SkillBase;
 class ACC_PlayerState;
+class UCC_SkillLibrarySubsystem;
+class UCC_UISurface;
+class UCC_UIIconWell;
+class UCC_UICounter;
+class UCC_CoreUpgradeRowWidget;
+class UCC_AddonUpgradeCardWidget;
+class UTextBlock;
+class UPanelWidget;
+class UButton;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnUpgradePanelCloseRequested);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnUpgradePointsChanged);
 
 /**
- * 
+ * WBP_SkillUpgradeDetail 구조 (이름 일치 — 굵은 글씨 = BindWidget, 나머지 선택):
+ *   [Root] Vertical Box
+ *     ├ Overlay  ← 헤더 카드
+ *     │   ├ HeaderSurface (WBP_UI_Surface)                         C++: Card · Section 22 · Selected · 원소
+ *     │   └ Horizontal Box (Padding 22,18 · 세로 Center)
+ *     │       ├ SkillWell (WBP_UI_IconWell — Well Size L)
+ *     │       ├ Spacer 16×1
+ *     │       └ Vertical Box (Fill)
+ *     │           ├ Horizontal Box : SkillName · Spacer 10 · SkillMetaText ("Projectile · ") · ElementText ("Red 공격")
+ *     │           └ SkillDescription
+ *     ├ Spacer 1×14
+ *     └ Horizontal Box (Fill)  ← 두 열 (각 슬롯 Fill 1.0, 사이 Spacer 14)
+ *         ├ Overlay  ← Core 섹션
+ *         │   ├ CoreSurface (WBP_UI_Surface)                       C++: Card · Section 22 · Rest
+ *         │   └ Vertical Box (Padding 20,18)
+ *         │       ├ Horizontal Box : VerticalBox[CoreLabel "CORE 강화" · CoreSubLabel "이 스킬에만 적용"] · (Fill) · CoreBankCounter (WBP_UI_Counter)
+ *         │       └ **CoreAttributeContainer** (Vertical Box)
+ *         └ Overlay  ← Addon 섹션
+ *             ├ AddonSurface (WBP_UI_Surface)                      C++: Card · Section 22 · Rest
+ *             └ Vertical Box (Padding 20,18)
+ *                 ├ AddonLabel "ADDON 강화" · AddonSubLabel "같은 Addon을 가진 모든 스킬에 함께 적용"
+ *                 ├ AddonEmptyText ("Addon 없음", 선택)
+ *                 └ Scroll Box (Fill) › **AddonCardBox** (Vertical Box)
  */
 UCLASS()
 class CRISTALCUBE_API UCC_SkillUpgradeDetailWidget : public UUserWidget
@@ -21,58 +53,84 @@ class CRISTALCUBE_API UCC_SkillUpgradeDetailWidget : public UUserWidget
 	GENERATED_BODY()
 
 public:
+	/** 이 스킬 기준으로 헤더 · Core · Addon 표시. 같은 스킬이면 위젯 재사용 · 값만 갱신 */
+	UFUNCTION(BlueprintCallable, Category = "Skill Upgrade")
+	void ShowSkill(UCC_SkillBase* Skill, ACC_PlayerState* PlayerState);
 
-	virtual void NativeConstruct() override;
+	/** 장착 스킬이 하나도 없을 때 */
+	UFUNCTION(BlueprintCallable, Category = "Skill Upgrade")
+	void ShowEmpty();
 
-    /** SkillRoster에서 스킬 선택 시 컨테이너가 호출 — 이 스킬 기준으로 Addon/Core 섹션 재구성 */
-    UFUNCTION(BlueprintCallable, Category = "Skill Upgrade")
-    void ShowSkill(UCC_SkillBase* Skill, ACC_PlayerState* PlayerState);
+	/** 배분/회수 성공 시 — 인벤토리가 로스터 요약 · Notice Dot 갱신 */
+	UPROPERTY(BlueprintAssignable, Category = "Skill Upgrade")
+	FOnUpgradePointsChanged OnPointsChanged;
+
+	/** (이전 호환) 닫기 버튼 — CloseButton을 배치했을 때만 */
+	UPROPERTY(BlueprintAssignable, Category = "Skill Upgrade")
+	FOnUpgradePanelCloseRequested OnCloseRequested;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Skill Upgrade")
+	TSubclassOf<UCC_CoreUpgradeRowWidget> CoreAttributeRowWidgetClass;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Skill Upgrade")
+	TSubclassOf<UCC_AddonUpgradeCardWidget> AddonCardWidgetClass;
+
+	/** 스킬을 바꿀 때 헤더 테두리 Intro (PlayRimIntro) */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skill Upgrade")
+	bool bHeaderIntroOnSkillChange = true;
 
 protected:
-    UPROPERTY(meta = (BindWidgetOptional)) class UImage* SkillIcon;
-    UPROPERTY(meta = (BindWidgetOptional)) class UTextBlock* SkillName;
-    UPROPERTY(meta = (BindWidgetOptional)) UTextBlock* SkillDescription;
+	virtual void NativeOnInitialized() override;
+	virtual void NativePreConstruct() override;
+	virtual void NativeConstruct() override;
 
-    /** 이 스킬이 가진 Addon 카드 리스트. Card(UCC_AddonUpgradeCardWidget)가 IUserObjectListEntry를
-     *  구현하고 있으므로 그 계약대로 ListView를 사용 — PanelWidget에 수동으로 채우면
-     *  NativeOnListItemObjectSet이 인터페이스 단에서부터 protected라 컴파일 자체가 안 됨. */
-    UPROPERTY(meta = (BindWidget)) class UListView* AddonCardContainer;
+	UPROPERTY(meta = (BindWidget))
+	TObjectPtr<UPanelWidget> CoreAttributeContainer;
 
-    /** Core 강화 행 컨테이너. CC_AddonUpgradeCardWidget::AttributeRowContainer와 동일 패턴 —
-     *  ShowSkill()마다 비우고 카탈로그(CoreUpgradeAttributes) 개수만큼 Row를 새로 만들어 채움. */
-    UPROPERTY(meta = (BindWidget)) class UPanelWidget* CoreAttributeContainer;
+	UPROPERTY(meta = (BindWidget))
+	TObjectPtr<UPanelWidget> AddonCardBox;
 
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Skill Upgrade")
-    TSubclassOf<class UCC_CoreUpgradeRowWidget> CoreAttributeRowWidgetClass;
-
-    UPROPERTY(meta = (BindWidgetOptional)) class UButton* CloseButton;
-
-    UFUNCTION()
-    void HandleCorePointRequested(ECoreUpgradeAttribute AttributeType, bool bIsRefund);
-
-    UFUNCTION()
-    void HandleCardPointRequested(ESkillAddonType AddonType, FName AttributeID, bool bIsRefund);
-
-    UFUNCTION()
-    void HandleCloseClicked();
-
-public:
-
-    /** 닫기 버튼 클릭 시 브로드캐스트. 이 위젯 자신은 Visibility를 안 건드림 —
-     *  WidgetSwitcher의 자식이라 스스로 숨겨봤자 의미 없고, "그리드로 돌아가기"는
-     *  이 이벤트를 구독하는 컨테이너(SkillInventoryWidget)가 SetActiveWidgetIndex(0)으로 처리. */
-    UPROPERTY(BlueprintAssignable, Category = "Skill Upgrade")
-    FOnUpgradePanelCloseRequested OnCloseRequested;
+	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UCC_UISurface> HeaderSurface;
+	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UCC_UISurface> CoreSurface;
+	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UCC_UISurface> AddonSurface;
+	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UCC_UIIconWell> SkillWell;
+	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UTextBlock> SkillName;
+	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UTextBlock> SkillMetaText;
+	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UTextBlock> ElementText;
+	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UTextBlock> SkillDescription;
+	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UCC_UICounter> CoreBankCounter;
+	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UTextBlock> CoreLabel;
+	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UTextBlock> CoreSubLabel;
+	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UTextBlock> AddonLabel;
+	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UTextBlock> AddonSubLabel;
+	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UTextBlock> AddonEmptyText;
+	UPROPERTY(meta = (BindWidgetOptional)) TObjectPtr<UButton> CloseButton;
 
 private:
-    TWeakObjectPtr<UCC_SkillBase> CurrentSkill;
-    TWeakObjectPtr<ACC_PlayerState> BoundPlayerState;
+	UFUNCTION() void HandleCorePointRequested(ECoreUpgradeAttribute AttributeType, bool bIsRefund);
+	UFUNCTION() void HandleCardPointRequested(ESkillAddonType AddonType, FName AttributeID, bool bIsRefund);
+	UFUNCTION() void HandleCardToggleRequested(UCC_AddonUpgradeCardWidget* Card);
+	UFUNCTION() void HandleCloseClicked();
 
-    /** Core 강화 컨테이너를 비우고 카탈로그 기준으로 Row를 다시 채움. */
-    void RebuildCoreAttributeRows(class UCC_SkillBase* Skill, class ACC_PlayerState* PlayerState,
-        class UCC_SkillLibrarySubsystem* SkillLibrary);
+	UCC_SkillLibrarySubsystem* GetSkillLibrary() const;
+	void ApplySurfaceConfig();
+	void RefreshHeader(UCC_SkillBase* Skill, UCC_SkillLibrarySubsystem* Library);
+	void RefreshCore(UCC_SkillBase* Skill, ACC_PlayerState* PlayerState, UCC_SkillLibrarySubsystem* Library, bool bSkillChanged);
+	void RefreshAddons(UCC_SkillBase* Skill, ACC_PlayerState* PlayerState, UCC_SkillLibrarySubsystem* Library, bool bSkillChanged);
+	FText BuildSharedText(ESkillAddonType AddonType, ACC_PlayerState* PlayerState, UCC_SkillLibrarySubsystem* Library) const;
+	static FText GetElementLabel(ESkillElementType Element);
 
-    /** ListView가 엔트리 위젯(Card)을 새로 만들 때마다 호출됨 — 여기서 Card의 OnSpendRequested를 구독 */
-    void HandleEntryWidgetGenerated(UUserWidget& EntryWidget);
+	TWeakObjectPtr<UCC_SkillBase> CurrentSkill;
+	TWeakObjectPtr<ACC_PlayerState> BoundPlayerState;
 
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UCC_CoreUpgradeRowWidget>> CoreRows;
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UCC_AddonUpgradeCardWidget>> AddonCards;
+
+	/** 지금 펼친 Addon (None = 전부 접힘). 같은 스킬 재표시 때 유지, 스킬 바뀌면 첫 카드 */
+	ESkillAddonType ExpandedAddon = ESkillAddonType::None;
+
+	ESkillElementType HeaderElement = ESkillElementType::None;
 };

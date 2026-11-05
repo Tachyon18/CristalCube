@@ -11,6 +11,6 @@ public class CristalCubeEditorTarget : TargetRules
 		DefaultBuildSettings = BuildSettingsVersion.V5;
 		IncludeOrderVersion = EngineIncludeOrderVersion.Unreal5_6;
 
-		ExtraModuleNames.AddRange( new string[] { "CristalCube" } );
+		ExtraModuleNames.AddRange( new string[] { "CristalCube", "CristalCubeShaders" } );
 	}
 }

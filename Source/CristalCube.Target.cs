@@ -10,6 +10,6 @@ public class CristalCubeTarget : TargetRules
 		Type = TargetType.Game;
 		DefaultBuildSettings = BuildSettingsVersion.V5;
 
-		ExtraModuleNames.AddRange( new string[] { "CristalCube" } );
+		ExtraModuleNames.AddRange( new string[] { "CristalCube", "CristalCubeShaders" } );
 	}
 }
